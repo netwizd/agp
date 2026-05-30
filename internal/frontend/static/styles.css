@@ -309,7 +309,7 @@ p {
   margin: 0;
 }
 
-.selector-chip:has(input:checked) {
+.selector-chip.selected {
   border-color: var(--accent);
   background: #e8f2ff;
 }

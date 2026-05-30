@@ -620,7 +620,8 @@ server {
 }
 
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;
+    http2 on;
     server_name ${PORTAL_HOST};
 
     ssl_certificate ${cert};

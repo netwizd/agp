@@ -194,7 +194,8 @@ upstream agp_backend {
 }
 
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;
+    http2 on;
     server_name {{ .PortalHost }};
 
     ssl_certificate /etc/letsencrypt/live/{{ .PortalHost }}/fullchain.pem;
@@ -261,7 +262,8 @@ location ^~ {{ .PublicPath }} {
 
 var resourceServerTemplate = template.Must(template.New("resource-server").Parse(`
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;
+    http2 on;
     server_name {{ .PublicHost }};
 
     ssl_certificate /etc/letsencrypt/live/{{ .PublicHost }}/fullchain.pem;

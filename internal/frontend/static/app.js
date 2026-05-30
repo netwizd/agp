@@ -617,6 +617,7 @@ async function loadResources() {
   await ensureGroupLookup();
   if (els.resourceGroupSelector) {
     els.resourceGroupSelector.innerHTML = renderGroupSelector([], "Группы не созданы. Без группы доступ к ресурсу будет запрещен.");
+    bindGroupSelectors(els.resourceGroupSelector);
   }
   const data = await api("/api/v1/admin/resources");
   renderAdminResources(data.resources || []);
@@ -654,6 +655,7 @@ function renderAdminResources(resources) {
     button.addEventListener("click", () => handleResourceAction(button.dataset.action, button.dataset.id));
   });
   els.adminResources.querySelectorAll("form[data-resource-edit]").forEach((form) => {
+    bindGroupSelectors(form);
     form.addEventListener("submit", (event) => submitResourceEdit(event, form));
   });
 }
@@ -748,7 +750,7 @@ function renderGroupSelector(selectedGroupIDs, emptyMessage) {
       ${state.adminGroups
         .map(
           (group) => `
-          <label class="selector-chip">
+          <label class="selector-chip ${selected.has(group.ID) ? "selected" : ""}">
             <input name="group_ids" type="checkbox" value="${escapeHTML(group.ID)}" ${selected.has(group.ID) ? "checked" : ""} />
             <span>${escapeHTML(group.Name)}</span>
           </label>
@@ -784,6 +786,7 @@ async function loadUsers() {
   await ensureGroupLookup();
   if (els.userGroupSelector) {
     els.userGroupSelector.innerHTML = renderGroupSelector([], "Группы не созданы. Пользователя можно создать без групп и назначить их позже.");
+    bindGroupSelectors(els.userGroupSelector);
   }
   const data = await api("/api/v1/admin/users");
   const users = data.users || [];
@@ -815,6 +818,7 @@ async function loadUsers() {
     button.addEventListener("click", () => handleUserAction(button.dataset.action, button.dataset.id, button.dataset.blocked === "true"));
   });
   els.adminUsers.querySelectorAll("form[data-user-edit]").forEach((form) => {
+    bindGroupSelectors(form);
     form.addEventListener("submit", (event) => submitUserEdit(event, form));
   });
 }
@@ -1396,6 +1400,18 @@ function splitCSV(value) {
 
 function selectedValues(form, name) {
   return Array.from(form.querySelectorAll(`input[name="${name}"]:checked`)).map((input) => input.value);
+}
+
+function bindGroupSelectors(root) {
+  if (!root) return;
+  root.querySelectorAll('.selector-chip input[name="group_ids"]').forEach((input) => {
+    const chip = input.closest(".selector-chip");
+    const sync = () => {
+      if (chip) chip.classList.toggle("selected", input.checked);
+    };
+    sync();
+    input.addEventListener("change", sync);
+  });
 }
 
 function publicResourceURL(resource) {
