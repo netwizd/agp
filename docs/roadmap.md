@@ -1,309 +1,184 @@
-# AGP Check-up and Roadmap
+# Check-Up И Roadmap AGP
 
-Date: 2026-05-30
+Дата актуализации: 2026-05-31.
 
-## Executive Summary
+## Краткое Резюме
 
-AGP сейчас находится на стадии backend foundation с первым встроенным UI shell.
-Уже есть рабочее ядро авторизации, PostgreSQL/SQLite storage, Admin API, audit
-model, permission-based RBAC foundation, Nginx `auth_request` контракт,
-генератор Nginx-рекомендаций, public downloads, базовая кастомизация портала
-и on-demand диагностика ресурсов.
+AGP доведен до single-node v1.0 baseline: есть backend, PostgreSQL storage,
+встроенный portal/admin UI, RBAC, public downloads, audit, diagnostics,
+Nginx bundle generator, install/update scripts, backup/restore scripts и
+production runbook.
 
-Проект переведен в v1.0 production-readiness track для single-node deployment:
-PostgreSQL, systemd, Nginx, ручное применение Nginx configs, health/readiness
-и базовые metrics. RBAC management UX остается базовым, а MFA, invite links и
-notifications вынесены в v1.1.
+Проект готовится к первому production rollout без Docker. v1.1 сфокусирована на
+MFA, invite/password setup links, уведомлениях и activity visibility.
 
 ## Readiness Matrix
 
-| Layer | Status | Readiness | Notes |
+| Слой | Статус | Готовность | Комментарий |
 | --- | --- | --- | --- |
-| Backend runtime | Implemented | MVP-ready | HTTP server, graceful shutdown, structured logs |
-| Local auth | Implemented | MVP-ready | Argon2id, local users |
-| Sessions | Implemented | MVP-ready | server-side sessions, hashed tokens, CSRF |
-| PostgreSQL | Implemented | v1.0-ready | production default, embedded migrations, opt-in integration test |
-| SQLite fallback | Implemented | Dev-ready | useful for tests and local bootstrap |
-| User portal API | Implemented | MVP-ready | `/me`, user resource list, public settings/downloads |
-| Admin API | Implemented | Needs UI refinement | CRUD users/groups/resources/downloads/settings, sessions, audit |
-| Nginx auth_request | Implemented | MVP-ready | fail-closed authorization endpoint |
-| Nginx recommendations | Implemented | MVP-ready | generated snippets, no auto-apply |
-| Audit | Implemented | Needs retention/export strategy | DB-backed events |
-| Frontend | Partial | Needs feature completion | searchable/grouped portal catalog with resources/downloads/settings/groups/users/sessions/audit tabs |
-| PostgreSQL runtime validation | Implemented | Release-check ready | opt-in live DB integration test exists |
-| Permission model | Partial | Needs UX/templates | permission-based middleware and group permissions exist |
-| Rate limiting | Partial | Single-node only | in-memory limiter |
-| MFA/SSO | Not implemented | Enterprise phase | LDAP/AD/TOTP/SSO later |
-| Observability | Implemented | v1.0-ready | logs, `/healthz`, `/readyz`, `/metrics` |
-| Deployment automation | Partial | v1.0-ready | systemd/nginx/logrotate docs and production runbook exist |
+| Backend runtime | реализовано | v1.0 | Go HTTP server, graceful shutdown, JSON logs |
+| Local auth | реализовано | v1.0 | Argon2id, local users |
+| Sessions | реализовано | v1.0 | server-side sessions, hashed tokens, CSRF |
+| PostgreSQL | реализовано | v1.0 | production default, migrations, integration test |
+| SQLite fallback | реализовано | dev/test | fallback, не основной production backend |
+| User portal | реализовано | v1.0 | resources, search, downloads, help, logout |
+| Admin UI | реализовано | v1.0 baseline | CRUD resources/users/groups/downloads, audit, sessions |
+| RBAC | реализовано | v1.0 baseline | permission model, group permissions, superadmin guard |
+| Nginx integration | реализовано | v1.0 | `auth_request`, bundle/snippets |
+| Path proxying | реализовано | v1.0 | public path, redirect/cookie rewrite |
+| Public downloads | реализовано | v1.0 | upload progress, SHA-256, policy, publish/hide/delete |
+| Audit | реализовано | v1.0 | filters, CSV/JSON export, admin metadata |
+| Diagnostics | реализовано | v1.0 | on-demand checks, history, CIDR policy |
+| Observability | реализовано | v1.0 | `/healthz`, `/readyz`, `/metrics`, logs |
+| Deployment | реализовано | v1.0 | install/update scripts, systemd, Nginx docs |
+| Backup/restore | реализовано | v1.0 baseline | PostgreSQL dump, downloads archive, checksum validation |
+| MFA/SSO | не реализовано | v1.1+ | MFA first, external IdP later |
+| Notifications | не реализовано | v1.1 | login/resource/admin activity notifications |
 
-## What Is Ready
+## Что Готово
 
-### Core Security Path
+### Security Path
 
-- Login with local users.
-- Password hashing with Argon2id.
-- Server-side session creation and revocation.
-- Secure session cookies by default.
-- CSRF protection for mutating authenticated API.
-- Nginx `auth_request` endpoint.
-- Resource authorization by session, enabled flag, group mapping and IP allowlist.
-- Fail-closed behavior on storage errors and invalid CIDR data.
+- local login;
+- Argon2id password hashing;
+- secure session cookies;
+- CSRF для mutating API;
+- trusted proxy boundary для proxy headers;
+- Nginx `auth_request`;
+- authorization по session, resource enabled flag, groups и CIDR;
+- fail closed на storage errors, invalid CIDR и unknown resources.
 
-### Admin Backend
+### Admin/Product UX
 
-- Dashboard counters.
-- Users CRUD.
-- Groups CRUD.
-- Resources CRUD.
-- Public download upload/hide/delete.
-- Portal branding/settings update.
-- Active session listing and revocation.
-- Audit event listing.
-- Nginx recommendation generation per resource.
-- On-demand resource diagnostics.
+- login/logout;
+- portal с ресурсами, поиском и группировкой;
+- public downloads на login/portal;
+- help page;
+- admin tabs: resources, downloads, portal, groups, users, sessions, audit;
+- group picker для resources/users;
+- permission reference в UI;
+- Nginx bundle/snippet copy;
+- diagnostics history;
+- audit filters/export.
 
-### Frontend Shell
+### Operations
 
-- Login screen.
-- User portal resource list.
-- Search and category filters for large resource catalogs.
-- Generic access denied page for unauthorized or unknown entry points.
-- Public downloads on login and portal screens.
-- Admin dashboard counters.
-- Admin resources/downloads/settings/groups/users/sessions/audit tabs.
-- Admin resource creation/editing and selected group/user actions.
-- Nginx recommendation view.
-- Resource diagnostics action.
+- PostgreSQL migrations;
+- `agpctl create-admin`;
+- `install.sh`;
+- `update.sh`;
+- systemd unit;
+- Nginx baseline config;
+- backup/restore scripts;
+- release-check script.
 
-### Storage
+## Ограничения v1.0
 
-- PostgreSQL production storage backend.
-- SQLite fallback backend with the same storage contract.
-- Embedded migrations for both backends.
-- Bootstrap CLI for first administrator.
+| Ограничение | Почему Оставлено | Следующий Шаг |
+| --- | --- | --- |
+| Single-node rate limit | достаточно для первой production VM | Redis-backed limiter |
+| Manual Nginx apply | безопаснее на текущей зрелости | privileged local agent |
+| Local users only | быстрее и контролируемее для v1.0 | MFA/invite, затем LDAP/SSO |
+| Audit в PostgreSQL | нормально для v1.0 | SIEM/export pipeline |
+| No scheduled health checks | есть on-demand diagnostics/history | scheduler и alerts |
 
-### Documentation
+## v1.0 Exit Criteria
 
-- Architecture notes.
-- Security model.
-- Operations notes.
-- PostgreSQL setup.
-- Admin API.
-- Nginx recommendations.
-- Bootstrap flow.
-- Implementation snapshot.
+AGP можно считать v1.0-ready, когда на целевом host:
 
-## What Is Not Ready
-
-### Product UX
-
-The embedded frontend shell exists, but it is not yet a complete product UI.
-User/resource workflows are present at a basic level. List/create/delete/revoke
-flows are available for key entities, while inline editing, stronger validation
-UX and polished error handling still need work.
-
-### Production Validation
-
-PostgreSQL code compiles and is structurally implemented, but there is no
-repeatable live PostgreSQL integration test. An opt-in test profile now exists,
-but it is not yet wired into CI or a release checklist.
-
-### Authorization Granularity
-
-Administration is now controlled by endpoint permissions. `is_admin=true`
-remains as a superuser compatibility flag and should be used sparingly.
-Current permissions:
-
-- `dashboard.read`
-- `users.read`
-- `users.manage`
-- `groups.read`
-- `groups.manage`
-- `resources.read`
-- `resources.manage`
-- `resources.diagnostics`
-- `downloads.read`
-- `downloads.manage`
-- `portal.settings.read`
-- `portal.settings.manage`
-- `sessions.read`
-- `sessions.revoke`
-- `audit.read`
-- `audit.export`
-- `nginx.recommendations.read`
-
-### Operational Hardening
-
-Missing or incomplete after v1.0 baseline:
-
-- scheduled resource upstream health checks and history;
-- audit retention policy enforcement;
-- SIEM/export path;
-- Redis-backed distributed rate limits;
-- automated backup execution.
-
-### Enterprise Identity
-
-Not implemented yet:
-
-- LDAP;
-- Active Directory;
-- TOTP;
-- SSO/OIDC/SAML;
-- password reset flow.
-
-## MVP Definition
-
-AGP MVP should be considered ready when the following are complete:
-
-1. User portal UI:
-   - login;
-   - available resources;
-   - search/filter by catalog category;
-   - public downloads;
-   - portal helper text;
-   - logout;
-   - 401/403/access denied pages.
-2. Admin UI:
-   - dashboard;
-   - users/groups/resources management;
-   - public download management;
-   - portal branding/settings;
-   - session revocation;
-   - audit view;
-   - Nginx recommendation view.
-3. PostgreSQL integration test profile wired into release checks.
-4. First production install guide:
-   - PostgreSQL;
-   - AGP binary;
-   - systemd;
-   - Nginx;
-   - logrotate;
-   - first admin bootstrap;
-   - backup.
-5. Basic metrics and health diagnostics.
-
-v1.0 status: criteria are satisfied for a single-node deployment when
-`./scripts/release-check.sh` passes and the manual checks from
-`production-v1.0.md` are completed on the target host.
+1. `./scripts/release-check.sh` проходит с `AGP_TEST_POSTGRES_DSN`.
+2. `install.sh` или manual runbook успешно завершен.
+3. `/readyz` возвращает ready.
+4. Nginx config проходит `nginx -t`.
+5. Администратор может создать пользователя, группу и ресурс.
+6. Пользователь видит только разрешенные ресурсы.
+7. Запрещенный пользователь получает `/access-denied`.
+8. Public download загружается и скачивается.
+9. Backup создан и restore drill выполнен на тестовой БД.
 
 ## Roadmap
 
-### Phase 1: Usable MVP
+### Phase 1: v1.0 Stabilization
 
-Goal: AGP can be used by administrators and users without raw API calls.
+Цель: стабильно развернуть AGP на первом production host.
 
-Tasks:
+Задачи:
 
-- expand static frontend shell;
-- implement login/logout flow;
-- implement user resource portal;
-- implement admin dashboard;
-- implement users/groups/resources UI;
-- implement Nginx recommendation view with copy/download;
-- add 401/403 pages;
-- wire PostgreSQL integration test profile into release checks;
-- document first VM deployment.
+- пройти production runbook;
+- проверить Nginx bundle на реальных ресурсах;
+- задокументировать реальные TLS paths и backup directory;
+- зафиксировать `v1.0.0` tag;
+- собрать список production feedback.
 
 Exit criteria:
 
-- admin can create a resource from UI;
-- user can log in and see only allowed resources;
-- Nginx snippet can be generated from UI;
-- PostgreSQL-backed test run passes;
-- basic VM install can be reproduced from documentation.
+- портал доступен по HTTPS;
+- ресурсы открываются через portal path;
+- аудит фиксирует login/resource/admin actions;
+- backup/restore проверен.
 
-### Phase 2: Production Hardening
+### Phase 2: v1.1 Identity Lifecycle
 
-Goal: AGP is safe to run as a single-node production gateway.
+Цель: добавить зрелый lifecycle пользователей.
 
-Tasks:
-
-- improve permission-based RBAC management UX;
-- extend metrics and dashboards;
-- add scheduled resource diagnostics and history;
-- add audit retention settings;
-- automate backup jobs;
-- add brute-force lockout policy;
-- add password policy config;
-- add admin action metadata in audit events;
-- add PostgreSQL TLS configuration examples.
-
-Exit criteria:
-
-- each admin action is auditable;
-- blocked users and revoked sessions are enforced;
-- resource health can be diagnosed from admin UI/API;
-- backups and restores are documented and testable;
-- access decisions remain fail-closed.
-
-### Phase 3: v1.1 Identity And Notifications
-
-Goal: AGP integrates with corporate identity and monitoring.
-
-Tasks:
+Задачи:
 
 - TOTP MFA;
-- invite/password setup email links;
-- encrypted sensitive user profile fields;
-- notification integrations;
-- user activity timeline for administrators;
-- SIEM/audit export preparation;
-- LDAP/AD authentication;
-- group sync from LDAP/AD;
-- OIDC/SAML evaluation;
-- Redis-backed distributed rate limiting;
-- PostgreSQL HA deployment notes.
+- recovery codes;
+- invite/password setup links;
+- SMTP settings;
+- encrypted sensitive fields;
+- admin activity timeline;
+- notification settings.
 
 Exit criteria:
 
-- local users remain available as break-glass accounts;
-- external identity provider can be used for normal users;
-- audit data can leave AGP into security monitoring;
-- multiple AGP instances can run safely.
+- новый пользователь получает ссылку и сам задает пароль;
+- MFA можно включить policy по группе;
+- администратор видит действия пользователя;
+- login/resource notifications работают по настройке.
+
+### Phase 3: Enterprise Identity
+
+Цель: интеграция с корпоративной identity-инфраструктурой.
+
+Задачи:
+
+- LDAP/AD authentication;
+- group sync;
+- OIDC/SAML evaluation;
+- break-glass local admin policy;
+- Redis-backed distributed rate limits;
+- PostgreSQL HA notes.
 
 ### Phase 4: Controlled Nginx Apply
 
-Goal: optional controlled application of generated Nginx configs.
+Цель: безопасное опциональное применение Nginx config из AGP.
 
-Tasks:
+Требования:
 
-- design privileged local agent;
-- define signed/verified config bundle format;
-- require `nginx -t` before reload;
-- add config versioning;
-- add rollback support;
-- audit every generated, applied and rolled-back config.
+- отдельный privileged local agent;
+- signed/verified config bundle;
+- обязательный `nginx -t`;
+- rollback последнего working config;
+- RBAC и audit для generate/apply/rollback.
 
-Exit criteria:
+До этой фазы manual apply остается правильной production-моделью.
 
-- config apply is explicit, RBAC-protected and auditable;
-- failed `nginx -t` never reloads Nginx;
-- previous working config can be restored.
+## Текущие Риски
 
-This phase is intentionally later. Manual-review recommendations are safer for
-the current maturity level.
-
-## Current Technical Risks
-
-| Risk | Severity | Mitigation |
+| Риск | Severity | Mitigation |
 | --- | --- | --- |
-| Frontend is still basic | High | complete portal/admin CRUD workflows |
-| PostgreSQL integration test is not in CI | High | add release/CI profile with disposable DB |
-| RBAC UX is still basic | Medium | add role templates and safer permission editing |
-| In-memory rate limiting | Medium | acceptable for single-node MVP, move to Redis later |
-| No metrics | Medium | add `/metrics` or structured health endpoint |
-| Manual Nginx apply | Low | acceptable and safer for MVP |
+| Ошибка ручного Nginx apply | Medium | copy button, docs, обязательный `nginx -t` |
+| Потеря backup discipline | High | systemd timer, alert, monthly restore drill |
+| Local-only identity | Medium | v1.1 MFA/invite, затем LDAP/SSO |
+| Single-node rate limit | Medium | допустимо для v1.0, Redis позже |
+| Неполный SIEM pipeline | Medium | audit export сейчас, streaming позже |
 
-## Recommended Next Sprint
+## Ближайшие Действия
 
-1. Wire PostgreSQL integration tests into CI/local release checklist.
-2. Expand frontend inline edit workflows and polish error states.
-3. Add scheduled resource diagnostics and history.
-4. Add RBAC role templates and safer permission editing.
-
-The most valuable immediate move is CI/release wiring for PostgreSQL integration
-tests plus frontend edit workflow completion. This turns AGP from a backend
-foundation into a demonstrable MVP while raising confidence in the preferred
-production database.
+1. Выполнить установку на production host по [production-v1.0.md](production-v1.0.md).
+2. Проверить реальные ресурсы, redirects и cookies.
+3. Настроить backup timer и сделать restore drill.
+4. Создать tag `v1.0.0`.
+5. Начать v1.1 по [v1.1-plan.md](v1.1-plan.md).

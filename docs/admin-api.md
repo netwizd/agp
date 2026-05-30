@@ -1,77 +1,84 @@
-# Admin API
+# Административный API
 
-Admin endpoints require:
+Административные endpoints требуют:
 
-1. a valid AGP session;
-2. the permission required by the endpoint;
-3. `X-CSRF-Token` for state-changing methods.
+1. действующую AGP-сессию;
+2. permission, соответствующий операции;
+3. заголовок `X-CSRF-Token` для изменяющих запросов.
 
-`is_admin=true` remains a compatibility superuser flag and grants all known
-permissions. See [rbac.md](rbac.md).
+`is_admin=true` остается режимом совместимости superuser и дает все известные
+permissions. В production предпочтительно управлять доступом через группы.
 
-## Endpoints
+## Административные Endpoints
 
-| Method | Path | Purpose |
+| Метод | Путь | Назначение |
 | --- | --- | --- |
-| `GET` | `/api/v1/admin/dashboard` | dashboard counters and recent audit events |
-| `GET` | `/api/v1/admin/users` | list users |
-| `POST` | `/api/v1/admin/users` | create user |
-| `PATCH` | `/api/v1/admin/users/{id}` | update user, password, block flag or groups |
-| `DELETE` | `/api/v1/admin/users/{id}` | delete user |
-| `GET` | `/api/v1/admin/groups` | list groups |
-| `POST` | `/api/v1/admin/groups` | create group |
-| `PATCH` | `/api/v1/admin/groups/{id}` | update group |
-| `DELETE` | `/api/v1/admin/groups/{id}` | delete group |
-| `GET` | `/api/v1/admin/resources` | list resources |
-| `POST` | `/api/v1/admin/resources` | create resource |
-| `GET` | `/api/v1/admin/resources/{id}` | get resource details |
-| `PATCH` | `/api/v1/admin/resources/{id}` | update resource, groups or IP allowlist |
-| `DELETE` | `/api/v1/admin/resources/{id}` | delete resource |
-| `GET` | `/api/v1/admin/resources/{id}/nginx` | generate Nginx recommendation |
-| `POST` | `/api/v1/admin/resources/{id}/diagnostics` | run upstream DNS/TCP/HTTP diagnostics |
-| `GET` | `/api/v1/admin/downloads` | list public downloads, including disabled entries |
-| `POST` | `/api/v1/admin/downloads` | upload a public download via multipart form data |
-| `PATCH` | `/api/v1/admin/downloads/{id}` | update public download title, description or enabled flag |
-| `DELETE` | `/api/v1/admin/downloads/{id}` | delete public download metadata and file |
-| `GET` | `/api/v1/admin/portal-settings` | read portal branding and helper text |
-| `PUT` | `/api/v1/admin/portal-settings` | update portal branding and helper text |
-| `GET` | `/api/v1/admin/sessions` | list active sessions |
-| `DELETE` | `/api/v1/admin/sessions/{id}` | revoke session |
-| `GET` | `/api/v1/admin/audit?limit=100` | list audit events |
-| `GET` | `/api/v1/admin/audit/export?format=csv` | export audit events; requires `audit.export` |
+| `GET` | `/api/v1/admin/dashboard` | счетчики и последние события аудита |
+| `GET` | `/api/v1/admin/users` | список пользователей |
+| `POST` | `/api/v1/admin/users` | создание пользователя |
+| `PATCH` | `/api/v1/admin/users/{id}` | изменение пользователя, пароля, блокировки и групп |
+| `DELETE` | `/api/v1/admin/users/{id}` | удаление пользователя |
+| `GET` | `/api/v1/admin/groups` | список групп |
+| `POST` | `/api/v1/admin/groups` | создание группы |
+| `PATCH` | `/api/v1/admin/groups/{id}` | изменение группы и permissions |
+| `DELETE` | `/api/v1/admin/groups/{id}` | удаление группы |
+| `GET` | `/api/v1/admin/resources` | список ресурсов |
+| `POST` | `/api/v1/admin/resources` | создание ресурса |
+| `GET` | `/api/v1/admin/resources/{id}` | карточка ресурса |
+| `PATCH` | `/api/v1/admin/resources/{id}` | изменение ресурса, групп и CIDR allowlist |
+| `DELETE` | `/api/v1/admin/resources/{id}` | удаление ресурса |
+| `GET` | `/api/v1/admin/nginx/bundle` | полный Nginx bundle для портала |
+| `GET` | `/api/v1/admin/resources/{id}/nginx` | Nginx snippet для ресурса |
+| `POST` | `/api/v1/admin/resources/{id}/diagnostics` | запуск DNS/TCP/HTTP диагностики upstream |
+| `GET` | `/api/v1/admin/resources/{id}/diagnostics` | история диагностики ресурса |
+| `GET` | `/api/v1/admin/downloads` | список публичных файлов, включая скрытые |
+| `POST` | `/api/v1/admin/downloads` | загрузка публичного файла через multipart |
+| `PATCH` | `/api/v1/admin/downloads/{id}` | изменение названия, описания или публикации |
+| `DELETE` | `/api/v1/admin/downloads/{id}` | удаление metadata и файла |
+| `GET` | `/api/v1/admin/portal-settings` | чтение оформления портала |
+| `PUT` | `/api/v1/admin/portal-settings` | изменение оформления портала |
+| `GET` | `/api/v1/admin/sessions` | активные сессии |
+| `DELETE` | `/api/v1/admin/sessions/{id}` | отзыв сессии |
+| `GET` | `/api/v1/admin/audit` | журнал аудита с фильтрами |
+| `GET` | `/api/v1/admin/audit/export` | экспорт аудита, требует `audit.export` |
 
-## Public Endpoints
+## Публичные Endpoints
 
-| Method | Path | Purpose |
+| Метод | Путь | Назначение |
 | --- | --- | --- |
-| `GET` | `/api/v1/public/settings` | read portal branding and helper text without auth |
-| `GET` | `/api/v1/public/downloads` | list enabled public downloads without auth |
-| `GET` | `/downloads/{id}` | download an enabled public file without auth |
+| `GET` | `/api/v1/version` | версия backend |
+| `GET` | `/api/v1/public/settings` | публичные настройки оформления |
+| `GET` | `/api/v1/public/downloads` | опубликованные файлы без авторизации |
+| `GET` | `/downloads/{id}` | скачивание опубликованного файла |
 
-## Resource Create Example
+## Пример Создания Ресурса
 
 ```json
 {
-  "name": "Example App",
-  "description": "Internal example service",
+  "name": "Example Service",
+  "description": "Внутренний сервис",
   "category": "Operations",
   "internal_url": "http://app.internal.local/anything-needed",
   "public_host": "enter.company.ru",
   "public_path": "/anything-needed",
   "enabled": true,
-  "group_ids": ["grp_admins"],
+  "group_ids": ["grp_users"],
   "allow_cidrs": ["10.50.0.0/16"]
 }
 ```
 
-`public_host` is the public portal host. `public_path` is the protected entry
-point on that host. With the example above AGP expects Nginx to protect
-`https://enter.company.ru/anything-needed` and proxy it to
-`http://app.internal.local/anything-needed`.
+`public_host` - публичный host портала. `public_path` - защищенная точка входа
+на этом host. В примере пользователь открывает
+`https://enter.company.ru/anything-needed`, а Nginx после `auth_request`
+проксирует запрос в `http://app.internal.local/anything-needed`.
 
-The API validates public host, public path, internal URL and CIDR syntax before
-storing a resource.
+API валидирует host, path, internal URL и CIDR до сохранения.
 
-Resource diagnostics are subject to `AGP_DIAGNOSTICS_ALLOW_CIDRS`,
-`AGP_DIAGNOSTICS_DENY_CIDRS` and per-user/resource rate limiting. By default,
-loopback, link-local and metadata-style target ranges are blocked.
+## Диагностика И Аудит
+
+Диагностика ресурсов считается высокопривилегированной операцией. Перед TCP/HTTP
+проверками AGP применяет `AGP_DIAGNOSTICS_ALLOW_CIDRS`,
+`AGP_DIAGNOSTICS_DENY_CIDRS` и rate limit по пользователю/ресурсу.
+
+Экспорт аудита отделен от чтения аудита. CSV export защищен от spreadsheet
+formula injection: значения, похожие на формулы, экранируются перед отдачей.

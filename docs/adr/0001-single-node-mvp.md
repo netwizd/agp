@@ -1,31 +1,35 @@
-# ADR 0001: Single-node MVP with SQLite and Nginx auth_request
+# ADR 0001: Single-Node MVP C PostgreSQL/SQLite И Nginx auth_request
 
-## Status
+## Статус
 
-Accepted.
+Принято.
 
-## Context
+## Контекст
 
-AGP must become a centralized access boundary for internal services. The first
-stage must be deployable on one VM while preserving a path to PostgreSQL and
-multi-instance operation.
+AGP должен стать централизованной точкой доступа к внутренним сервисам. Первый
+релиз должен ставиться на одну VM, но не блокировать дальнейший переход к
+multi-instance deployment.
 
-## Decision
+## Решение
 
-Use Go for the backend, SQLite for initial persistence and Nginx `auth_request`
-for reverse proxy authorization.
+- backend пишется на Go;
+- production storage - PostgreSQL;
+- SQLite остается fallback для разработки и малых стендов;
+- Nginx используется как TLS reverse proxy и `auth_request` data plane;
+- AGP генерирует Nginx config recommendations, но не применяет их сам.
 
-## Consequences
+## Последствия
 
-Benefits:
+Плюсы:
 
-- low operational footprint;
-- auditable authorization decision point;
-- backend remains independent from specific internal resources;
-- clean migration path to PostgreSQL through repository interfaces.
+- низкая операционная сложность v1.0;
+- четкая security boundary через Nginx;
+- audit point централизован в AGP;
+- storage отделен интерфейсами, есть путь к HA.
 
-Tradeoffs:
+Компромиссы:
 
-- SQLite limits write concurrency and HA;
-- in-memory rate limiting is node-local;
-- admin CRUD and enterprise identity integrations remain later stages.
+- single-node rate limiting остается локальным;
+- Nginx config применяется вручную;
+- enterprise identity integrations вынесены в следующие версии;
+- SQLite не подходит как основной production backend.

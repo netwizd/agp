@@ -1,73 +1,110 @@
-# AGP Operations
+# Эксплуатация AGP
 
 ## Observability
 
-Backend logs are structured JSON on stdout. Systemd deployments should route
-them to journald or a log collector. Nginx keeps separate portal and resource
-access logs.
+Backend пишет структурированные JSON-логи в stdout. В systemd deployment они
+попадают в journald:
+
+```bash
+journalctl -u agp -f
+journalctl -u agp -n 200 --no-pager
+```
+
+Nginx ведет отдельные access/error logs для портала и ресурсов.
 
 HTTP probes:
 
-- `/healthz` checks that the HTTP process is serving;
-- `/readyz` checks that AGP can query its storage backend;
-- `/metrics` exports cheap Prometheus-style liveness gauges and should be
-  limited to localhost or monitoring networks at Nginx.
+| Endpoint | Назначение |
+| --- | --- |
+| `/healthz` | процесс AGP отвечает на HTTP |
+| `/readyz` | storage backend доступен |
+| `/metrics` | дешевые Prometheus-style liveness metrics |
 
-Minimum production alerts:
+`/metrics` должен быть доступен только localhost или monitoring network.
 
-- AGP backend process down;
-- HTTP 5xx spike on backend;
-- repeated failed login attempts;
-- repeated `ip_denied` / `access_denied` audit outcomes;
-- `/readyz` failures;
-- backup failures.
+## Минимальные Alerts
 
-## Backup Strategy
+- процесс `agp` остановлен;
+- `/readyz` не отвечает;
+- рост HTTP 5xx;
+- серия failed logins;
+- частые `access_denied` или `ip_denied`;
+- ошибка backup timer;
+- Nginx reload failed;
+- истечение TLS certificate.
 
-For SQLite MVP:
+## Backup
 
-1. put DB under `/var/lib/agp/agp.db`;
-2. enable WAL-aware backup using SQLite online backup or a brief maintenance
-   window;
-3. encrypt off-host backups;
-4. test restore monthly.
+Production backup включает PostgreSQL и downloads directory:
 
-For PostgreSQL production:
+```bash
+sudo install -o root -g root -m 0755 scripts/agp-backup.sh scripts/agp-restore.sh /usr/local/bin/
+sudo install -o root -g root -m 0644 deploy/systemd/agp-backup.service /etc/systemd/system/agp-backup.service
+sudo install -o root -g root -m 0644 deploy/systemd/agp-backup.timer /etc/systemd/system/agp-backup.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now agp-backup.timer
+```
 
-- daily base backups;
-- WAL archiving;
-- restore drills;
-- retention aligned with audit policy.
+Ручной запуск:
 
-Use `scripts/agp-backup.sh`, `scripts/agp-restore.sh`,
-`deploy/systemd/agp-backup.service` and `deploy/systemd/agp-backup.timer` as the
-baseline. The default systemd timer runs daily and keeps backup retention in
-`AGP_BACKUP_RETENTION_DAYS`.
+```bash
+sudo -u agp AGP_BACKUP_DIR=/secure-backups AGP_DATABASE_NAME=agp /usr/local/bin/agp-backup.sh
+```
 
-Backup artifacts are created with `umask 077` and should remain mode `0600`.
-Restore requires the matching SHA-256 manifest, validates the downloads archive
-paths before extraction and extracts into a temporary directory before replacing
-the target downloads directory.
+Backup artifacts создаются с `umask 077`; файлы backup и checksum manifest
+должны оставаться с правами `0600`.
+
+## Restore
+
+Restore script:
+
+- требует matching SHA-256 manifest;
+- проверяет tar archive на absolute paths и `..`;
+- распаковывает downloads во временную директорию;
+- затем заменяет целевой каталог.
+
+Пример:
+
+```bash
+createdb agp_restore
+AGP_DOWNLOADS_PARENT=/var/lib/agp /usr/local/bin/agp-restore.sh \
+  /secure-backups/agp-db-YYYYMMDDTHHMMSSZ.dump \
+  /secure-backups/agp-downloads-YYYYMMDDTHHMMSSZ.tar.gz \
+  agp_restore \
+  /secure-backups/agp-YYYYMMDDTHHMMSSZ.sha256
+```
+
+После restore нужно проверить:
+
+- `/readyz`;
+- login администратора;
+- список ресурсов;
+- скачивание public downloads;
+- чтение audit.
 
 ## Retention
 
-Runtime cleanup is controlled by:
+Runtime cleanup:
 
-- `AGP_AUDIT_RETENTION`, default `8760h`;
-- `AGP_SESSION_RETENTION`, default `720h`.
+```env
+AGP_AUDIT_RETENTION=8760h
+AGP_SESSION_RETENTION=720h
+```
 
-AGP prunes old audit events and expired/revoked sessions on startup. Backup
-retention is independent and must be long enough to satisfy the organization's
-audit policy.
+AGP удаляет старые audit events и expired/revoked sessions при старте. Backup
+retention независим и задается политикой организации.
 
-See [production-v1.0.md](production-v1.0.md) for install, backup, restore and
-release commands.
+## Logrotate
 
-## Log Rotation
+Базовый template:
 
-Use `deploy/logrotate/agp` as baseline:
+```text
+deploy/logrotate/agp
+```
+
+Рекомендуемая политика:
 
 - daily rotation;
-- 30 days retention;
+- хранить минимум 30 дней локально;
 - gzip compression;
-- Nginx reload after rotation.
+- reload Nginx после rotation.

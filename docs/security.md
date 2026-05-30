@@ -1,60 +1,87 @@
-# AGP Security Model
+# Модель Безопасности AGP
 
 ## Trust Boundaries
 
-AGP backend must not be directly exposed to untrusted networks. It trusts
-`X-Real-IP`, `X-Forwarded-*` and `Cookie` headers only when requests come from
-configured trusted proxy CIDRs. `/auth/request` also rejects direct callers when
-proxy-header trust is enabled and the remote address is not trusted.
+AGP backend нельзя открывать напрямую в недоверенную сеть. Production-модель:
+backend слушает localhost/private interface, а публичный доступ идет только через
+Nginx.
+
+AGP доверяет `X-Real-IP`, `X-Forwarded-*` и related proxy headers только если:
+
+- `AGP_TRUST_PROXY_HEADERS=true`;
+- remote address попадает в `AGP_TRUSTED_PROXY_CIDRS`.
+
+`/auth/request` также использует trusted proxy boundary для host/original URI
+логики. Direct access к backend не должен давать возможность spoofing.
 
 ## Authentication
 
-- Passwords use Argon2id.
-- Session cookies are `HttpOnly`, `Secure`, `SameSite=Lax`.
-- Session tokens are stored as SHA-256 hashes in the database.
-- CSRF uses a double-submit style token for state-changing API calls.
+- пароли хранятся как Argon2id hashes;
+- session cookies: `HttpOnly`, `Secure`, `SameSite=Lax`;
+- session tokens хранятся в БД как SHA-256 hashes;
+- state-changing API требует CSRF token;
+- logout и session revoke инвалидируют server-side session.
 
 ## Authorization
 
-Access to resources requires all checks to pass:
+Доступ к ресурсу разрешается только если выполнены все условия:
 
-1. valid non-expired session;
-2. non-blocked user;
-3. enabled resource mapped by public host;
-4. client IP inside resource allowlist when allowlist exists;
-5. user group intersects with resource groups.
+1. сессия существует и не истекла;
+2. пользователь не заблокирован;
+3. ресурс найден по public host/path и включен;
+4. если задан CIDR allowlist, IP клиента входит в allowlist;
+5. группы пользователя пересекаются с группами ресурса.
 
-The system must fail closed on storage errors, invalid allowlist CIDRs and
-unknown resources.
+Storage errors, invalid CIDR, disabled resource и unknown resource должны
+заканчиваться fail closed.
 
-Missing resources and unauthorized resources are intentionally presented through
-the same access-denied UX. Operators should avoid custom Nginx error pages that
-reveal whether a guessed hostname or path exists.
+## Anti-Enumeration
+
+Неизвестные и запрещенные ресурсы показываются пользователю через одинаковую
+страницу `/access-denied`. Nginx error pages не должны раскрывать, существует ли
+угаданный entry point.
 
 ## Auditability
 
-Audit events are persisted for:
+AGP пишет audit events для:
 
-- successful and failed logins;
+- успешных и неуспешных login attempts;
 - logout;
-- `auth_request` authorization decisions;
-- denied IP/resource/group decisions;
-- audit exports and administrative diagnostics runs.
+- `auth_request` decisions;
+- access denied по ресурсу, группе или IP;
+- CRUD-действий администратора;
+- diagnostics runs;
+- audit exports.
 
-CSV audit exports escape spreadsheet formula-leading cells to avoid formula
-execution when operators open exported files in office tools.
+CSV export защищен от spreadsheet formula injection: ячейки, начинающиеся с
+`=`, `+`, `-`, `@` и control characters, экранируются.
+
+## Public Downloads
+
+Загрузка файлов ограничивается:
+
+- `AGP_DOWNLOAD_MAX_BYTES`;
+- `AGP_DOWNLOAD_ALLOWED_EXTENSIONS`;
+- опциональным scanner hook `AGP_DOWNLOAD_SCAN_COMMAND`;
+- Nginx `client_max_body_size`.
+
+Скачивание отдается как attachment. Для недоверенных типов предпочтительно
+оставлять `application/octet-stream`.
 
 ## Diagnostics
 
-Resource diagnostics are privileged administrative probes. They are rate-limited
-per user/resource and evaluated against `AGP_DIAGNOSTICS_ALLOW_CIDRS` /
-`AGP_DIAGNOSTICS_DENY_CIDRS` before TCP or HTTP checks. By default, loopback,
-link-local and metadata-style target ranges are denied.
+Resource diagnostics - привилегированная функция, потому что она может стать
+поверхностью internal network probing. Защиты:
 
-For production, SQLite audit retention should be paired with backup and export.
-For enterprise scale, audit storage should move to PostgreSQL and/or SIEM.
+- отдельный permission `resources.diagnostics`;
+- deny/allow CIDR policy;
+- default deny для loopback, link-local и metadata ranges;
+- rate limit по пользователю/ресурсу;
+- audit каждого запуска.
 
-## Known MVP Limits
+## MVP Limits
 
-- Rate limiting is in-memory and suitable for a single backend instance only.
-- LDAP, AD, TOTP and SSO are planned for enterprise stages.
+- rate limiting пока in-memory и рассчитан на single-node;
+- LDAP/AD/OIDC/SAML не реализованы;
+- MFA, invite links и уведомления запланированы на v1.1;
+- для enterprise audit scale нужен SIEM/export pipeline.

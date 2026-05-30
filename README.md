@@ -1,45 +1,48 @@
 # AGP - Auth Gateway Portal
 
-AGP is a centralized access gateway for internal corporate resources.
+AGP - корпоративный портал доступа к внутренним ресурсам. Система ставится перед
+внутренними сервисами, проверяет пользователя через единый портал, применяет
+права доступа и пишет аудит действий.
 
-The first implementation target is a single-node deployment:
+Целевая модель v1.0 - один production-сервер без Docker:
 
-- Go backend with secure session-based authentication.
-- PostgreSQL as the production storage backend.
-- SQLite as an optional development/small-install fallback.
-- Nginx as the public TLS reverse proxy using `auth_request`.
-- Admin API for users, groups, resources, public downloads, portal settings, sessions, audit and Nginx recommendations.
-- Permission-based RBAC with `is_admin` superuser compatibility.
-- Embedded static frontend shell for login, public downloads, portal and admin basics.
-- Audit-first access model for authentication, resource access and denied requests.
+- backend на Go с локальной аутентификацией, сессиями и CSRF-защитой;
+- PostgreSQL как основной production storage;
+- SQLite только как fallback для разработки и небольших стендов;
+- Nginx как внешний TLS reverse proxy и data plane через `auth_request`;
+- web-интерфейс для пользователей и администраторов;
+- RBAC по группам и permission, плюс совместимость с `is_admin`;
+- публичные файлы для скачивания без авторизации;
+- генератор Nginx bundle/snippet для портала и защищенных ресурсов;
+- аудит логинов, доступов, отказов и критичных админских действий.
 
-## Repository Layout
+## Структура Репозитория
 
 ```text
-cmd/agp/                  Application entrypoint
-internal/auth/            Password hashing and session token primitives
-internal/config/          Runtime configuration from environment
-internal/domain/          Core domain models
-internal/httpapi/         HTTP API and nginx auth_request contract
-internal/reverseproxy/    Safe reverse proxy recommendation generators
-internal/storage/         Storage interfaces
-internal/storage/postgres/PostgreSQL implementation and migrations
-internal/storage/sqlite/  SQLite implementation and migrations
-configs/                  Example runtime configuration
-deploy/                   Nginx, systemd, Docker and logrotate templates
-docs/                     Architecture, security and operations notes
+cmd/agp/                  основной процесс AGP
+cmd/agpctl/               служебная CLI-утилита
+internal/auth/            пароли, Argon2id, session token primitives
+internal/config/          конфигурация из environment
+internal/domain/          доменные модели
+internal/httpapi/         HTTP API, UI shell, auth_request contract
+internal/reverseproxy/    генераторы безопасных Nginx-рекомендаций
+internal/storage/         storage-интерфейсы
+internal/storage/postgres/PostgreSQL backend и миграции
+internal/storage/sqlite/  SQLite backend и миграции
+configs/                  пример runtime-конфигурации
+deploy/                   systemd, Nginx, logrotate, Docker templates
+docs/                     архитектура, безопасность, эксплуатация
+scripts/                  release-check, backup, restore
 ```
 
-## Local Run
+## Быстрый Локальный Запуск
 
-Install Go 1.22+ and prepare PostgreSQL:
+Требуется Go 1.22+ и PostgreSQL.
 
 ```sql
 CREATE USER agp WITH PASSWORD 'change-me';
 CREATE DATABASE agp OWNER agp;
 ```
-
-Then run:
 
 ```bash
 cp configs/agp.example.env .env
@@ -48,68 +51,100 @@ set -a && . ./.env && set +a
 go run ./cmd/agp
 ```
 
-By default the backend listens on `127.0.0.1:8080` and expects PostgreSQL at
-`127.0.0.1:5432`. For local fallback set `AGP_DATABASE_DRIVER=sqlite`.
+По умолчанию AGP слушает `127.0.0.1:8080` и подключается к PostgreSQL на
+`127.0.0.1:5432`. Для локальной разработки можно указать
+`AGP_DATABASE_DRIVER=sqlite`.
 
-Create the first administrator:
+Первый администратор:
 
 ```bash
-printf '%s\n' "$AGP_ADMIN_PASSWORD" | go run ./cmd/agpctl create-admin
+printf '%s\n' "$AGP_ADMIN_PASSWORD" | go run ./cmd/agpctl create-admin \
+  -username admin \
+  -display-name "Administrator"
 ```
 
-See [docs/implementation-snapshot.md](docs/implementation-snapshot.md) for the
-current implementation status and [docs/roadmap.md](docs/roadmap.md) for the
-check-up and roadmap.
+## Установка На Ubuntu
 
-For production v1.0 deployment, use the interactive Ubuntu installer:
+Основной способ установки:
 
 ```bash
 sudo ./install.sh
 ```
 
-The installer supports `auto` and `manual` modes. It asks for the minimum
-deployment inputs, generates the PostgreSQL application password, configures the
-local PostgreSQL role/database, installs official `nginx.org` Nginx when
-requested, installs `certbot` only when Let's Encrypt automation is requested,
-writes `/etc/agp/agp.env`, installs systemd units and can enable the backup
-timer. Firewall configuration is opt-in; the installer does not touch UFW unless
-explicitly requested.
+Скрипт спрашивает минимальные параметры:
+
+- доменное имя портала;
+- имя базы и пользователя PostgreSQL;
+- логин первого администратора;
+- использовать ли официальный репозиторий Nginx;
+- ставить ли Certbot;
+- трогать ли firewall;
+- запускать ли установку автоматически или пошагово.
+
+Скрипт генерирует пароль БД, настраивает PostgreSQL, пишет
+`/etc/agp/agp.env`, собирает бинарники, ставит systemd unit, запускает AGP и
+может включить backup timer. Firewall не изменяется без явного согласия.
 
 ```bash
-sudo ./install.sh --manual
 sudo ./install.sh --auto
+sudo ./install.sh --manual
 ```
 
-After the first installation, update an existing server from the repository
-with:
+Подробный runbook: [docs/production-v1.0.md](docs/production-v1.0.md).
+
+## Обновление
+
+На сервере:
 
 ```bash
 cd /opt/agp-src
-sudo ./update.sh --manual
+git pull --ff-only
+sudo ./update.sh --auto --allow-dirty
 ```
 
-For unattended maintenance windows:
+`update.sh` сравнивает текущий upstream commit и commit, встроенный в
+`/usr/local/bin/agp`. Если обновлять нечего, сборка и restart не выполняются.
+Если исходники уже обновлены, но установленный бинарник старее, скрипт все равно
+пересобирает и переустанавливает AGP.
 
-```bash
-cd /opt/agp-src
-sudo ./update.sh --auto
-```
+При обновлении скрипт:
 
-The updater checks both the upstream branch and the commit embedded in the
-currently installed `/usr/local/bin/agp`. If source and installed binary already
-match, it exits without build, install, restart or migrations. If the source was
-already pulled but the installed binary is older, it still rebuilds and installs.
-When an update is available, it runs `git pull --ff-only`, builds `agp` and
-`agpctl`, runs Go checks by default, backs up the current binaries and systemd
-unit, restarts AGP and verifies `/readyz`. If readiness fails after replacement,
-it attempts to restore the previous binaries.
+- запускает проверки Go по умолчанию;
+- собирает `agp` и `agpctl`;
+- сохраняет backup старых бинарников и systemd unit;
+- перезапускает AGP;
+- проверяет `/readyz`;
+- при провале readiness пытается вернуть предыдущие бинарники.
 
-The detailed manual runbook is in
-[docs/production-v1.0.md](docs/production-v1.0.md). v1.1 identity and
-notification work is tracked in [docs/v1.1-plan.md](docs/v1.1-plan.md).
+Nginx-конфиг намеренно не затирается автоматически. Новый bundle нужно
+скопировать из админки, проверить `nginx -t` и выполнить reload вручную.
 
-## Security Posture
+## Основные Документы
 
-AGP is a security boundary. Production deployments must keep the backend bound
-to localhost or a private interface and expose it only through Nginx with TLS,
-strict proxy headers, access logs and `auth_request`.
+| Документ | Назначение |
+| --- | --- |
+| [docs/production-v1.0.md](docs/production-v1.0.md) | установка, deployment, backup, restore, release checklist |
+| [docs/architecture.md](docs/architecture.md) | архитектура и поток запросов |
+| [docs/security.md](docs/security.md) | модель безопасности |
+| [docs/rbac.md](docs/rbac.md) | роли и permissions |
+| [docs/nginx-recommendations.md](docs/nginx-recommendations.md) | Nginx bundle/snippet и reverse proxy модель |
+| [docs/admin-api.md](docs/admin-api.md) | административный и публичный API |
+| [docs/postgresql.md](docs/postgresql.md) | PostgreSQL setup, миграции и тесты |
+| [docs/operations.md](docs/operations.md) | эксплуатация, observability, backup |
+| [docs/roadmap.md](docs/roadmap.md) | состояние проекта и roadmap |
+| [docs/v1.1-plan.md](docs/v1.1-plan.md) | план MFA, invite links и уведомлений |
+
+## Production Security Baseline
+
+AGP является security boundary. В production backend должен слушать localhost
+или приватный интерфейс и быть доступен только через Nginx с TLS.
+
+Обязательные условия:
+
+- `AGP_COOKIE_SECURE=true`;
+- `AGP_TRUST_PROXY_HEADERS=true` только при корректном
+  `AGP_TRUSTED_PROXY_CIDRS`;
+- PostgreSQL закрыт от внешней сети;
+- `/metrics` ограничен localhost или monitoring network;
+- Nginx bundle проверяется через `nginx -t` перед reload;
+- backup PostgreSQL и downloads регулярно проверяется restore drill.

@@ -1,46 +1,113 @@
-# Nginx Recommendations
+# Nginx Рекомендации
 
-AGP generates Nginx configuration recommendations from stored resource metadata.
-It does not apply them automatically.
+AGP генерирует Nginx configuration bundle/snippet на основе ресурсов, но не
+применяет его автоматически. Это сделано намеренно: Nginx является production
+data plane, и изменение конфигурации должно проходить review, `nginx -t` и
+контролируемый reload.
 
-The recommended operational flow is:
+## Рабочий Процесс
 
-1. administrator creates or updates a resource in AGP;
-2. administrator opens `GET /api/v1/admin/resources/{id}/nginx`;
-3. AGP returns a protected `location` snippet for path-based resources or a
-   legacy server block snippet for host-based resources;
-4. administrator reviews the snippet;
-5. administrator runs `nginx -t`;
-6. administrator reloads Nginx.
+1. Администратор создает или изменяет ресурс в AGP.
+2. В админке нажимает `Nginx bundle` или запрашивает snippet ресурса.
+3. Проверяет сгенерированный config.
+4. Вставляет config в `/etc/nginx/conf.d/agp-portal.conf` или отдельный файл.
+5. Проверяет:
 
-The default production model is one public portal host with many protected
-paths. For example, resource metadata
-`public_host=enter.company.ru`, `public_path=/anything-needed`,
-`internal_url=http://app.internal.local/anything-needed` produces a protected Nginx
-location on the portal server. The location uses `auth_request /_agp_auth`
-before `proxy_pass`, so access is still controlled by AGP sessions, groups and
-optional CIDR allowlists.
+```bash
+sudo nginx -t
+```
 
-Path-based snippets also include `proxy_redirect` and cookie rewrite directives.
-This keeps upstream redirects such as
-`Location: http://app.internal.local/anything-needed/ru_RU` inside the public
-portal URL, for example `https://enter.company.ru/anything-needed/ru_RU`.
+6. Применяет:
 
-This keeps AGP as the access control plane while Nginx remains the data plane.
-Automatic config application can be added later through a privileged local agent
-with explicit RBAC, audit events and `nginx -t` gating.
+```bash
+sudo systemctl reload nginx
+```
 
-Generated snippets redirect `403` responses to
-`https://<portal-host>/access-denied`. AGP intentionally uses the same denial
-surface for missing resources and unauthorized resources so users cannot infer
-whether a guessed entry point exists.
+## Path-Based Модель
 
-The AGP backend sends CSP for its own portal pages. Nginx snippets intentionally
-do not add CSP at the shared server level because proxied legacy applications
-may rely on inline scripts or styles. Legacy resource server snippets include
-HSTS and baseline hardening headers, but also avoid injecting CSP.
+Основная production-модель: один публичный portal host и много защищенных paths.
 
-The portal server snippet sets `client_max_body_size 256m` to match the default
-`AGP_DOWNLOAD_MAX_BYTES=268435456` upload policy for public downloads. If the
-application limit is changed, keep the Nginx value at least as large as the AGP
-limit plus multipart overhead.
+Пример metadata:
+
+```text
+public_host=enter.company.ru
+public_path=/anything-needed
+internal_url=http://app.internal.local/anything-needed
+```
+
+Пользователь открывает:
+
+```text
+https://enter.company.ru/anything-needed
+```
+
+Nginx выполняет `auth_request /_agp_auth`, AGP проверяет сессию, группы и CIDR,
+после чего Nginx делает `proxy_pass` во внутренний сервис.
+
+## Redirect И Cookies
+
+Path-based snippets включают:
+
+- `proxy_redirect` для переписывания upstream `Location`;
+- `proxy_cookie_path`;
+- `proxy_cookie_domain`.
+
+Это нужно для legacy-приложений, которые после входа делают redirect вида:
+
+```text
+Location: http://app.internal.local/anything-needed/ru_RU
+```
+
+Через AGP такой redirect остается внутри публичного path:
+
+```text
+https://enter.company.ru/anything-needed/ru_RU
+```
+
+## Access Denied
+
+Сгенерированный config отправляет `403` на:
+
+```text
+https://<portal-host>/access-denied
+```
+
+AGP намеренно показывает одинаковую поверхность отказа для неизвестных и
+запрещенных ресурсов. Это снижает риск перебора entry points.
+
+## CSP И Legacy Apps
+
+AGP backend отправляет CSP для собственных страниц портала. Nginx bundle не
+добавляет `Content-Security-Policy` на общем `server` level, потому что
+проксируемые legacy-приложения часто используют inline scripts/styles.
+
+Если добавить CSP в общий Nginx server, можно сломать ресурс, который напрямую
+работает, но через портал начинает показывать ошибки CSP в браузере.
+
+## Upload Limit
+
+Bundle задает:
+
+```nginx
+client_max_body_size 256m;
+```
+
+Это соответствует дефолтному:
+
+```env
+AGP_DOWNLOAD_MAX_BYTES=268435456
+```
+
+Если лимит AGP увеличен, Nginx `client_max_body_size` должен быть не меньше
+AGP-лимита плюс multipart overhead.
+
+## TLS Пути
+
+Генератор использует нейтральные placeholder paths:
+
+```nginx
+ssl_certificate /etc/nginx/ssl/portal/cert.pem;
+ssl_certificate_key /etc/nginx/ssl/portal/private.key;
+```
+
+Перед применением их нужно заменить на реальные файлы сертификата.

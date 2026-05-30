@@ -1,8 +1,8 @@
 # PostgreSQL
 
-PostgreSQL is the preferred production storage backend.
+PostgreSQL - основной storage backend для production.
 
-## Minimal Setup
+## Минимальная Настройка
 
 ```sql
 CREATE USER agp WITH PASSWORD 'change-me';
@@ -11,44 +11,58 @@ CREATE DATABASE agp OWNER agp;
 
 Runtime configuration:
 
-```bash
+```env
 AGP_DATABASE_DRIVER=postgres
-AGP_DATABASE_DSN='postgres://agp:change-me@127.0.0.1:5432/agp?sslmode=disable'
+AGP_DATABASE_DSN=postgres://agp:change-me@127.0.0.1:5432/agp?sslmode=disable
 ```
 
-For production, prefer TLS-enabled PostgreSQL connections, restricted network
-access and managed backups.
+Для production рекомендуется:
 
-## Migrations
+- отдельная роль БД только для AGP;
+- пароль, сгенерированный случайно;
+- доступ к PostgreSQL только с AGP host/network;
+- SCRAM authentication;
+- TLS для сетевого PostgreSQL;
+- регулярный backup и restore drill.
 
-Migrations are embedded in the backend binary under:
+## Миграции
+
+Миграции встроены в backend binary:
 
 ```text
 internal/storage/postgres/migrations/
 ```
 
-The backend applies unapplied migrations on startup and records them in
-`schema_migrations`.
+При старте backend применяет непримененные миграции и записывает результат в
+`schema_migrations`. Отдельный ручной запуск миграций не требуется.
 
-## Backup Model
+## Backup Baseline
 
-Minimum production baseline:
+Минимум для production:
 
-- daily base backups;
-- WAL archiving for point-in-time recovery;
-- encrypted off-host backup storage;
-- monthly restore drill.
+- ежедневный dump/base backup;
+- WAL archiving для point-in-time recovery, если требуется RPO меньше суток;
+- encrypted off-host storage;
+- проверка восстановления минимум раз в месяц;
+- retention, согласованный с audit policy.
+
+Скрипты проекта:
+
+```text
+scripts/agp-backup.sh
+scripts/agp-restore.sh
+deploy/systemd/agp-backup.service
+deploy/systemd/agp-backup.timer
+```
 
 ## Integration Tests
 
-PostgreSQL integration tests are opt-in and require a disposable database user
-with permission to create/drop schemas:
+PostgreSQL integration tests требуют временную схему в живой БД:
 
 ```bash
 AGP_TEST_POSTGRES_DSN='postgres://agp:change-me@127.0.0.1:5432/agp?sslmode=disable' \
   go test ./internal/storage/postgres
 ```
 
-The test creates a temporary schema, applies embedded migrations inside that
-schema, validates core CRUD/access/audit operations and drops the schema during
-cleanup.
+Тест создает временную схему, применяет embedded migrations, проверяет базовые
+CRUD/access/audit операции и удаляет схему после завершения.

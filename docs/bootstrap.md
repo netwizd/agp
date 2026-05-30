@@ -1,27 +1,41 @@
-# AGP Bootstrap
+# Bootstrap AGP
 
-## First Admin User
+## Первый Администратор
 
-AGP does not ship with a default password. Generate an Argon2id hash locally:
-
-```bash
-printf '%s\n' "$AGP_ADMIN_PASSWORD" | go run ./cmd/agpctl hash-password
-```
-
-Preferred bootstrap path:
+AGP не поставляется с дефолтным паролем. Первый администратор создается через
+`agpctl`, используя ту же конфигурацию БД, что и backend.
 
 ```bash
-printf '%s\n' "$AGP_ADMIN_PASSWORD" | go run ./cmd/agpctl create-admin \
+set -a && . /etc/agp/agp.env && set +a
+printf '%s\n' "$AGP_ADMIN_PASSWORD" | sudo -u agp /usr/local/bin/agpctl create-admin \
   -username admin \
   -display-name "Administrator" \
   -group-name "Administrators"
 ```
 
-The command uses the same `AGP_DATABASE_DRIVER`, `AGP_DATABASE_DSN` and
-`AGP_DATABASE_PATH` settings as the backend. It applies migrations before
-creating the administrator.
+Команда:
 
-Manual PostgreSQL equivalent:
+- применяет миграции;
+- создает пользователя;
+- создает группу администраторов при необходимости;
+- назначает пользователя в группу;
+- сохраняет пароль как Argon2id hash.
+
+## Hash Пароля
+
+Для ручных операций можно получить hash:
+
+```bash
+printf '%s\n' "$AGP_ADMIN_PASSWORD" | /usr/local/bin/agpctl hash-password
+```
+
+Plaintext пароль нельзя сохранять в shell history, tickets, wiki или deployment
+manifest. Для production лучше вводить пароль интерактивно или через временный
+секрет.
+
+## Ручной SQL Fallback
+
+Использовать только в аварийном обслуживании:
 
 ```sql
 INSERT INTO users(id, username, password_hash, display_name, is_admin)
@@ -34,7 +48,7 @@ VALUES (
 );
 ```
 
-Create a group and resource mapping:
+Пример группы и ресурса:
 
 ```sql
 INSERT INTO groups(id, name, description)
@@ -45,8 +59,8 @@ VALUES ('usr_admin', 'grp_admins');
 
 INSERT INTO resources(id, name, description, category, internal_url, public_host, public_path, enabled)
 VALUES (
-    'res_app',
-    'Example App',
+    'res_example',
+    'Example Service',
     'Internal example service',
     'Operations',
     'http://app.internal.local/anything-needed',
@@ -56,11 +70,8 @@ VALUES (
 );
 
 INSERT INTO resource_groups(resource_id, group_id)
-VALUES ('res_app', 'grp_admins');
+VALUES ('res_example', 'grp_admins');
 ```
 
-For SQLite fallback, use the same statements with `1` and `0` for boolean
-columns if your SQLite client does not accept `true` and `false`.
-
-For production, run bootstrap from a maintenance workstation and avoid storing
-plaintext passwords in shell history, tickets or deployment manifests.
+Для SQLite boolean можно записывать как `1` и `0`, если клиент не принимает
+`true` и `false`.

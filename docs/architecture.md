@@ -1,66 +1,75 @@
-# AGP Architecture
+# Архитектура AGP
 
 ## Назначение
 
-AGP является централизованным шлюзом доступа к внутренним ресурсам компании.
-Он не заменяет внутренние приложения, а становится контролируемой точкой
-аутентификации, авторизации и аудита перед ними.
+AGP - централизованный шлюз доступа к внутренним корпоративным ресурсам. Он не
+заменяет приложения, а становится общей точкой аутентификации, авторизации,
+аудита и публикации entry points.
 
 ## Компоненты
 
 | Компонент | Ответственность |
 | --- | --- |
 | Nginx | TLS termination, reverse proxy, `auth_request`, access/error logs |
-| AGP backend | Login, sessions, resource authorization, audit events |
-| PostgreSQL | Users, groups, resources, sessions, audit storage |
-| SQLite | Optional development/small-install fallback |
-| Embedded static frontend | Login, user portal and admin UI shell |
+| AGP backend | login, sessions, CSRF, авторизация ресурсов, audit |
+| PostgreSQL | пользователи, группы, ресурсы, сессии, аудит, downloads metadata |
+| SQLite | fallback для разработки и маленьких инсталляций |
+| Embedded frontend | login, пользовательский портал, админка |
+| `agpctl` | bootstrap администратора и служебные команды |
 
-## Поток Данных
+## Поток Доступа К Ресурсу
 
 ```mermaid
 sequenceDiagram
-    participant User
+    participant User as Пользователь
     participant Nginx
     participant AGP
-    participant DB
-    participant Internal as Internal Resource
+    participant DB as PostgreSQL
+    participant App as Внутренний ресурс
 
     User->>Nginx: GET https://enter.company.ru/anything-needed
-    Nginx->>AGP: GET /auth/request
-    AGP->>DB: Validate session, resource, groups, IP allowlist
-    DB-->>AGP: Authorization context
-    AGP-->>Nginx: 204 + X-AGP-* headers
-    Nginx->>Internal: Proxy request
-    Internal-->>User: Response through Nginx
+    Nginx->>AGP: GET /auth/request + Cookie + X-Original-URI
+    AGP->>DB: сессия, ресурс, группы, CIDR
+    DB-->>AGP: контекст авторизации
+    AGP-->>Nginx: 204 + X-AGP-* или 401/403
+    Nginx->>App: proxy_pass
+    App-->>User: ответ через Nginx
 ```
 
-## Scaling Strategy
+## Модель Развертывания
 
-MVP is single-node by design. The clean scaling path is:
+Production baseline:
 
-1. Move brute-force/rate-limit counters to Redis.
-2. Run several backend instances behind Nginx/upstream LB.
-3. Keep sessions stored server-side, not as self-contained bearer claims.
-4. Export audit events to SIEM or a dedicated warehouse when retention grows.
+- AGP слушает `127.0.0.1:8080`;
+- наружу открыт только Nginx;
+- TLS завершается на Nginx;
+- trusted proxy headers принимаются только от доверенных CIDR;
+- PostgreSQL доступен только AGP host/network;
+- Nginx bundle генерируется AGP, но применяется администратором вручную.
+
+## Масштабирование
+
+v1.0 рассчитан на single-node deployment. Предсказуемый путь роста:
+
+1. вынести rate limit counters в Redis;
+2. запускать несколько AGP backend instances за upstream/LB;
+3. оставить server-side sessions в PostgreSQL/Redis, а не переносить все в JWT;
+4. выгружать audit events в SIEM или отдельное хранилище;
+5. документировать PostgreSQL HA и backup/PITR.
 
 ## Failure Scenarios
 
-| Failure | Expected behavior |
+| Сбой | Поведение |
 | --- | --- |
-| AGP backend unavailable | Nginx denies protected resources; no fail-open mode |
-| Database unavailable | Login and authorization fail closed |
-| Invalid CIDR in allowlist | Resource access fails closed |
-| Expired session | `401`, redirect to portal login through Nginx |
-| Unauthorized or unknown resource | generic access denied UX, audited internally |
+| AGP backend недоступен | Nginx не открывает защищенный ресурс, fail closed |
+| PostgreSQL недоступен | login/auth_request завершаются отказом |
+| Ресурс выключен | доступ запрещен |
+| CIDR allowlist некорректен | доступ запрещен |
+| Сессия истекла | `401`, redirect на login через Nginx |
+| Неизвестный или запрещенный ресурс | единая страница `/access-denied` |
 
-## Deployment Model
+## Границы Ответственности
 
-Recommended production topology:
-
-- backend listens only on `127.0.0.1` or a private management network;
-- only Nginx is Internet-facing;
-- TLS is terminated at Nginx;
-- AGP receives trusted proxy headers only from Nginx;
-- PostgreSQL is reachable only from the AGP host/network;
-- generated Nginx recommendations are reviewed and applied by administrators.
+AGP принимает решения доступа и ведет аудит. Nginx выполняет TLS и proxying.
+Внутренние приложения остаются отдельными системами и могут иметь собственную
+авторизацию, но не должны считаться единственной защитой.
