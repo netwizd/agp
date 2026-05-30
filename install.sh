@@ -17,6 +17,7 @@ PORTAL_HOST=""
 LE_EMAIL=""
 SETUP_CERTBOT="yes"
 SETUP_BACKUPS="yes"
+SETUP_FIREWALL="no"
 SETUP_NGINX="yes"
 POSTGRES_MODE="local"
 POSTGRES_HBA_MODE="managed"
@@ -206,6 +207,12 @@ collect_answers() {
     SETUP_BACKUPS="no"
   fi
 
+  if ask_yes_no "Configure UFW firewall rules for SSH/HTTP/HTTPS? Choose no if firewall is already managed." "no"; then
+    SETUP_FIREWALL="yes"
+  else
+    SETUP_FIREWALL="no"
+  fi
+
   MODE="$(ask_mode "Installation mode: auto or manual" "$MODE")"
 
   if ask_yes_no "Replace pg_hba.conf with AGP-only local PostgreSQL policy? Recommended on a dedicated AGP host." "yes"; then
@@ -224,6 +231,7 @@ Installation summary:
   portal host:           $PORTAL_HOST
   nginx setup:           $SETUP_NGINX
   certbot setup:         $SETUP_CERTBOT
+  firewall setup:        $SETUP_FIREWALL
   postgres mode:         $POSTGRES_MODE
   postgres hba mode:     $POSTGRES_HBA_MODE
   db name:               $DB_NAME
@@ -248,7 +256,10 @@ install_base_packages() {
     git curl ca-certificates gnupg2 lsb-release ubuntu-keyring \
     build-essential openssl \
     postgresql postgresql-client postgresql-contrib \
-    logrotate ufw
+    logrotate
+  if [[ "$SETUP_FIREWALL" == "yes" ]]; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y ufw
+  fi
 }
 
 install_go_if_needed() {
@@ -690,6 +701,11 @@ Portal:
 Initial admin:
   username: ${ADMIN_USER}
 EOF
+  if [[ "$GENERATED_ADMIN_PASSWORD" != "yes" ]]; then
+    cat <<EOF
+  password: the value entered during installer questions
+EOF
+  fi
   if [[ "$GENERATED_ADMIN_PASSWORD" == "yes" ]]; then
     cat <<EOF
   generated password: ${ADMIN_PASSWORD}
@@ -702,7 +718,17 @@ EOF
 PostgreSQL:
   database: ${DB_NAME}
   user:     ${DB_USER}
-  password: stored in /etc/agp/agp.env
+  password: ${DB_PASSWORD}
+  DSN:      postgres://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}?sslmode=disable
+
+SAVE THESE VALUES NOW:
+  AGP portal host:       ${PORTAL_HOST}
+  AGP admin username:   ${ADMIN_USER}
+  AGP admin password:   $([[ "$GENERATED_ADMIN_PASSWORD" == "yes" ]] && printf '%s' "$ADMIN_PASSWORD" || printf '<entered interactively; not echoed earlier>')
+  PostgreSQL database:  ${DB_NAME}
+  PostgreSQL user:      ${DB_USER}
+  PostgreSQL password:  ${DB_PASSWORD}
+  AGP env file:         /etc/agp/agp.env
 
 Useful checks:
   systemctl status agp --no-pager
@@ -732,7 +758,7 @@ main() {
   [[ "$SETUP_NGINX" == "yes" ]] && run_step "Write temporary HTTP Nginx portal config" write_nginx_portal_http_config
   [[ "$SETUP_NGINX" == "yes" && "$SETUP_CERTBOT" == "yes" ]] && run_step "Request Let's Encrypt certificate" request_certbot_certificate
   [[ "$SETUP_NGINX" == "yes" ]] && run_step "Write final HTTPS Nginx portal config" write_nginx_portal_https_config
-  run_step "Configure UFW firewall" configure_firewall
+  [[ "$SETUP_FIREWALL" == "yes" ]] && run_step "Configure UFW firewall" configure_firewall
   [[ "$SETUP_BACKUPS" == "yes" ]] && run_step "Install backup scripts and timer" install_backups
   run_step "Run final checks" final_checks
 }

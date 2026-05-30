@@ -72,7 +72,8 @@ deployment inputs, generates the PostgreSQL application password, configures the
 local PostgreSQL role/database, installs official `nginx.org` Nginx when
 requested, installs `certbot` only when Let's Encrypt automation is requested,
 writes `/etc/agp/agp.env`, installs systemd units and can enable the backup
-timer.
+timer. Firewall configuration is opt-in; the installer does not touch UFW unless
+explicitly requested.
 
 ```bash
 sudo ./install.sh --manual
