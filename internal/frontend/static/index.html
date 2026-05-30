@@ -189,7 +189,11 @@
                   <input name="enabled" type="checkbox" checked />
                   Опубликован
                 </label>
-                <button type="submit">Добавить файл</button>
+                <button type="submit" id="downloadSubmitButton">Добавить файл</button>
+                <div class="upload-status hidden" id="downloadUploadStatus" aria-live="polite">
+                  <progress id="downloadUploadProgress" max="100" value="0"></progress>
+                  <span id="downloadUploadText">Ожидание загрузки</span>
+                </div>
               </form>
               <div class="table-list" id="adminDownloads"></div>
             </section>

@@ -111,6 +111,10 @@ const els = {
   userGroupSelector: document.getElementById("userGroupSelector"),
   createUserAdminFlag: document.getElementById("createUserAdminFlag"),
   downloadForm: document.getElementById("downloadForm"),
+  downloadSubmitButton: document.getElementById("downloadSubmitButton"),
+  downloadUploadStatus: document.getElementById("downloadUploadStatus"),
+  downloadUploadProgress: document.getElementById("downloadUploadProgress"),
+  downloadUploadText: document.getElementById("downloadUploadText"),
   portalSettingsForm: document.getElementById("portalSettingsForm"),
   refreshAuditButton: document.getElementById("refreshAuditButton"),
   auditFilterForm: document.getElementById("auditFilterForm"),
@@ -249,15 +253,27 @@ els.userForm.addEventListener("submit", async (event) => {
 
 els.downloadForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  const form = new FormData(els.downloadForm);
   try {
-    await uploadDownload(new FormData(els.downloadForm));
+    setDownloadUploadState(true, 0, "Подготовка загрузки");
+    await uploadDownload(form, ({ loaded, total, percent }) => {
+      if (total > 0) {
+        setDownloadUploadState(true, percent, `Загрузка файла: ${percent}% (${formatBytes(loaded)} из ${formatBytes(total)})`);
+        return;
+      }
+      setDownloadUploadState(true, 0, `Загрузка файла: ${formatBytes(loaded)}`);
+    });
     els.downloadForm.reset();
     els.downloadForm.elements.enabled.checked = true;
     els.operationOutput.textContent = "Файл добавлен";
+    setDownloadUploadState(false, 100, "Загрузка завершена");
     await refreshPublicData();
     await loadAdmin();
   } catch (error) {
+    setDownloadUploadState(false, 0, "Ошибка загрузки");
     showOperationError("Не удалось добавить файл", error);
+  } finally {
+    setDownloadFormBusy(false);
   }
 });
 
@@ -1400,24 +1416,37 @@ async function api(path, options = {}) {
   return response.json();
 }
 
-async function uploadDownload(form) {
-  const init = {
-    method: "POST",
-    credentials: "same-origin",
-    headers: {
-      Accept: "application/json",
-      "X-CSRF-Token": state.csrfToken,
-    },
-    body: form,
-  };
+function uploadDownload(form, onProgress) {
   if (form.get("enabled") !== "on") {
     form.set("enabled", "false");
   }
-  const response = await fetch("/api/v1/admin/downloads", init);
-  if (!response.ok) {
-    throw new Error(await responseErrorMessage(response));
-  }
-  return response.json();
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/v1/admin/downloads");
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("X-CSRF-Token", state.csrfToken);
+    xhr.upload.addEventListener("progress", (event) => {
+      if (!onProgress) return;
+      const total = event.lengthComputable ? event.total : 0;
+      const percent = total > 0 ? Math.max(1, Math.min(99, Math.round((event.loaded / total) * 100))) : 0;
+      onProgress({ loaded: event.loaded, total, percent });
+    });
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(xhr.responseText ? JSON.parse(xhr.responseText) : {});
+        } catch {
+          reject(new Error("HTTP 200: некорректный JSON-ответ сервера"));
+        }
+        return;
+      }
+      reject(new Error(responseErrorText(xhr.status, responseDetail(xhr.responseText))));
+    });
+    xhr.addEventListener("error", () => reject(new Error("Сетевая ошибка при загрузке файла")));
+    xhr.addEventListener("abort", () => reject(new Error("Загрузка файла отменена")));
+    xhr.send(form);
+  });
 }
 
 async function responseErrorMessage(response) {
@@ -1428,13 +1457,41 @@ async function responseErrorMessage(response) {
   } catch {
     detail = await response.text().catch(() => "");
   }
-  if (response.status === 413) {
+  return responseErrorText(response.status, detail);
+}
+
+function responseErrorText(status, detail) {
+  if (status === 413) {
     return "HTTP 413: файл больше лимита Nginx/client_max_body_size или AGP_DOWNLOAD_MAX_BYTES";
   }
   if (detail === "download_extension_denied") {
     return "HTTP 400: расширение файла запрещено политикой AGP_DOWNLOAD_ALLOWED_EXTENSIONS";
   }
-  return `HTTP ${response.status}${detail ? `: ${detail}` : ""}`;
+  return `HTTP ${status}${detail ? `: ${detail}` : ""}`;
+}
+
+function responseDetail(text) {
+  if (!text) return "";
+  try {
+    const payload = JSON.parse(text);
+    return payload.error || text;
+  } catch {
+    return text;
+  }
+}
+
+function setDownloadUploadState(active, value, text) {
+  els.downloadUploadStatus.classList.remove("hidden");
+  els.downloadUploadProgress.value = value;
+  els.downloadUploadText.textContent = text;
+  setDownloadFormBusy(active);
+}
+
+function setDownloadFormBusy(busy) {
+  Array.from(els.downloadForm.elements).forEach((element) => {
+    element.disabled = busy;
+  });
+  els.downloadSubmitButton.textContent = busy ? "Загрузка..." : "Добавить файл";
 }
 
 function showOperationError(prefix, error) {
