@@ -497,13 +497,48 @@ EOF
   runuser -u agp -- test -r "$env_file"
 }
 
+show_agp_diagnostics() {
+  warn "AGP did not become ready. Diagnostics:"
+  systemctl status agp --no-pager || true
+  journalctl -u agp -n 120 --no-pager || true
+  ss -ltnp 2>/dev/null | grep ':8080' || true
+  printf '\nAGP environment file state:\n' >&2
+  ls -lah /etc/agp/agp.env >&2 || true
+  runuser -u agp -- test -r /etc/agp/agp.env && printf 'agp user can read /etc/agp/agp.env\n' >&2 || true
+}
+
+wait_for_agp_ready() {
+  local attempts="${1:-30}"
+  local delay="${2:-1}"
+  local i
+  for ((i = 1; i <= attempts; i++)); do
+    if curl -fsS http://127.0.0.1:8080/readyz >/tmp/agp-readyz.out 2>/tmp/agp-readyz.err; then
+      cat /tmp/agp-readyz.out
+      rm -f /tmp/agp-readyz.out /tmp/agp-readyz.err
+      return 0
+    fi
+    if ! systemctl is-active --quiet agp; then
+      show_agp_diagnostics
+      rm -f /tmp/agp-readyz.out /tmp/agp-readyz.err
+      return 1
+    fi
+    sleep "$delay"
+  done
+
+  warn "Last /readyz error:"
+  cat /tmp/agp-readyz.err >&2 || true
+  show_agp_diagnostics
+  rm -f /tmp/agp-readyz.out /tmp/agp-readyz.err
+  return 1
+}
+
 install_systemd_units() {
   cd "$SOURCE_DIR"
   install -o root -g root -m 0644 deploy/systemd/agp.service /etc/systemd/system/agp.service
   systemctl daemon-reload
-  systemctl enable --now agp
-  systemctl is-active --quiet agp
-  curl -fsS http://127.0.0.1:8080/readyz
+  systemctl enable agp
+  systemctl restart agp
+  wait_for_agp_ready 45 1
 }
 
 create_initial_admin() {
@@ -639,7 +674,7 @@ install_backups() {
 
 final_checks() {
   systemctl status agp --no-pager || true
-  curl -fsS http://127.0.0.1:8080/readyz
+  wait_for_agp_ready 15 1
   PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U "$DB_USER" -d "$DB_NAME" -c 'select current_user, current_database();'
   if [[ "$SETUP_NGINX" == "yes" ]]; then
     nginx -t
