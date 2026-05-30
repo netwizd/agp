@@ -65,6 +65,10 @@ func TestGeneratePathResourceLocation(t *testing.T) {
 		"location ^~ /anything-needed {",
 		"auth_request /_agp_auth;",
 		"proxy_pass http://app.internal.local/anything-needed;",
+		"proxy_redirect http://app.internal.local/anything-needed $scheme://$host/anything-needed;",
+		"proxy_redirect http://app.internal.local/ $scheme://$host/anything-needed/;",
+		"proxy_cookie_path /anything-needed /anything-needed;",
+		"proxy_cookie_domain app.internal.local $host;",
 		"error_page 403 =302 https://enter.company.ru/access-denied;",
 	} {
 		if !strings.Contains(recommendation.Snippet, expected) {
@@ -98,6 +102,7 @@ func TestGenerateBundleContainsProtectedPathLocation(t *testing.T) {
 		"location ^~ /anything-needed {",
 		"auth_request /_agp_auth;",
 		"proxy_pass http://app.internal.local/anything-needed;",
+		"proxy_redirect http://app.internal.local/anything-needed $scheme://$host/anything-needed;",
 		"location / {",
 	} {
 		if !strings.Contains(bundle.Snippet, expected) {

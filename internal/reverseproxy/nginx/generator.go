@@ -35,6 +35,10 @@ func GenerateResourceServer(resource domain.ResourceDetail, portalHost string) (
 	if err != nil {
 		return nil, err
 	}
+	redirect, err := proxyRedirectData(internalURL)
+	if err != nil {
+		return nil, err
+	}
 	if portalHost == "" {
 		portalHost = "portal.company.ru"
 		warnings = append(warnings, "portal host is not configured; placeholder portal.company.ru is used")
@@ -61,6 +65,7 @@ func GenerateResourceServer(resource domain.ResourceDetail, portalHost string) (
 		"PublicPath":  publicPath,
 		"InternalURL": internalURL,
 		"PortalHost":  portalHost,
+		"Redirect":    redirect,
 	}
 	tmpl := resourceServerTemplate
 	if publicPath != "" {
@@ -177,6 +182,32 @@ func normalizeProxyURL(raw string) (string, error) {
 	return parsed.String(), nil
 }
 
+type redirectData struct {
+	InternalOrigin   string
+	InternalPath     string
+	InternalHostname string
+}
+
+func proxyRedirectData(raw string) (redirectData, error) {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return redirectData{}, fmt.Errorf("parse normalized internal url: %w", err)
+	}
+	path := parsed.EscapedPath()
+	if path == "" {
+		path = "/"
+	}
+	cookiePath := strings.TrimRight(path, "/")
+	if cookiePath == "" {
+		cookiePath = "/"
+	}
+	return redirectData{
+		InternalOrigin:   parsed.Scheme + "://" + parsed.Host,
+		InternalPath:     cookiePath,
+		InternalHostname: parsed.Hostname(),
+	}, nil
+}
+
 func indent(text string, prefix string) string {
 	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
 	for i, line := range lines {
@@ -258,6 +289,12 @@ location ^~ {{ .PublicPath }} {
     proxy_set_header X-AGP-User $agp_user;
     proxy_set_header X-AGP-User-ID $agp_user_id;
     proxy_set_header X-AGP-Groups $agp_groups;
+
+    # Keep upstream redirects inside the public portal path.
+    proxy_redirect {{ .InternalURL }} $scheme://$host{{ .PublicPath }};
+    proxy_redirect {{ .Redirect.InternalOrigin }}/ $scheme://$host{{ .PublicPath }}/;
+    proxy_cookie_path {{ .Redirect.InternalPath }} {{ .PublicPath }};
+    proxy_cookie_domain {{ .Redirect.InternalHostname }} $host;
 }
 `))
 
@@ -312,6 +349,8 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
+        proxy_redirect {{ .InternalURL }} $scheme://$host/;
+        proxy_cookie_domain {{ .Redirect.InternalHostname }} $host;
     }
 }
 `))

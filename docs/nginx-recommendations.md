@@ -21,6 +21,11 @@ location on the portal server. The location uses `auth_request /_agp_auth`
 before `proxy_pass`, so access is still controlled by AGP sessions, groups and
 optional CIDR allowlists.
 
+Path-based snippets also include `proxy_redirect` and cookie rewrite directives.
+This keeps upstream redirects such as
+`Location: http://app.internal.local/anything-needed/ru_RU` inside the public
+portal URL, for example `https://enter.company.ru/anything-needed/ru_RU`.
+
 This keeps AGP as the access control plane while Nginx remains the data plane.
 Automatic config application can be added later through a privileged local agent
 with explicit RBAC, audit events and `nginx -t` gating.
