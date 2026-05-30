@@ -10,7 +10,10 @@ import (
 
 type Config struct {
 	HTTPAddr           string
+	PortalHost         string
+	DatabaseDriver     string
 	DatabasePath       string
+	DatabaseDSN        string
 	SessionCookieName  string
 	CSRFCookieName     string
 	CookieSecure       bool
@@ -24,7 +27,10 @@ type Config struct {
 func Load() (Config, error) {
 	cfg := Config{
 		HTTPAddr:           envString("AGP_HTTP_ADDR", "127.0.0.1:8080"),
+		PortalHost:         envString("AGP_PORTAL_HOST", "portal.company.ru"),
+		DatabaseDriver:     envString("AGP_DATABASE_DRIVER", "postgres"),
 		DatabasePath:       envString("AGP_DATABASE_PATH", "./agp.db"),
+		DatabaseDSN:        envString("AGP_DATABASE_DSN", "postgres://agp:agp@127.0.0.1:5432/agp?sslmode=disable"),
 		SessionCookieName:  envString("AGP_SESSION_COOKIE_NAME", "agp_session"),
 		CSRFCookieName:     envString("AGP_CSRF_COOKIE_NAME", "agp_csrf"),
 		CookieSecure:       envBool("AGP_COOKIE_SECURE", true),
@@ -40,6 +46,15 @@ func Load() (Config, error) {
 	}
 	if cfg.LoginRateLimitMax <= 0 {
 		return Config{}, errors.New("AGP_LOGIN_RATE_LIMIT_MAX must be positive")
+	}
+	if cfg.DatabaseDriver != "postgres" && cfg.DatabaseDriver != "sqlite" {
+		return Config{}, errors.New("AGP_DATABASE_DRIVER must be postgres or sqlite")
+	}
+	if cfg.DatabaseDriver == "postgres" && cfg.DatabaseDSN == "" {
+		return Config{}, errors.New("AGP_DATABASE_DSN must be set for postgres")
+	}
+	if cfg.DatabaseDriver == "sqlite" && cfg.DatabasePath == "" {
+		return Config{}, errors.New("AGP_DATABASE_PATH must be set for sqlite")
 	}
 	return cfg, nil
 }

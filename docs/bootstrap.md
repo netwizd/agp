@@ -8,7 +8,7 @@ AGP does not ship with a default password. Generate an Argon2id hash locally:
 printf '%s\n' "$AGP_ADMIN_PASSWORD" | go run ./cmd/agpctl hash-password
 ```
 
-Insert the first administrator into SQLite:
+Insert the first administrator into PostgreSQL:
 
 ```sql
 INSERT INTO users(id, username, password_hash, display_name, is_admin)
@@ -17,7 +17,7 @@ VALUES (
     'admin',
     '<argon2id-hash>',
     'Administrator',
-    1
+    true
 );
 ```
 
@@ -37,12 +37,15 @@ VALUES (
     'Internal 1C service',
     'http://e1c.osrp.local',
     'e1c.company.ru',
-    1
+    true
 );
 
 INSERT INTO resource_groups(resource_id, group_id)
 VALUES ('res_e1c', 'grp_admins');
 ```
+
+For SQLite fallback, use the same statements with `1` and `0` for boolean
+columns if your SQLite client does not accept `true` and `false`.
 
 For production, run bootstrap from a maintenance workstation and avoid storing
 plaintext passwords in shell history, tickets or deployment manifests.

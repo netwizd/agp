@@ -46,6 +46,17 @@ func (s *Server) withSession(next func(http.ResponseWriter, *http.Request, *doma
 	}
 }
 
+func (s *Server) withAdmin(next func(http.ResponseWriter, *http.Request, *domain.SessionContext)) http.HandlerFunc {
+	return s.withSession(func(w http.ResponseWriter, r *http.Request, session *domain.SessionContext) {
+		if !session.User.IsAdmin {
+			s.audit(r, "admin.access", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "failure", "admin_required")
+			writeError(w, http.StatusForbidden, "admin_required")
+			return
+		}
+		next(w, r, session)
+	})
+}
+
 func (s *Server) lookupSession(r *http.Request) (*domain.SessionContext, error) {
 	cookie, err := r.Cookie(s.cfg.SessionCookieName)
 	if err != nil || cookie.Value == "" {
