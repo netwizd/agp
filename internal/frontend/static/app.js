@@ -664,7 +664,7 @@ function renderResourceEditForm(resource) {
       <input name="name" placeholder="Название" value="${escapeHTML(resource.Name)}" required />
       <input name="category" placeholder="Группа в каталоге" value="${escapeHTML(resource.Category || "")}" />
       <input name="public_host" placeholder="public host портала" value="${escapeHTML(resource.PublicHost)}" />
-      <input name="public_path" placeholder="/osrp-do" value="${escapeHTML(resource.PublicPath || "")}" required />
+      <input name="public_path" placeholder="/anything-needed" value="${escapeHTML(resource.PublicPath || "")}" required />
       <input name="internal_url" placeholder="http://internal.local" value="${escapeHTML(resource.InternalURL)}" required />
       <input name="description" placeholder="Описание" value="${escapeHTML(resource.Description || "")}" />
       <div class="form-field-full">${renderGroupSelector(resource.GroupIDs || [], "Группы не созданы. Без группы доступ к ресурсу будет запрещен.")}</div>

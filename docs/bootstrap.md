@@ -45,18 +45,18 @@ VALUES ('usr_admin', 'grp_admins');
 
 INSERT INTO resources(id, name, description, category, internal_url, public_host, public_path, enabled)
 VALUES (
-    'res_e1c',
-    '1C Enterprise',
-    'Internal 1C service',
-    'Finance',
-    'http://e1c.osrp.local/osrp-do',
+    'res_app',
+    'Example App',
+    'Internal example service',
+    'Operations',
+    'http://app.internal.local/anything-needed',
     'enter.company.ru',
-    '/osrp-do',
+    '/anything-needed',
     true
 );
 
 INSERT INTO resource_groups(resource_id, group_id)
-VALUES ('res_e1c', 'grp_admins');
+VALUES ('res_app', 'grp_admins');
 ```
 
 For SQLite fallback, use the same statements with `1` and `0` for boolean

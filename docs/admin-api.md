@@ -52,12 +52,12 @@ permissions. See [rbac.md](rbac.md).
 
 ```json
 {
-  "name": "1C Enterprise",
-  "description": "Internal 1C service",
-  "category": "Finance",
-  "internal_url": "http://e1c.osrp.local/osrp-do",
+  "name": "Example App",
+  "description": "Internal example service",
+  "category": "Operations",
+  "internal_url": "http://app.internal.local/anything-needed",
   "public_host": "enter.company.ru",
-  "public_path": "/osrp-do",
+  "public_path": "/anything-needed",
   "enabled": true,
   "group_ids": ["grp_admins"],
   "allow_cidrs": ["10.50.0.0/16"]
@@ -66,8 +66,8 @@ permissions. See [rbac.md](rbac.md).
 
 `public_host` is the public portal host. `public_path` is the protected entry
 point on that host. With the example above AGP expects Nginx to protect
-`https://enter.company.ru/osrp-do` and proxy it to
-`http://e1c.osrp.local/osrp-do`.
+`https://enter.company.ru/anything-needed` and proxy it to
+`http://app.internal.local/anything-needed`.
 
 The API validates public host, public path, internal URL and CIDR syntax before
 storing a resource.

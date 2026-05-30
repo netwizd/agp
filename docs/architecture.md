@@ -26,7 +26,7 @@ sequenceDiagram
     participant DB
     participant Internal as Internal Resource
 
-    User->>Nginx: GET https://e1c.company.ru/
+    User->>Nginx: GET https://enter.company.ru/anything-needed
     Nginx->>AGP: GET /auth/request
     AGP->>DB: Validate session, resource, groups, IP allowlist
     DB-->>AGP: Authorization context

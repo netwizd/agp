@@ -15,8 +15,8 @@ The recommended operational flow is:
 
 The default production model is one public portal host with many protected
 paths. For example, resource metadata
-`public_host=enter.company.ru`, `public_path=/osrp-do`,
-`internal_url=http://e1c.osrp.local/osrp-do` produces a protected Nginx
+`public_host=enter.company.ru`, `public_path=/anything-needed`,
+`internal_url=http://app.internal.local/anything-needed` produces a protected Nginx
 location on the portal server. The location uses `auth_request /_agp_auth`
 before `proxy_pass`, so access is still controlled by AGP sessions, groups and
 optional CIDR allowlists.

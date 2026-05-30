@@ -86,10 +86,10 @@ func TestAdminAPIResourceAndNginxFlow(t *testing.T) {
 	}
 
 	createResourceBody := postJSON(t, client, server.URL+"/api/v1/admin/resources", map[string]any{
-		"name":         "1C Enterprise",
-		"description":  "Internal 1C service",
+		"name":         "Example App",
+		"description":  "Internal example service",
 		"internal_url": upstream.URL,
-		"public_host":  "e1c.company.ru",
+		"public_host":  "app.company.ru",
 		"enabled":      true,
 		"group_ids":    []string{group.ID},
 		"allow_cidrs":  []string{"10.50.0.0/16"},
@@ -121,7 +121,7 @@ func TestAdminAPIResourceAndNginxFlow(t *testing.T) {
 		t.Fatalf("decode nginx response: %v", err)
 	}
 	snippet, ok := nginxBody["nginx"]["snippet"].(string)
-	if !ok || !bytes.Contains([]byte(snippet), []byte("server_name e1c.company.ru;")) {
+	if !ok || !bytes.Contains([]byte(snippet), []byte("server_name app.company.ru;")) {
 		t.Fatalf("unexpected nginx snippet: %#v", nginxBody)
 	}
 
@@ -593,10 +593,10 @@ func TestAuthRequestRoutesByPublicHostAndPath(t *testing.T) {
 	if _, err := store.CreateUser(ctx, domain.UserInput{Username: "user", PasswordHash: passwordHash, GroupIDs: []string{group.ID}}); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	if _, err := store.CreateResource(ctx, domain.ResourceInput{Name: "Allowed", InternalURL: "http://e1c.osrp.local/osrp-do", PublicHost: "enter.company.test", PublicPath: "/osrp-do", Enabled: true, GroupIDs: []string{group.ID}}); err != nil {
+	if _, err := store.CreateResource(ctx, domain.ResourceInput{Name: "Allowed", InternalURL: "http://app.internal.local/anything-needed", PublicHost: "enter.company.test", PublicPath: "/anything-needed", Enabled: true, GroupIDs: []string{group.ID}}); err != nil {
 		t.Fatalf("create allowed resource: %v", err)
 	}
-	if _, err := store.CreateResource(ctx, domain.ResourceInput{Name: "Denied", InternalURL: "http://e1c.osrp.local/secret", PublicHost: "enter.company.test", PublicPath: "/secret", Enabled: true}); err != nil {
+	if _, err := store.CreateResource(ctx, domain.ResourceInput{Name: "Denied", InternalURL: "http://app.internal.local/secret", PublicHost: "enter.company.test", PublicPath: "/secret", Enabled: true}); err != nil {
 		t.Fatalf("create denied resource: %v", err)
 	}
 
@@ -617,8 +617,8 @@ func TestAuthRequestRoutesByPublicHostAndPath(t *testing.T) {
 		path       string
 		statusCode int
 	}{
-		{name: "allowed prefix", path: "/osrp-do", statusCode: http.StatusNoContent},
-		{name: "allowed subpath", path: "/osrp-do/report", statusCode: http.StatusNoContent},
+		{name: "allowed prefix", path: "/anything-needed", statusCode: http.StatusNoContent},
+		{name: "allowed subpath", path: "/anything-needed/report", statusCode: http.StatusNoContent},
 		{name: "denied resource", path: "/secret", statusCode: http.StatusForbidden},
 		{name: "unknown resource", path: "/not-found", statusCode: http.StatusForbidden},
 	} {

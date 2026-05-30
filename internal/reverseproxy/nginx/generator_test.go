@@ -11,10 +11,10 @@ import (
 func TestGenerateResourceServer(t *testing.T) {
 	resource := domain.ResourceDetail{
 		Resource: domain.Resource{
-			ID:          "res_e1c",
-			Name:        "1C",
-			InternalURL: "http://e1c.osrp.local",
-			PublicHost:  "e1c.company.ru",
+			ID:          "res_app",
+			Name:        "Example App",
+			InternalURL: "http://app.internal.local",
+			PublicHost:  "app.company.ru",
 			Enabled:     true,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
@@ -27,13 +27,13 @@ func TestGenerateResourceServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateResourceServer returned error: %v", err)
 	}
-	if recommendation.PublicHost != "e1c.company.ru" {
+	if recommendation.PublicHost != "app.company.ru" {
 		t.Fatalf("unexpected public host: %s", recommendation.PublicHost)
 	}
-	if !strings.Contains(recommendation.Snippet, "server_name e1c.company.ru;") {
+	if !strings.Contains(recommendation.Snippet, "server_name app.company.ru;") {
 		t.Fatalf("snippet does not contain server_name: %s", recommendation.Snippet)
 	}
-	if !strings.Contains(recommendation.Snippet, "proxy_pass http://e1c.osrp.local;") {
+	if !strings.Contains(recommendation.Snippet, "proxy_pass http://app.internal.local;") {
 		t.Fatalf("snippet does not contain proxy_pass: %s", recommendation.Snippet)
 	}
 	if !strings.Contains(recommendation.Snippet, "error_page 403 =302 https://portal.company.ru/access-denied;") {
@@ -48,10 +48,10 @@ func TestGeneratePathResourceLocation(t *testing.T) {
 	resource := domain.ResourceDetail{
 		Resource: domain.Resource{
 			ID:          "res_osrp_do",
-			Name:        "1C ОСРП",
-			InternalURL: "http://e1c.osrp.local/osrp-do",
+			Name:        "Example Service",
+			InternalURL: "http://app.internal.local/anything-needed",
 			PublicHost:  "enter.company.ru",
-			PublicPath:  "/osrp-do",
+			PublicPath:  "/anything-needed",
 			Enabled:     true,
 		},
 		GroupIDs: []string{"grp_users"},
@@ -62,9 +62,9 @@ func TestGeneratePathResourceLocation(t *testing.T) {
 		t.Fatalf("GenerateResourceServer returned error: %v", err)
 	}
 	for _, expected := range []string{
-		"location ^~ /osrp-do {",
+		"location ^~ /anything-needed {",
 		"auth_request /_agp_auth;",
-		"proxy_pass http://e1c.osrp.local/osrp-do;",
+		"proxy_pass http://app.internal.local/anything-needed;",
 		"error_page 403 =302 https://enter.company.ru/access-denied;",
 	} {
 		if !strings.Contains(recommendation.Snippet, expected) {
@@ -81,9 +81,9 @@ func TestGenerateBundleContainsProtectedPathLocation(t *testing.T) {
 		{
 			Resource: domain.Resource{
 				ID:          "res_osrp_do",
-				InternalURL: "http://e1c.osrp.local/osrp-do",
+				InternalURL: "http://app.internal.local/anything-needed",
 				PublicHost:  "enter.company.ru",
-				PublicPath:  "/osrp-do",
+				PublicPath:  "/anything-needed",
 				Enabled:     true,
 			},
 			GroupIDs: []string{"grp_users"},
@@ -95,9 +95,9 @@ func TestGenerateBundleContainsProtectedPathLocation(t *testing.T) {
 	for _, expected := range []string{
 		"server_name enter.company.ru;",
 		"location = /_agp_auth {",
-		"location ^~ /osrp-do {",
+		"location ^~ /anything-needed {",
 		"auth_request /_agp_auth;",
-		"proxy_pass http://e1c.osrp.local/osrp-do;",
+		"proxy_pass http://app.internal.local/anything-needed;",
 		"location / {",
 	} {
 		if !strings.Contains(bundle.Snippet, expected) {
