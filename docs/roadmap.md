@@ -7,7 +7,8 @@ Date: 2026-05-30
 AGP сейчас находится на стадии backend foundation с первым встроенным UI shell.
 Уже есть рабочее ядро авторизации, PostgreSQL/SQLite storage, Admin API, audit
 model, permission-based RBAC foundation, Nginx `auth_request` контракт,
-генератор Nginx-рекомендаций и on-demand диагностика ресурсов.
+генератор Nginx-рекомендаций, public downloads, базовая кастомизация портала
+и on-demand диагностика ресурсов.
 
 Проект еще не является готовым продуктом для пользователей, потому что frontend
 пока является shell-реализацией, PostgreSQL integration test profile еще не
@@ -24,12 +25,12 @@ model, permission-based RBAC foundation, Nginx `auth_request` контракт,
 | Sessions | Implemented | MVP-ready | server-side sessions, hashed tokens, CSRF |
 | PostgreSQL | Implemented | Needs CI wiring | production default, embedded migrations, opt-in integration test |
 | SQLite fallback | Implemented | Dev-ready | useful for tests and local bootstrap |
-| User portal API | Implemented | MVP-ready | `/me`, user resource list |
-| Admin API | Implemented | Needs UI refinement | CRUD users/groups/resources, sessions, audit |
+| User portal API | Implemented | MVP-ready | `/me`, user resource list, public settings/downloads |
+| Admin API | Implemented | Needs UI refinement | CRUD users/groups/resources/downloads/settings, sessions, audit |
 | Nginx auth_request | Implemented | MVP-ready | fail-closed authorization endpoint |
 | Nginx recommendations | Implemented | MVP-ready | generated snippets, no auto-apply |
 | Audit | Implemented | Needs retention/export strategy | DB-backed events |
-| Frontend | Partial | Needs feature completion | embedded shell with resources/groups/users/sessions/audit tabs |
+| Frontend | Partial | Needs feature completion | embedded shell with resources/downloads/settings/groups/users/sessions/audit tabs |
 | PostgreSQL runtime validation | Partial | Needs CI wiring | opt-in live DB integration test exists |
 | Permission model | Partial | Needs UX/templates | permission-based middleware and group permissions exist |
 | Rate limiting | Partial | Single-node only | in-memory limiter |
@@ -56,6 +57,8 @@ model, permission-based RBAC foundation, Nginx `auth_request` контракт,
 - Users CRUD.
 - Groups CRUD.
 - Resources CRUD.
+- Public download upload/hide/delete.
+- Portal branding/settings update.
 - Active session listing and revocation.
 - Audit event listing.
 - Nginx recommendation generation per resource.
@@ -65,8 +68,9 @@ model, permission-based RBAC foundation, Nginx `auth_request` контракт,
 
 - Login screen.
 - User portal resource list.
+- Public downloads on login and portal screens.
 - Admin dashboard counters.
-- Admin resources/groups/users/sessions/audit tabs.
+- Admin resources/downloads/settings/groups/users/sessions/audit tabs.
 - Admin resource/group/user creation and selected destructive actions.
 - Nginx recommendation view.
 - Resource diagnostics action.
@@ -151,11 +155,15 @@ AGP MVP should be considered ready when the following are complete:
 1. User portal UI:
    - login;
    - available resources;
+   - public downloads;
+   - portal helper text;
    - logout;
    - 401/403 pages.
 2. Admin UI:
    - dashboard;
    - users/groups/resources management;
+   - public download management;
+   - portal branding/settings;
    - session revocation;
    - audit view;
    - Nginx recommendation view.

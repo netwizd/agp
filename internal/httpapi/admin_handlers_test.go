@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -211,6 +212,110 @@ func TestAdminAPIPermissions(t *testing.T) {
 	}
 }
 
+func TestPublicDownloadsAndPortalSettings(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(t.TempDir() + "/agp.db")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatalf("migrate sqlite: %v", err)
+	}
+
+	password := "enterprise-admin-password"
+	passwordHash, err := auth.HashPassword(password, auth.DefaultArgon2idParams)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	if _, err := store.CreateUser(ctx, domain.UserInput{
+		Username:     "admin",
+		PasswordHash: passwordHash,
+		IsAdmin:      true,
+	}); err != nil {
+		t.Fatalf("create admin user: %v", err)
+	}
+
+	server := httptest.NewServer(NewServer(config.Config{
+		DownloadsDir:       t.TempDir(),
+		DownloadMaxBytes:   1024 * 1024,
+		SessionCookieName:  "agp_session",
+		CSRFCookieName:     "agp_csrf",
+		CookieSecure:       false,
+		SessionTTL:         time.Hour,
+		LoginRateLimitMax:  5,
+		LoginRateLimitWind: time.Minute,
+	}, store, slog.New(slog.NewTextHandler(io.Discard, nil))).Handler())
+	t.Cleanup(server.Close)
+
+	publicSettings := getJSON(t, server.Client(), server.URL+"/api/v1/public/settings")
+	if publicSettings["settings"] == nil {
+		t.Fatalf("public settings response is empty: %#v", publicSettings)
+	}
+
+	client := clientWithJar(t, server.Client())
+	loginBody := postJSON(t, client, server.URL+"/api/v1/auth/login", map[string]string{
+		"username": "admin",
+		"password": password,
+	}, nil)
+	csrfToken, _ := loginBody["csrf_token"].(string)
+	if csrfToken == "" {
+		t.Fatalf("missing csrf token: %#v", loginBody)
+	}
+
+	settingsBody := doJSON(t, client, http.MethodPut, server.URL+"/api/v1/admin/portal-settings", map[string]string{
+		"brand_name":      "NLGate",
+		"logo_text":       "NL",
+		"portal_title":    "NLGate Portal",
+		"portal_subtitle": "Internal services",
+		"welcome_title":   "Welcome",
+		"welcome_body":    "Use approved resources only.",
+		"support_text":    "Support",
+		"support_url":     "mailto:helpdesk@example.com",
+		"footer_text":     "NLGate corporate portal",
+	}, map[string]string{"X-CSRF-Token": csrfToken})
+	if settingsBody["settings"] == nil {
+		t.Fatalf("settings update response is empty: %#v", settingsBody)
+	}
+
+	uploadBody := postMultipart(t, client, server.URL+"/api/v1/admin/downloads", map[string]string{
+		"title":       "VPN Client",
+		"description": "Approved VPN client package",
+		"enabled":     "true",
+	}, "file", "vpn-client.txt", []byte("vpn client payload"), map[string]string{"X-CSRF-Token": csrfToken})
+	downloadPayload, ok := uploadBody["download"].(map[string]any)
+	if !ok {
+		t.Fatalf("upload response does not contain download: %#v", uploadBody)
+	}
+	downloadID, _ := downloadPayload["ID"].(string)
+	if downloadID == "" {
+		t.Fatalf("upload response does not contain ID: %#v", downloadPayload)
+	}
+
+	publicDownloads := getJSON(t, server.Client(), server.URL+"/api/v1/public/downloads")
+	downloads, ok := publicDownloads["downloads"].([]any)
+	if !ok || len(downloads) != 1 {
+		t.Fatalf("unexpected public downloads: %#v", publicDownloads)
+	}
+
+	resp, err := server.Client().Get(server.URL + "/downloads/" + downloadID)
+	if err != nil {
+		t.Fatalf("download public file: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || string(body) != "vpn client payload" {
+		t.Fatalf("unexpected download response %d: %q", resp.StatusCode, body)
+	}
+
+	doJSON(t, client, http.MethodPatch, server.URL+"/api/v1/admin/downloads/"+downloadID, map[string]bool{"enabled": false}, map[string]string{"X-CSRF-Token": csrfToken})
+	publicDownloads = getJSON(t, server.Client(), server.URL+"/api/v1/public/downloads")
+	downloads, _ = publicDownloads["downloads"].([]any)
+	if len(downloads) != 0 {
+		t.Fatalf("disabled download leaked into public list: %#v", publicDownloads)
+	}
+}
+
 func TestFrontendFallbackServesSPA(t *testing.T) {
 	api := NewServer(config.Config{
 		SessionCookieName:  "agp_session",
@@ -237,7 +342,7 @@ func TestFrontendFallbackServesSPA(t *testing.T) {
 	if !bytes.Contains(body, []byte("Auth Gateway Portal")) {
 		t.Fatalf("frontend body does not look like AGP index: %s", body)
 	}
-	for _, label := range [][]byte{[]byte("Группы"), []byte("Пользователи"), []byte("Сессии"), []byte("Аудит")} {
+	for _, label := range [][]byte{[]byte("Группы"), []byte("Пользователи"), []byte("Сессии"), []byte("Аудит"), []byte("Файлы")} {
 		if !bytes.Contains(body, label) {
 			t.Fatalf("frontend body does not contain %q: %s", label, body)
 		}
@@ -246,12 +351,17 @@ func TestFrontendFallbackServesSPA(t *testing.T) {
 
 func postJSON(t *testing.T, client *http.Client, url string, payload any, headers map[string]string) map[string]any {
 	t.Helper()
+	return doJSON(t, client, http.MethodPost, url, payload, headers)
+}
+
+func doJSON(t *testing.T, client *http.Client, method string, url string, payload any, headers map[string]string) map[string]any {
+	t.Helper()
 
 	body, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	req, err := http.NewRequest(method, url, bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}
@@ -262,6 +372,67 @@ func postJSON(t *testing.T, client *http.Client, url string, payload any, header
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatalf("post json: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		data, _ := io.ReadAll(resp.Body)
+		t.Fatalf("unexpected status %d: %s", resp.StatusCode, data)
+	}
+	var result map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return result
+}
+
+func getJSON(t *testing.T, client *http.Client, url string) map[string]any {
+	t.Helper()
+	resp, err := client.Get(url)
+	if err != nil {
+		t.Fatalf("get json: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		data, _ := io.ReadAll(resp.Body)
+		t.Fatalf("unexpected status %d: %s", resp.StatusCode, data)
+	}
+	var result map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	return result
+}
+
+func postMultipart(t *testing.T, client *http.Client, url string, fields map[string]string, fileField string, fileName string, fileBody []byte, headers map[string]string) map[string]any {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for key, value := range fields {
+		if err := writer.WriteField(key, value); err != nil {
+			t.Fatalf("write multipart field: %v", err)
+		}
+	}
+	part, err := writer.CreateFormFile(fileField, fileName)
+	if err != nil {
+		t.Fatalf("create multipart file: %v", err)
+	}
+	if _, err := part.Write(fileBody); err != nil {
+		t.Fatalf("write multipart file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, url, &body)
+	if err != nil {
+		t.Fatalf("build multipart request: %v", err)
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("post multipart: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

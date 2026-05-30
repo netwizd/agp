@@ -265,6 +265,43 @@ func (s *Store) ListResourceAllowCIDRs(ctx context.Context, resourceID string) (
 	return s.listStrings(ctx, `SELECT cidr FROM resource_ip_allowlists WHERE resource_id = $1 ORDER BY cidr`, resourceID)
 }
 
+func (s *Store) ListPublicDownloads(ctx context.Context, includeDisabled bool) ([]domain.PublicDownload, error) {
+	query := `
+SELECT id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at
+FROM public_downloads`
+	if !includeDisabled {
+		query += ` WHERE enabled = true`
+	}
+	query += ` ORDER BY title, file_name`
+	rows, err := s.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list public downloads: %w", err)
+	}
+	defer rows.Close()
+
+	var downloads []domain.PublicDownload
+	for rows.Next() {
+		download, err := scanPublicDownload(rows)
+		if err != nil {
+			return nil, err
+		}
+		downloads = append(downloads, download)
+	}
+	return downloads, rows.Err()
+}
+
+func (s *Store) FindPublicDownloadByID(ctx context.Context, id string) (*domain.PublicDownload, error) {
+	row := s.pool.QueryRow(ctx, `
+SELECT id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at
+FROM public_downloads
+WHERE id = $1`, id)
+	download, err := scanPublicDownload(row)
+	if err != nil {
+		return nil, err
+	}
+	return &download, nil
+}
+
 func (s *Store) AppendAudit(ctx context.Context, event domain.AuditEvent) error {
 	if event.CreatedAt.IsZero() {
 		event.CreatedAt = time.Now().UTC()
@@ -277,6 +314,18 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
 		return fmt.Errorf("append audit: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) GetPortalSettings(ctx context.Context) (*domain.PortalSettings, error) {
+	row := s.pool.QueryRow(ctx, `
+SELECT brand_name, logo_text, portal_title, portal_subtitle, welcome_title, welcome_body, footer_text, support_text, support_url, updated_at
+FROM portal_settings
+WHERE id = 1`)
+	settings, err := scanPortalSettings(row)
+	if err != nil {
+		return nil, err
+	}
+	return &settings, nil
 }
 
 func (s *Store) DashboardStats(ctx context.Context) (*domain.DashboardStats, error) {
@@ -292,6 +341,9 @@ func (s *Store) DashboardStats(ctx context.Context) (*domain.DashboardStats, err
 	}
 	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM resources`).Scan(&stats.ResourcesCount); err != nil {
 		return nil, fmt.Errorf("count resources: %w", err)
+	}
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM public_downloads`).Scan(&stats.PublicDownloadsCount); err != nil {
+		return nil, fmt.Errorf("count public downloads: %w", err)
 	}
 	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_events`).Scan(&stats.AuditEventsCount); err != nil {
 		return nil, fmt.Errorf("count audit events: %w", err)
@@ -607,6 +659,90 @@ func (s *Store) DeleteResource(ctx context.Context, id string) error {
 	return ensureCommandAffected("delete resource", tag)
 }
 
+func (s *Store) CreatePublicDownload(ctx context.Context, input domain.PublicDownloadInput) (*domain.PublicDownload, error) {
+	id := storageID("dl")
+	now := time.Now().UTC()
+	_, err := s.pool.Exec(ctx, `
+INSERT INTO public_downloads(id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		id, input.Title, input.Description, input.FileName, input.StoredName, input.ContentType, input.SizeBytes, input.Enabled, now, now)
+	if err != nil {
+		return nil, normalizePostgresError("create public download", err)
+	}
+	return s.FindPublicDownloadByID(ctx, id)
+}
+
+func (s *Store) UpdatePublicDownload(ctx context.Context, id string, update domain.PublicDownloadUpdate) (*domain.PublicDownload, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin update public download: %w", err)
+	}
+	defer rollback(ctx, tx)
+
+	if update.Title != nil {
+		if _, err := tx.Exec(ctx, `UPDATE public_downloads SET title = $1, updated_at = now() WHERE id = $2`, *update.Title, id); err != nil {
+			return nil, normalizePostgresError("update public download title", err)
+		}
+	}
+	if update.Description != nil {
+		if _, err := tx.Exec(ctx, `UPDATE public_downloads SET description = $1, updated_at = now() WHERE id = $2`, *update.Description, id); err != nil {
+			return nil, normalizePostgresError("update public download description", err)
+		}
+	}
+	if update.Enabled != nil {
+		if _, err := tx.Exec(ctx, `UPDATE public_downloads SET enabled = $1, updated_at = now() WHERE id = $2`, *update.Enabled, id); err != nil {
+			return nil, normalizePostgresError("update public download enabled", err)
+		}
+	}
+	if err := ensureExists(ctx, tx, `SELECT id FROM public_downloads WHERE id = $1`, id); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit update public download: %w", err)
+	}
+	return s.FindPublicDownloadByID(ctx, id)
+}
+
+func (s *Store) DeletePublicDownload(ctx context.Context, id string) error {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM public_downloads WHERE id = $1`, id)
+	if err != nil {
+		return normalizePostgresError("delete public download", err)
+	}
+	return ensureCommandAffected("delete public download", tag)
+}
+
+func (s *Store) UpdatePortalSettings(ctx context.Context, settings domain.PortalSettings) (*domain.PortalSettings, error) {
+	_, err := s.pool.Exec(ctx, `
+INSERT INTO portal_settings(
+    id, brand_name, logo_text, portal_title, portal_subtitle, welcome_title, welcome_body, footer_text, support_text, support_url, updated_at
+) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+ON CONFLICT (id) DO UPDATE SET
+    brand_name = EXCLUDED.brand_name,
+    logo_text = EXCLUDED.logo_text,
+    portal_title = EXCLUDED.portal_title,
+    portal_subtitle = EXCLUDED.portal_subtitle,
+    welcome_title = EXCLUDED.welcome_title,
+    welcome_body = EXCLUDED.welcome_body,
+    footer_text = EXCLUDED.footer_text,
+    support_text = EXCLUDED.support_text,
+    support_url = EXCLUDED.support_url,
+    updated_at = now()`,
+		settings.BrandName,
+		settings.LogoText,
+		settings.PortalTitle,
+		settings.PortalSubtitle,
+		settings.WelcomeTitle,
+		settings.WelcomeBody,
+		settings.FooterText,
+		settings.SupportText,
+		settings.SupportURL,
+	)
+	if err != nil {
+		return nil, normalizePostgresError("update portal settings", err)
+	}
+	return s.GetPortalSettings(ctx)
+}
+
 func (s *Store) ListActiveSessions(ctx context.Context) ([]domain.ActiveSession, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT s.id, s.user_id, u.username, s.ip, s.user_agent, s.expires_at, s.created_at
@@ -747,6 +883,50 @@ func scanUser(row scanner) (domain.User, error) {
 		user.BlockedAt = &blockedAt.Time
 	}
 	return user, nil
+}
+
+func scanPublicDownload(row scanner) (domain.PublicDownload, error) {
+	var download domain.PublicDownload
+	if err := row.Scan(
+		&download.ID,
+		&download.Title,
+		&download.Description,
+		&download.FileName,
+		&download.StoredName,
+		&download.ContentType,
+		&download.SizeBytes,
+		&download.Enabled,
+		&download.CreatedAt,
+		&download.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.PublicDownload{}, storage.ErrNotFound
+		}
+		return domain.PublicDownload{}, fmt.Errorf("scan public download: %w", err)
+	}
+	return download, nil
+}
+
+func scanPortalSettings(row scanner) (domain.PortalSettings, error) {
+	var settings domain.PortalSettings
+	if err := row.Scan(
+		&settings.BrandName,
+		&settings.LogoText,
+		&settings.PortalTitle,
+		&settings.PortalSubtitle,
+		&settings.WelcomeTitle,
+		&settings.WelcomeBody,
+		&settings.FooterText,
+		&settings.SupportText,
+		&settings.SupportURL,
+		&settings.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.PortalSettings{}, storage.ErrNotFound
+		}
+		return domain.PortalSettings{}, fmt.Errorf("scan portal settings: %w", err)
+	}
+	return settings, nil
 }
 
 func (s *Store) scanResourceDetail(ctx context.Context, row scanner) (domain.ResourceDetail, error) {

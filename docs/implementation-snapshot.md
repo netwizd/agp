@@ -12,13 +12,15 @@ delivery roadmap.
 | Go backend | HTTP server, graceful shutdown, structured JSON logging |
 | Auth | local username/password login, Argon2id password hashes |
 | Sessions | server-side sessions, hashed session tokens, CSRF token for mutating API |
-| User portal API | `/api/v1/me`, `/api/v1/resources` |
-| Frontend shell | embedded static login, portal and admin UI shell with resources/groups/users/sessions/audit tabs |
+| User portal API | `/api/v1/me`, `/api/v1/resources`, public portal settings and downloads |
+| Frontend shell | embedded static login, public downloads, portal and admin UI shell with resources/downloads/settings/groups/users/sessions/audit tabs |
 | Nginx integration | `/auth/request` endpoint for `auth_request` |
 | Admin API | users, groups, resources, sessions, audit, dashboard |
 | RBAC | permission-based admin middleware with group permissions and `is_admin` superuser compatibility |
 | Nginx recommendations | generated per-resource server block snippets, no auto-apply |
 | Resource diagnostics | admin-triggered DNS, TCP and HTTP upstream checks |
+| Public downloads | unauthenticated enabled file list/downloads, admin upload/hide/delete |
+| Portal customization | DB-backed brand name, logo text, page titles, support link and footer |
 | PostgreSQL | production storage backend with embedded migrations |
 | SQLite | development/small-install fallback with same storage contract |
 | Audit | login/logout, proxy auth decisions and admin actions persisted |
@@ -53,6 +55,7 @@ Covered by tests:
 - invalid CIDR rejection;
 - admin login/session/CSRF/resource creation/Nginx recommendation flow via
   `httptest` and SQLite.
+- public downloads and portal settings flow via `httptest` and SQLite.
 - embedded SPA fallback route.
 - PostgreSQL integration profile when `AGP_TEST_POSTGRES_DSN` is set.
 
@@ -60,7 +63,7 @@ Covered by tests:
 
 | Area | Gap |
 | --- | --- |
-| Frontend completeness | shell exists, but UX is not feature-complete |
+| Frontend completeness | shell exists, edit/update UX is not feature-complete |
 | PostgreSQL integration test | opt-in harness exists, not yet part of CI |
 | RBAC management UX | permission data model exists, UI is still basic |
 | Rate limiting | in-memory only, not Redis-backed |

@@ -26,6 +26,10 @@ user -> user_groups -> groups -> group_permissions -> permissions
 | `resources.manage` | Create, update and delete resources |
 | `resources.diagnostics` | Run resource diagnostics |
 | `nginx.recommendations.read` | Generate Nginx recommendations |
+| `downloads.read` | List public downloads in admin |
+| `downloads.manage` | Upload, publish, hide and delete public downloads |
+| `portal.settings.read` | Read portal branding/settings in admin |
+| `portal.settings.manage` | Update portal branding/settings |
 | `sessions.read` | List active sessions |
 | `sessions.revoke` | Revoke sessions |
 | `audit.read` | Read audit events |

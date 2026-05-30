@@ -29,9 +29,23 @@ permissions. See [rbac.md](rbac.md).
 | `DELETE` | `/api/v1/admin/resources/{id}` | delete resource |
 | `GET` | `/api/v1/admin/resources/{id}/nginx` | generate Nginx recommendation |
 | `POST` | `/api/v1/admin/resources/{id}/diagnostics` | run upstream DNS/TCP/HTTP diagnostics |
+| `GET` | `/api/v1/admin/downloads` | list public downloads, including disabled entries |
+| `POST` | `/api/v1/admin/downloads` | upload a public download via multipart form data |
+| `PATCH` | `/api/v1/admin/downloads/{id}` | update public download title, description or enabled flag |
+| `DELETE` | `/api/v1/admin/downloads/{id}` | delete public download metadata and file |
+| `GET` | `/api/v1/admin/portal-settings` | read portal branding and helper text |
+| `PUT` | `/api/v1/admin/portal-settings` | update portal branding and helper text |
 | `GET` | `/api/v1/admin/sessions` | list active sessions |
 | `DELETE` | `/api/v1/admin/sessions/{id}` | revoke session |
 | `GET` | `/api/v1/admin/audit?limit=100` | list audit events |
+
+## Public Endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/public/settings` | read portal branding and helper text without auth |
+| `GET` | `/api/v1/public/downloads` | list enabled public downloads without auth |
+| `GET` | `/downloads/{id}` | download an enabled public file without auth |
 
 ## Resource Create Example
 

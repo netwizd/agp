@@ -10,9 +10,14 @@ const state = {
   csrfToken: storage.getItem("agp_csrf_token") || "",
   view: "portal",
   adminTab: "resources",
+  settings: null,
+  publicDownloads: [],
 };
 
 const els = {
+  brandMark: document.getElementById("brandMark"),
+  brandTitle: document.getElementById("brandTitle"),
+  brandSubtitle: document.getElementById("brandSubtitle"),
   pageTitle: document.getElementById("pageTitle"),
   pageSubtitle: document.getElementById("pageSubtitle"),
   loginView: document.getElementById("loginView"),
@@ -23,16 +28,25 @@ const els = {
   loginForm: document.getElementById("loginForm"),
   loginError: document.getElementById("loginError"),
   resourceGrid: document.getElementById("resourceGrid"),
+  publicDownloadsLogin: document.getElementById("publicDownloadsLogin"),
+  publicDownloadsPortal: document.getElementById("publicDownloadsPortal"),
+  welcomeTitle: document.getElementById("welcomeTitle"),
+  welcomeBody: document.getElementById("welcomeBody"),
+  supportLink: document.getElementById("supportLink"),
+  portalFooter: document.getElementById("portalFooter"),
   metrics: document.getElementById("metrics"),
   adminTabs: document.getElementById("adminTabs"),
   adminResources: document.getElementById("adminResources"),
   adminGroups: document.getElementById("adminGroups"),
   adminUsers: document.getElementById("adminUsers"),
+  adminDownloads: document.getElementById("adminDownloads"),
   adminSessions: document.getElementById("adminSessions"),
   adminAudit: document.getElementById("adminAudit"),
   resourceForm: document.getElementById("resourceForm"),
   groupForm: document.getElementById("groupForm"),
   userForm: document.getElementById("userForm"),
+  downloadForm: document.getElementById("downloadForm"),
+  portalSettingsForm: document.getElementById("portalSettingsForm"),
   refreshAuditButton: document.getElementById("refreshAuditButton"),
   operationOutput: document.getElementById("operationOutput"),
 };
@@ -137,9 +151,50 @@ els.userForm.addEventListener("submit", async (event) => {
   }
 });
 
+els.downloadForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    await uploadDownload(new FormData(els.downloadForm));
+    els.downloadForm.reset();
+    els.downloadForm.elements.enabled.checked = true;
+    els.operationOutput.textContent = "Файл добавлен";
+    await refreshPublicData();
+    await loadAdmin();
+  } catch (error) {
+    showOperationError("Не удалось добавить файл", error);
+  }
+});
+
+els.portalSettingsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = new FormData(els.portalSettingsForm);
+  try {
+    await api("/api/v1/admin/portal-settings", {
+      method: "PUT",
+      csrf: true,
+      body: {
+        brand_name: form.get("brand_name"),
+        logo_text: form.get("logo_text"),
+        portal_title: form.get("portal_title"),
+        portal_subtitle: form.get("portal_subtitle"),
+        welcome_title: form.get("welcome_title"),
+        welcome_body: form.get("welcome_body"),
+        support_text: form.get("support_text"),
+        support_url: form.get("support_url"),
+        footer_text: form.get("footer_text"),
+      },
+    });
+    els.operationOutput.textContent = "Оформление портала сохранено";
+    await refreshPublicData();
+  } catch (error) {
+    showOperationError("Не удалось сохранить оформление", error);
+  }
+});
+
 els.refreshAuditButton.addEventListener("click", () => loadAudit());
 
 async function bootstrap() {
+  await refreshPublicData();
   try {
     const me = await api("/api/v1/me");
     state.user = me.user;
@@ -181,8 +236,7 @@ async function setView(view) {
     return;
   }
 
-  els.pageTitle.textContent = "Портал";
-  els.pageSubtitle.textContent = "Доступные внутренние ресурсы";
+  applyPortalTitle();
   history.replaceState(null, "", "/");
   await loadPortal();
 }
@@ -209,6 +263,7 @@ function syncAdminTabs() {
 }
 
 async function loadPortal() {
+  renderPublicDownloads();
   const data = await api("/api/v1/resources");
   const resources = data.resources || [];
   if (resources.length === 0) {
@@ -241,6 +296,8 @@ async function loadAdmin() {
     els.metrics.innerHTML = "";
   }
   if (state.adminTab === "resources") await loadResources();
+  if (state.adminTab === "downloads") await loadDownloads();
+  if (state.adminTab === "settings") await loadPortalSettings();
   if (state.adminTab === "groups") await loadGroups();
   if (state.adminTab === "users") await loadUsers();
   if (state.adminTab === "sessions") await loadSessions();
@@ -252,12 +309,103 @@ function renderMetrics(stats) {
     ${metric("Пользователи", stats.UsersCount)}
     ${metric("Сессии", stats.ActiveSessionsCount)}
     ${metric("Ресурсы", stats.ResourcesCount)}
+    ${metric("Файлы", stats.PublicDownloadsCount)}
     ${metric("Audit events", stats.AuditEventsCount)}
   `;
 }
 
 function metric(label, value) {
   return `<div class="metric"><strong>${Number(value || 0)}</strong><span class="muted">${label}</span></div>`;
+}
+
+async function refreshPublicData() {
+  await Promise.all([loadPublicSettings(), loadPublicDownloads()]);
+  applyPortalChrome();
+  renderPublicDownloads();
+}
+
+async function loadPublicSettings() {
+  try {
+    const data = await api("/api/v1/public/settings");
+    state.settings = data.settings || null;
+  } catch {
+    state.settings = null;
+  }
+}
+
+async function loadPublicDownloads() {
+  try {
+    const data = await api("/api/v1/public/downloads");
+    state.publicDownloads = data.downloads || [];
+  } catch {
+    state.publicDownloads = [];
+  }
+}
+
+function applyPortalChrome() {
+  const settings = effectiveSettings();
+  els.brandMark.textContent = settings.logo_text;
+  els.brandTitle.textContent = settings.brand_name;
+  els.brandSubtitle.textContent = settings.portal_subtitle || "Auth Gateway Portal";
+  document.title = settings.brand_name;
+  els.welcomeTitle.textContent = settings.welcome_title;
+  els.welcomeBody.textContent = settings.welcome_body;
+  els.portalFooter.textContent = settings.footer_text || "";
+  els.portalFooter.classList.toggle("hidden", !settings.footer_text);
+  if (settings.support_url && settings.support_text) {
+    els.supportLink.textContent = settings.support_text;
+    els.supportLink.href = settings.support_url;
+    els.supportLink.classList.remove("hidden");
+  } else {
+    els.supportLink.classList.add("hidden");
+  }
+  if (state.view === "portal" && state.user) {
+    applyPortalTitle();
+  }
+}
+
+function applyPortalTitle() {
+  const settings = effectiveSettings();
+  els.pageTitle.textContent = settings.portal_title;
+  els.pageSubtitle.textContent = settings.portal_subtitle;
+}
+
+function effectiveSettings() {
+  return {
+    brand_name: state.settings?.brand_name || "AGP",
+    logo_text: state.settings?.logo_text || "A",
+    portal_title: state.settings?.portal_title || "Портал",
+    portal_subtitle: state.settings?.portal_subtitle || "Доступные внутренние ресурсы",
+    welcome_title: state.settings?.welcome_title || "Добро пожаловать",
+    welcome_body: state.settings?.welcome_body || "Выберите доступный сервис или скачайте вспомогательные материалы.",
+    footer_text: state.settings?.footer_text || "",
+    support_text: state.settings?.support_text || "",
+    support_url: state.settings?.support_url || "",
+  };
+}
+
+function renderPublicDownloads() {
+  const html = renderDownloadLinks(state.publicDownloads);
+  els.publicDownloadsLogin.innerHTML = html;
+  els.publicDownloadsPortal.innerHTML = html;
+}
+
+function renderDownloadLinks(downloads) {
+  if (!downloads.length) {
+    return `<div class="muted">Публичные файлы пока не опубликованы.</div>`;
+  }
+  return downloads
+    .map((download) => {
+      const size = formatBytes(download.size_bytes || 0);
+      return `
+        <a class="download-item" href="${escapeHTML(download.url)}">
+          <strong>${escapeHTML(download.title)}</strong>
+          <span class="muted">${escapeHTML(download.description || download.file_name)}</span>
+          <span>${escapeHTML(download.file_name)} · ${escapeHTML(size)}</span>
+        </a>
+      `;
+    })
+    .join("");
 }
 
 async function loadResources() {
@@ -418,6 +566,85 @@ async function handleResourceAction(action, id) {
   }
 }
 
+async function loadDownloads() {
+  els.downloadForm.classList.toggle("hidden", !can("downloads.manage"));
+  const data = await api("/api/v1/admin/downloads");
+  renderAdminDownloads(data.downloads || []);
+}
+
+function renderAdminDownloads(downloads) {
+  if (downloads.length === 0) {
+    els.adminDownloads.innerHTML = `<div class="muted">Файлы еще не добавлены.</div>`;
+    return;
+  }
+  els.adminDownloads.innerHTML = downloads
+    .map(
+      (download) => `
+      <div class="table-row">
+        <div>
+          <strong>${escapeHTML(download.Title)}</strong>
+          <div class="muted">${escapeHTML(download.FileName)} · ${escapeHTML(formatBytes(download.SizeBytes || 0))}</div>
+          <div class="muted">${escapeHTML(download.Description || "Без описания")}</div>
+          <div class="${download.Enabled ? "status-ok" : "status-bad"}">${download.Enabled ? "published" : "disabled"}</div>
+        </div>
+        <div class="row-actions">
+          <a class="button-link secondary" href="/downloads/${escapeHTML(download.ID)}">Скачать</a>
+          ${
+            can("downloads.manage")
+              ? `<button class="secondary" data-action="toggle-download" data-id="${escapeHTML(download.ID)}" data-enabled="${download.Enabled ? "false" : "true"}">${download.Enabled ? "Скрыть" : "Опубликовать"}</button>`
+              : ""
+          }
+          ${can("downloads.manage") ? `<button class="danger" data-action="delete-download" data-id="${escapeHTML(download.ID)}">Удалить</button>` : ""}
+        </div>
+      </div>
+    `
+    )
+    .join("");
+  els.adminDownloads.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", () => handleDownloadAction(button.dataset.action, button.dataset.id, button.dataset.enabled === "true"));
+  });
+}
+
+async function handleDownloadAction(action, id, enabled) {
+  if (action === "toggle-download") {
+    try {
+      await api(`/api/v1/admin/downloads/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        csrf: true,
+        body: { enabled },
+      });
+      els.operationOutput.textContent = enabled ? "Файл опубликован" : "Файл скрыт";
+      await refreshPublicData();
+      await loadAdmin();
+    } catch (error) {
+      showOperationError("Не удалось изменить файл", error);
+    }
+    return;
+  }
+  if (action === "delete-download") {
+    await deleteEntity(`/api/v1/admin/downloads/${encodeURIComponent(id)}`, "Файл удален");
+    await refreshPublicData();
+  }
+}
+
+async function loadPortalSettings() {
+  els.portalSettingsForm.classList.toggle("hidden", !can("portal.settings.manage"));
+  const data = await api("/api/v1/admin/portal-settings");
+  fillPortalSettingsForm(data.settings || {});
+}
+
+function fillPortalSettingsForm(settings) {
+  els.portalSettingsForm.elements.brand_name.value = settings.BrandName || "";
+  els.portalSettingsForm.elements.logo_text.value = settings.LogoText || "";
+  els.portalSettingsForm.elements.portal_title.value = settings.PortalTitle || "";
+  els.portalSettingsForm.elements.portal_subtitle.value = settings.PortalSubtitle || "";
+  els.portalSettingsForm.elements.welcome_title.value = settings.WelcomeTitle || "";
+  els.portalSettingsForm.elements.welcome_body.value = settings.WelcomeBody || "";
+  els.portalSettingsForm.elements.support_text.value = settings.SupportText || "";
+  els.portalSettingsForm.elements.support_url.value = settings.SupportURL || "";
+  els.portalSettingsForm.elements.footer_text.value = settings.FooterText || "";
+}
+
 async function handleUserAction(action, id, blocked) {
   if (action === "block-user") {
     try {
@@ -510,6 +737,33 @@ async function api(path, options = {}) {
   return response.json();
 }
 
+async function uploadDownload(form) {
+  const init = {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json",
+      "X-CSRF-Token": state.csrfToken,
+    },
+    body: form,
+  };
+  if (form.get("enabled") !== "on") {
+    form.set("enabled", "false");
+  }
+  const response = await fetch("/api/v1/admin/downloads", init);
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const payload = await response.json();
+      detail = payload.error || "";
+    } catch {
+      detail = await response.text().catch(() => "");
+    }
+    throw new Error(`HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
+  }
+  return response.json();
+}
+
 function showOperationError(prefix, error) {
   els.operationOutput.textContent = `${prefix}: ${error.message}`;
 }
@@ -526,6 +780,14 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString();
+}
+
+function formatBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
 function escapeHTML(value) {
@@ -554,6 +816,8 @@ function can(permission) {
 function canOpenAdminTab(tab) {
   const permissions = {
     resources: ["resources.read", "resources.manage"],
+    downloads: ["downloads.read", "downloads.manage"],
+    settings: ["portal.settings.read", "portal.settings.manage"],
     groups: ["groups.read", "groups.manage"],
     users: ["users.read", "users.manage"],
     sessions: ["sessions.read", "sessions.revoke"],
@@ -563,7 +827,7 @@ function canOpenAdminTab(tab) {
 }
 
 function firstAvailableAdminTab() {
-  return ["resources", "groups", "users", "sessions", "audit"].find((tab) => canOpenAdminTab(tab)) || "resources";
+  return ["resources", "downloads", "settings", "groups", "users", "sessions", "audit"].find((tab) => canOpenAdminTab(tab)) || "resources";
 }
 
 bootstrap();

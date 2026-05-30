@@ -279,6 +279,43 @@ func (s *Store) ListResourceAllowCIDRs(ctx context.Context, resourceID string) (
 	return cidrs, nil
 }
 
+func (s *Store) ListPublicDownloads(ctx context.Context, includeDisabled bool) ([]domain.PublicDownload, error) {
+	query := `
+SELECT id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at
+FROM public_downloads`
+	if !includeDisabled {
+		query += ` WHERE enabled = 1`
+	}
+	query += ` ORDER BY title, file_name`
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list public downloads: %w", err)
+	}
+	defer rows.Close()
+
+	var downloads []domain.PublicDownload
+	for rows.Next() {
+		download, err := scanPublicDownload(rows)
+		if err != nil {
+			return nil, err
+		}
+		downloads = append(downloads, download)
+	}
+	return downloads, rows.Err()
+}
+
+func (s *Store) FindPublicDownloadByID(ctx context.Context, id string) (*domain.PublicDownload, error) {
+	row := s.db.QueryRowContext(ctx, `
+SELECT id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at
+FROM public_downloads
+WHERE id = ?`, id)
+	download, err := scanPublicDownload(row)
+	if err != nil {
+		return nil, err
+	}
+	return &download, nil
+}
+
 func (s *Store) AppendAudit(ctx context.Context, event domain.AuditEvent) error {
 	if event.CreatedAt.IsZero() {
 		event.CreatedAt = time.Now().UTC()
@@ -291,6 +328,18 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		return fmt.Errorf("append audit: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) GetPortalSettings(ctx context.Context) (*domain.PortalSettings, error) {
+	row := s.db.QueryRowContext(ctx, `
+SELECT brand_name, logo_text, portal_title, portal_subtitle, welcome_title, welcome_body, footer_text, support_text, support_url, updated_at
+FROM portal_settings
+WHERE id = 1`)
+	settings, err := scanPortalSettings(row)
+	if err != nil {
+		return nil, err
+	}
+	return &settings, nil
 }
 
 func (s *Store) listUserGroups(ctx context.Context, userID string) ([]string, error) {

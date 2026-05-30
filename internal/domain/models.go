@@ -87,12 +87,55 @@ type AuditEvent struct {
 }
 
 type DashboardStats struct {
-	UsersCount          int
-	BlockedUsersCount   int
-	ActiveSessionsCount int
-	ResourcesCount      int
-	AuditEventsCount    int
-	RecentEvents        []AuditEvent
+	UsersCount           int
+	BlockedUsersCount    int
+	ActiveSessionsCount  int
+	ResourcesCount       int
+	PublicDownloadsCount int
+	AuditEventsCount     int
+	RecentEvents         []AuditEvent
+}
+
+type PublicDownload struct {
+	ID          string
+	Title       string
+	Description string
+	FileName    string
+	StoredName  string
+	ContentType string
+	SizeBytes   int64
+	Enabled     bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type PublicDownloadInput struct {
+	Title       string
+	Description string
+	FileName    string
+	StoredName  string
+	ContentType string
+	SizeBytes   int64
+	Enabled     bool
+}
+
+type PublicDownloadUpdate struct {
+	Title       *string
+	Description *string
+	Enabled     *bool
+}
+
+type PortalSettings struct {
+	BrandName      string
+	LogoText       string
+	PortalTitle    string
+	PortalSubtitle string
+	WelcomeTitle   string
+	WelcomeBody    string
+	FooterText     string
+	SupportText    string
+	SupportURL     string
+	UpdatedAt      time.Time
 }
 
 type UserInput struct {

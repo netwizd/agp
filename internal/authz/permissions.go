@@ -12,6 +12,10 @@ const (
 	PermResourcesManage          = "resources.manage"
 	PermResourcesDiagnostics     = "resources.diagnostics"
 	PermNginxRecommendationsRead = "nginx.recommendations.read"
+	PermDownloadsRead            = "downloads.read"
+	PermDownloadsManage          = "downloads.manage"
+	PermPortalSettingsRead       = "portal.settings.read"
+	PermPortalSettingsManage     = "portal.settings.manage"
 	PermSessionsRead             = "sessions.read"
 	PermSessionsRevoke           = "sessions.revoke"
 	PermAuditRead                = "audit.read"
@@ -28,6 +32,10 @@ func AllPermissions() []string {
 		PermResourcesManage,
 		PermResourcesDiagnostics,
 		PermNginxRecommendationsRead,
+		PermDownloadsRead,
+		PermDownloadsManage,
+		PermPortalSettingsRead,
+		PermPortalSettingsManage,
 		PermSessionsRead,
 		PermSessionsRevoke,
 		PermAuditRead,

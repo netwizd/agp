@@ -10,10 +10,10 @@
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-mark">A</div>
+          <div class="brand-mark" id="brandMark">A</div>
           <div>
-            <div class="brand-title">AGP</div>
-            <div class="brand-subtitle">Auth Gateway Portal</div>
+            <div class="brand-title" id="brandTitle">AGP</div>
+            <div class="brand-subtitle" id="brandSubtitle">Auth Gateway Portal</div>
           </div>
         </div>
         <nav class="nav">
@@ -46,19 +46,39 @@
             <button type="submit">Войти</button>
             <div class="form-error" id="loginError"></div>
           </form>
+          <section class="panel public-downloads-panel">
+            <div class="section-header">
+              <h2>Файлы для скачивания</h2>
+            </div>
+            <div class="download-list" id="publicDownloadsLogin"></div>
+          </section>
         </section>
 
         <section class="content hidden" id="portalView">
+          <section class="portal-intro">
+            <div>
+              <h2 id="welcomeTitle">Добро пожаловать</h2>
+              <p id="welcomeBody">Выберите доступный сервис или скачайте вспомогательные материалы.</p>
+            </div>
+            <a class="support-link hidden" id="supportLink" href="#" rel="noreferrer">Поддержка</a>
+          </section>
           <div class="section-header">
             <h2>Доступные сервисы</h2>
           </div>
           <div class="resource-grid" id="resourceGrid"></div>
+          <div class="section-header downloads-header">
+            <h2>Файлы для скачивания</h2>
+          </div>
+          <div class="download-list" id="publicDownloadsPortal"></div>
+          <footer class="portal-footer" id="portalFooter"></footer>
         </section>
 
         <section class="content hidden" id="adminView">
           <div class="metrics" id="metrics"></div>
           <div class="tabs" id="adminTabs">
             <button class="tab active" data-admin-tab="resources">Ресурсы</button>
+            <button class="tab" data-admin-tab="downloads">Файлы</button>
+            <button class="tab" data-admin-tab="settings">Портал</button>
             <button class="tab" data-admin-tab="groups">Группы</button>
             <button class="tab" data-admin-tab="users">Пользователи</button>
             <button class="tab" data-admin-tab="sessions">Сессии</button>
@@ -78,6 +98,44 @@
                 <button type="submit">Создать ресурс</button>
               </form>
               <div class="table-list" id="adminResources"></div>
+            </section>
+
+            <section class="panel admin-tab-panel hidden" id="downloadsPanel">
+              <div class="section-header">
+                <h2>Публичные файлы</h2>
+              </div>
+              <form class="compact-form" id="downloadForm" enctype="multipart/form-data">
+                <input name="title" placeholder="Название" />
+                <input name="description" placeholder="Описание" />
+                <label class="file-line">
+                  Файл
+                  <input name="file" type="file" required />
+                </label>
+                <label class="checkbox-line">
+                  <input name="enabled" type="checkbox" checked />
+                  Опубликован
+                </label>
+                <button type="submit">Добавить файл</button>
+              </form>
+              <div class="table-list" id="adminDownloads"></div>
+            </section>
+
+            <section class="panel admin-tab-panel hidden" id="settingsPanel">
+              <div class="section-header">
+                <h2>Оформление портала</h2>
+              </div>
+              <form class="settings-form" id="portalSettingsForm">
+                <input name="brand_name" placeholder="Название бренда" required />
+                <input name="logo_text" placeholder="Лого-текст" maxlength="8" required />
+                <input name="portal_title" placeholder="Заголовок портала" required />
+                <input name="portal_subtitle" placeholder="Подзаголовок" />
+                <input name="welcome_title" placeholder="Заголовок приветствия" />
+                <textarea name="welcome_body" placeholder="Информация для пользователей"></textarea>
+                <input name="support_text" placeholder="Текст ссылки поддержки" />
+                <input name="support_url" placeholder="https://support.company.ru или mailto:help@company.ru" />
+                <input name="footer_text" placeholder="Подпись внизу портала" />
+                <button type="submit">Сохранить оформление</button>
+              </form>
             </section>
 
             <section class="panel admin-tab-panel hidden" id="groupsPanel">

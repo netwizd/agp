@@ -14,6 +14,8 @@ type Config struct {
 	DatabaseDriver     string
 	DatabasePath       string
 	DatabaseDSN        string
+	DownloadsDir       string
+	DownloadMaxBytes   int64
 	SessionCookieName  string
 	CSRFCookieName     string
 	CookieSecure       bool
@@ -31,6 +33,8 @@ func Load() (Config, error) {
 		DatabaseDriver:     envString("AGP_DATABASE_DRIVER", "postgres"),
 		DatabasePath:       envString("AGP_DATABASE_PATH", "./agp.db"),
 		DatabaseDSN:        envString("AGP_DATABASE_DSN", "postgres://agp:agp@127.0.0.1:5432/agp?sslmode=disable"),
+		DownloadsDir:       envString("AGP_DOWNLOADS_DIR", "./data/downloads"),
+		DownloadMaxBytes:   int64(envInt("AGP_DOWNLOAD_MAX_BYTES", 268435456)),
 		SessionCookieName:  envString("AGP_SESSION_COOKIE_NAME", "agp_session"),
 		CSRFCookieName:     envString("AGP_CSRF_COOKIE_NAME", "agp_csrf"),
 		CookieSecure:       envBool("AGP_COOKIE_SECURE", true),
@@ -55,6 +59,12 @@ func Load() (Config, error) {
 	}
 	if cfg.DatabaseDriver == "sqlite" && cfg.DatabasePath == "" {
 		return Config{}, errors.New("AGP_DATABASE_PATH must be set for sqlite")
+	}
+	if cfg.DownloadsDir == "" {
+		return Config{}, errors.New("AGP_DOWNLOADS_DIR must be set")
+	}
+	if cfg.DownloadMaxBytes <= 0 {
+		return Config{}, errors.New("AGP_DOWNLOAD_MAX_BYTES must be positive")
 	}
 	return cfg, nil
 }

@@ -28,6 +28,9 @@ func (s *Store) DashboardStats(ctx context.Context) (*domain.DashboardStats, err
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM resources`).Scan(&stats.ResourcesCount); err != nil {
 		return nil, fmt.Errorf("count resources: %w", err)
 	}
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM public_downloads`).Scan(&stats.PublicDownloadsCount); err != nil {
+		return nil, fmt.Errorf("count public downloads: %w", err)
+	}
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM audit_events`).Scan(&stats.AuditEventsCount); err != nil {
 		return nil, fmt.Errorf("count audit events: %w", err)
 	}
@@ -360,6 +363,90 @@ func (s *Store) DeleteResource(ctx context.Context, id string) error {
 	return ensureRowsAffected("delete resource", res)
 }
 
+func (s *Store) CreatePublicDownload(ctx context.Context, input domain.PublicDownloadInput) (*domain.PublicDownload, error) {
+	id := storageID("dl")
+	now := time.Now().UTC()
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO public_downloads(id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, input.Title, input.Description, input.FileName, input.StoredName, input.ContentType, input.SizeBytes, boolToInt(input.Enabled), now, now)
+	if err != nil {
+		return nil, normalizeSQLiteError("create public download", err)
+	}
+	return s.FindPublicDownloadByID(ctx, id)
+}
+
+func (s *Store) UpdatePublicDownload(ctx context.Context, id string, update domain.PublicDownloadUpdate) (*domain.PublicDownload, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin update public download: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+
+	if update.Title != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE public_downloads SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, *update.Title, id); err != nil {
+			return nil, normalizeSQLiteError("update public download title", err)
+		}
+	}
+	if update.Description != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE public_downloads SET description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, *update.Description, id); err != nil {
+			return nil, normalizeSQLiteError("update public download description", err)
+		}
+	}
+	if update.Enabled != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE public_downloads SET enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, boolToInt(*update.Enabled), id); err != nil {
+			return nil, normalizeSQLiteError("update public download enabled", err)
+		}
+	}
+	if err := ensureAffected(ctx, tx, `SELECT id FROM public_downloads WHERE id = ?`, id); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit update public download: %w", err)
+	}
+	return s.FindPublicDownloadByID(ctx, id)
+}
+
+func (s *Store) DeletePublicDownload(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM public_downloads WHERE id = ?`, id)
+	if err != nil {
+		return normalizeSQLiteError("delete public download", err)
+	}
+	return ensureRowsAffected("delete public download", res)
+}
+
+func (s *Store) UpdatePortalSettings(ctx context.Context, settings domain.PortalSettings) (*domain.PortalSettings, error) {
+	_, err := s.db.ExecContext(ctx, `
+INSERT INTO portal_settings(
+    id, brand_name, logo_text, portal_title, portal_subtitle, welcome_title, welcome_body, footer_text, support_text, support_url, updated_at
+) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT(id) DO UPDATE SET
+    brand_name = excluded.brand_name,
+    logo_text = excluded.logo_text,
+    portal_title = excluded.portal_title,
+    portal_subtitle = excluded.portal_subtitle,
+    welcome_title = excluded.welcome_title,
+    welcome_body = excluded.welcome_body,
+    footer_text = excluded.footer_text,
+    support_text = excluded.support_text,
+    support_url = excluded.support_url,
+    updated_at = CURRENT_TIMESTAMP`,
+		settings.BrandName,
+		settings.LogoText,
+		settings.PortalTitle,
+		settings.PortalSubtitle,
+		settings.WelcomeTitle,
+		settings.WelcomeBody,
+		settings.FooterText,
+		settings.SupportText,
+		settings.SupportURL,
+	)
+	if err != nil {
+		return nil, normalizeSQLiteError("update portal settings", err)
+	}
+	return s.GetPortalSettings(ctx)
+}
+
 func (s *Store) ListActiveSessions(ctx context.Context) ([]domain.ActiveSession, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT s.id, s.user_id, u.username, s.ip, s.user_agent, s.expires_at, s.created_at
@@ -465,6 +552,52 @@ func scanUser(row scanner) (domain.User, error) {
 		user.BlockedAt = &blockedAt.Time
 	}
 	return user, nil
+}
+
+func scanPublicDownload(row scanner) (domain.PublicDownload, error) {
+	var download domain.PublicDownload
+	var enabled int
+	if err := row.Scan(
+		&download.ID,
+		&download.Title,
+		&download.Description,
+		&download.FileName,
+		&download.StoredName,
+		&download.ContentType,
+		&download.SizeBytes,
+		&enabled,
+		&download.CreatedAt,
+		&download.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.PublicDownload{}, storage.ErrNotFound
+		}
+		return domain.PublicDownload{}, fmt.Errorf("scan public download: %w", err)
+	}
+	download.Enabled = intToBool(enabled)
+	return download, nil
+}
+
+func scanPortalSettings(row scanner) (domain.PortalSettings, error) {
+	var settings domain.PortalSettings
+	if err := row.Scan(
+		&settings.BrandName,
+		&settings.LogoText,
+		&settings.PortalTitle,
+		&settings.PortalSubtitle,
+		&settings.WelcomeTitle,
+		&settings.WelcomeBody,
+		&settings.FooterText,
+		&settings.SupportText,
+		&settings.SupportURL,
+		&settings.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.PortalSettings{}, storage.ErrNotFound
+		}
+		return domain.PortalSettings{}, fmt.Errorf("scan portal settings: %w", err)
+	}
+	return settings, nil
 }
 
 func scanResourceDetail(row scanner) (domain.ResourceDetail, error) {
