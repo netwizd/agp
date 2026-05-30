@@ -1,0 +1,27 @@
+[Unit]
+Description=AGP Auth Gateway Portal backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agp
+Group=agp
+EnvironmentFile=/etc/agp/agp.env
+ExecStart=/usr/local/bin/agp
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/agp /var/log/agp
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

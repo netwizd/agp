@@ -1,0 +1,18 @@
+services:
+  agp:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    environment:
+      AGP_HTTP_ADDR: 0.0.0.0:8080
+      AGP_DATABASE_PATH: /var/lib/agp/agp.db
+      AGP_COOKIE_SECURE: "true"
+      AGP_TRUST_PROXY_HEADERS: "true"
+    volumes:
+      - agp-data:/var/lib/agp
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+
+volumes:
+  agp-data:

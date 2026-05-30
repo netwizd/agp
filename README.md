@@ -1,0 +1,45 @@
+# AGP - Auth Gateway Portal
+
+AGP is a centralized access gateway for internal corporate resources.
+
+The first implementation target is a single-node deployment:
+
+- Go backend with secure session-based authentication.
+- SQLite as the first-stage storage backend.
+- Nginx as the public TLS reverse proxy using `auth_request`.
+- Static frontend/admin assets served by Nginx or by a later build pipeline.
+- Audit-first access model for authentication, resource access and denied requests.
+
+## Repository Layout
+
+```text
+cmd/agp/                  Application entrypoint
+internal/auth/            Password hashing and session token primitives
+internal/config/          Runtime configuration from environment
+internal/domain/          Core domain models
+internal/httpapi/         HTTP API and nginx auth_request contract
+internal/storage/         Storage interfaces
+internal/storage/sqlite/  SQLite implementation and migrations
+configs/                  Example runtime configuration
+deploy/                   Nginx, systemd, Docker and logrotate templates
+docs/                     Architecture, security and operations notes
+```
+
+## Local Run
+
+Install Go 1.22+ and run:
+
+```bash
+cp configs/agp.example.env .env
+go mod download
+go run ./cmd/agp
+```
+
+By default the backend listens on `127.0.0.1:8080` and stores SQLite data in
+`./agp.db`.
+
+## Security Posture
+
+AGP is a security boundary. Production deployments must keep the backend bound
+to localhost or a private interface and expose it only through Nginx with TLS,
+strict proxy headers, access logs and `auth_request`.
