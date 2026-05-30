@@ -91,7 +91,7 @@ func TestStoreIntegration(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("append audit: %v", err)
 	}
-	events, err := store.ListAuditEvents(ctx, 10)
+	events, err := store.ListAuditEvents(ctx, domain.AuditFilter{Limit: 10})
 	if err != nil {
 		t.Fatalf("list audit events: %v", err)
 	}

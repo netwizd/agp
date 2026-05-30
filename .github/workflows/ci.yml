@@ -38,3 +38,8 @@ jobs:
 
       - name: Whitespace
         run: git show --check --format=short --no-renames HEAD
+
+      - name: Release check
+        env:
+          AGP_TEST_POSTGRES_DSN: ${{ secrets.AGP_TEST_POSTGRES_DSN }}
+        run: ./scripts/release-check.sh

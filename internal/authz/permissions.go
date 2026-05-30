@@ -6,6 +6,7 @@ const (
 	PermDashboardRead            = "dashboard.read"
 	PermUsersRead                = "users.read"
 	PermUsersManage              = "users.manage"
+	PermUsersSuperAdminManage    = "users.superadmin.manage"
 	PermGroupsRead               = "groups.read"
 	PermGroupsManage             = "groups.manage"
 	PermResourcesRead            = "resources.read"
@@ -19,6 +20,7 @@ const (
 	PermSessionsRead             = "sessions.read"
 	PermSessionsRevoke           = "sessions.revoke"
 	PermAuditRead                = "audit.read"
+	PermAuditExport              = "audit.export"
 )
 
 func AllPermissions() []string {
@@ -26,6 +28,7 @@ func AllPermissions() []string {
 		PermDashboardRead,
 		PermUsersRead,
 		PermUsersManage,
+		PermUsersSuperAdminManage,
 		PermGroupsRead,
 		PermGroupsManage,
 		PermResourcesRead,
@@ -39,6 +42,7 @@ func AllPermissions() []string {
 		PermSessionsRead,
 		PermSessionsRevoke,
 		PermAuditRead,
+		PermAuditExport,
 	}
 }
 

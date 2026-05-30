@@ -4,7 +4,8 @@
 
 AGP backend must not be directly exposed to untrusted networks. It trusts
 `X-Real-IP`, `X-Forwarded-*` and `Cookie` headers only when requests come from
-the local Nginx reverse proxy.
+configured trusted proxy CIDRs. `/auth/request` also rejects direct callers when
+proxy-header trust is enabled and the remote address is not trusted.
 
 ## Authentication
 
@@ -37,7 +38,18 @@ Audit events are persisted for:
 - successful and failed logins;
 - logout;
 - `auth_request` authorization decisions;
-- denied IP/resource/group decisions.
+- denied IP/resource/group decisions;
+- audit exports and administrative diagnostics runs.
+
+CSV audit exports escape spreadsheet formula-leading cells to avoid formula
+execution when operators open exported files in office tools.
+
+## Diagnostics
+
+Resource diagnostics are privileged administrative probes. They are rate-limited
+per user/resource and evaluated against `AGP_DIAGNOSTICS_ALLOW_CIDRS` /
+`AGP_DIAGNOSTICS_DENY_CIDRS` before TCP or HTTP checks. By default, loopback,
+link-local and metadata-style target ranges are denied.
 
 For production, SQLite audit retention should be paired with backup and export.
 For enterprise scale, audit storage should move to PostgreSQL and/or SIEM.
@@ -45,5 +57,4 @@ For enterprise scale, audit storage should move to PostgreSQL and/or SIEM.
 ## Known MVP Limits
 
 - Rate limiting is in-memory and suitable for a single backend instance only.
-- Admin CRUD API is not implemented in the first scaffold.
 - LDAP, AD, TOTP and SSO are planned for enterprise stages.

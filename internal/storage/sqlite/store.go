@@ -77,6 +77,54 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return fmt.Errorf("commit migration %s: %w", version, err)
 		}
 	}
+	return s.ensureCompatibilityColumns(ctx)
+}
+
+func (s *Store) ensureCompatibilityColumns(ctx context.Context) error {
+	hasSHA256 := false
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(public_downloads)`)
+	if err != nil {
+		return fmt.Errorf("inspect public_downloads columns: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, columnType string
+		var notNull int
+		var defaultValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
+			return fmt.Errorf("scan public_downloads column: %w", err)
+		}
+		if name == "sha256" {
+			hasSHA256 = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate public_downloads columns: %w", err)
+	}
+	if !hasSHA256 {
+		if _, err := s.db.ExecContext(ctx, `ALTER TABLE public_downloads ADD COLUMN sha256 TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("add public_downloads sha256 column: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *Store) Ping(ctx context.Context) error {
+	if err := s.db.PingContext(ctx); err != nil {
+		return fmt.Errorf("ping sqlite: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ApplyRetention(ctx context.Context, now time.Time, auditRetention time.Duration, sessionRetention time.Duration) error {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM audit_events WHERE created_at < ?`, now.Add(-auditRetention)); err != nil {
+		return fmt.Errorf("prune audit events: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?`, now.Add(-sessionRetention), now.Add(-sessionRetention)); err != nil {
+		return fmt.Errorf("prune sessions: %w", err)
+	}
 	return nil
 }
 
@@ -281,7 +329,7 @@ func (s *Store) ListResourceAllowCIDRs(ctx context.Context, resourceID string) (
 
 func (s *Store) ListPublicDownloads(ctx context.Context, includeDisabled bool) ([]domain.PublicDownload, error) {
 	query := `
-SELECT id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at
+	SELECT id, title, description, file_name, stored_name, content_type, sha256, size_bytes, enabled, created_at, updated_at
 FROM public_downloads`
 	if !includeDisabled {
 		query += ` WHERE enabled = 1`
@@ -306,7 +354,7 @@ FROM public_downloads`
 
 func (s *Store) FindPublicDownloadByID(ctx context.Context, id string) (*domain.PublicDownload, error) {
 	row := s.db.QueryRowContext(ctx, `
-SELECT id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at
+	SELECT id, title, description, file_name, stored_name, content_type, sha256, size_bytes, enabled, created_at, updated_at
 FROM public_downloads
 WHERE id = ?`, id)
 	download, err := scanPublicDownload(row)
@@ -326,6 +374,23 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		event.Type, event.SubjectUserID, event.Username, event.ResourceID, event.IP, event.UserAgent, event.Outcome, event.Reason, event.MetadataJSON, event.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("append audit: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) AppendResourceDiagnostics(ctx context.Context, run domain.ResourceDiagnosticsRun) error {
+	if run.ID == "" {
+		run.ID = storageID("diag")
+	}
+	if run.CreatedAt.IsZero() {
+		run.CreatedAt = time.Now().UTC()
+	}
+	_, err := s.db.ExecContext(ctx, `
+	INSERT INTO resource_diagnostics(id, resource_id, outcome, result_json, created_by, created_at)
+	VALUES (?, ?, ?, ?, ?, ?)`,
+		run.ID, run.ResourceID, run.Outcome, run.ResultJSON, run.CreatedBy, run.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("append resource diagnostics: %w", err)
 	}
 	return nil
 }

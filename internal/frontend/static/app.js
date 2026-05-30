@@ -13,9 +13,35 @@ const state = {
   settings: null,
   publicDownloads: [],
   resources: [],
+  adminGroups: [],
   resourceQuery: "",
   resourceCategory: "all",
   editingResourceID: "",
+  editingGroupID: "",
+  editingUserID: "",
+  editingDownloadID: "",
+  auditFilters: {},
+};
+
+const permissionLabels = {
+  "dashboard.read": "Дашборд",
+  "users.read": "Пользователи: просмотр",
+  "users.manage": "Пользователи: управление",
+  "users.superadmin.manage": "Super-admin",
+  "groups.read": "Группы: просмотр",
+  "groups.manage": "Группы: управление",
+  "resources.read": "Ресурсы: просмотр",
+  "resources.manage": "Ресурсы: управление",
+  "resources.diagnostics": "Диагностика ресурсов",
+  "nginx.recommendations.read": "Nginx рекомендации",
+  "downloads.read": "Файлы: просмотр",
+  "downloads.manage": "Файлы: управление",
+  "portal.settings.read": "Портал: просмотр",
+  "portal.settings.manage": "Портал: управление",
+  "sessions.read": "Сессии: просмотр",
+  "sessions.revoke": "Сессии: отзыв",
+  "audit.read": "Аудит: просмотр",
+  "audit.export": "Аудит: экспорт",
 };
 
 const els = {
@@ -27,9 +53,13 @@ const els = {
   loginView: document.getElementById("loginView"),
   portalView: document.getElementById("portalView"),
   accessDeniedView: document.getElementById("accessDeniedView"),
+  helpView: document.getElementById("helpView"),
   adminView: document.getElementById("adminView"),
   sessionPanel: document.getElementById("sessionPanel"),
   logoutButton: document.getElementById("logoutButton"),
+  showDownloadsButton: document.getElementById("showDownloadsButton"),
+  helpButton: document.getElementById("helpButton"),
+  identityBadge: document.getElementById("identityBadge"),
   loginForm: document.getElementById("loginForm"),
   loginError: document.getElementById("loginError"),
   resourceGrid: document.getElementById("resourceGrid"),
@@ -38,6 +68,8 @@ const els = {
   backToPortalButton: document.getElementById("backToPortalButton"),
   publicDownloadsLogin: document.getElementById("publicDownloadsLogin"),
   publicDownloadsPortal: document.getElementById("publicDownloadsPortal"),
+  downloadsLoginPanel: document.getElementById("downloadsLoginPanel"),
+  downloadsPortalPanel: document.getElementById("downloadsPortalPanel"),
   welcomeTitle: document.getElementById("welcomeTitle"),
   welcomeBody: document.getElementById("welcomeBody"),
   supportLink: document.getElementById("supportLink"),
@@ -51,12 +83,19 @@ const els = {
   adminSessions: document.getElementById("adminSessions"),
   adminAudit: document.getElementById("adminAudit"),
   resourceForm: document.getElementById("resourceForm"),
+  nginxBundleButton: document.getElementById("nginxBundleButton"),
   groupForm: document.getElementById("groupForm"),
   userForm: document.getElementById("userForm"),
+  createUserAdminFlag: document.getElementById("createUserAdminFlag"),
   downloadForm: document.getElementById("downloadForm"),
   portalSettingsForm: document.getElementById("portalSettingsForm"),
   refreshAuditButton: document.getElementById("refreshAuditButton"),
+  auditFilterForm: document.getElementById("auditFilterForm"),
+  resetAuditFiltersButton: document.getElementById("resetAuditFiltersButton"),
+  exportAuditCSVButton: document.getElementById("exportAuditCSVButton"),
+  exportAuditJSONButton: document.getElementById("exportAuditJSONButton"),
   operationOutput: document.getElementById("operationOutput"),
+  copyOperationButton: document.getElementById("copyOperationButton"),
 };
 
 document.querySelectorAll(".nav-link").forEach((button) => {
@@ -73,6 +112,23 @@ els.resourceSearch.addEventListener("input", () => {
 });
 
 els.backToPortalButton.addEventListener("click", () => setView("portal"));
+
+els.showDownloadsButton.addEventListener("click", () => {
+  const panel = state.user ? els.downloadsPortalPanel : els.downloadsLoginPanel;
+  if (!panel) return;
+  panel.open = true;
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+els.helpButton.addEventListener("click", (event) => {
+  event.preventDefault();
+  const settings = effectiveSettings();
+  if (settings.support_url) {
+    window.open(settings.support_url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  setView("help");
+});
 
 els.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -208,6 +264,23 @@ els.portalSettingsForm.addEventListener("submit", async (event) => {
 });
 
 els.refreshAuditButton.addEventListener("click", () => loadAudit());
+els.nginxBundleButton.addEventListener("click", () => showNginxBundle());
+els.copyOperationButton.addEventListener("click", () => copyText(els.operationOutput.textContent || ""));
+
+els.auditFilterForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  state.auditFilters = auditFiltersFromForm();
+  await loadAudit();
+});
+
+els.resetAuditFiltersButton.addEventListener("click", async () => {
+  els.auditFilterForm.reset();
+  state.auditFilters = {};
+  await loadAudit();
+});
+
+els.exportAuditCSVButton.addEventListener("click", () => exportAudit("csv"));
+els.exportAuditJSONButton.addEventListener("click", () => exportAudit("json"));
 
 async function bootstrap() {
   await refreshPublicData();
@@ -219,6 +292,8 @@ async function bootstrap() {
     els.logoutButton.classList.remove("hidden");
     if (location.pathname.startsWith("/access-denied")) {
       await setView("accessDenied");
+    } else if (location.pathname.startsWith("/help")) {
+      await setView("help");
     } else if (location.pathname.startsWith("/admin") && canUseAdmin()) {
       await setView("admin");
     } else {
@@ -235,12 +310,14 @@ async function bootstrap() {
 
 async function setView(view) {
   state.view = view;
-  document.querySelectorAll(".nav-link").forEach((button) => {
-    button.classList.toggle("active", button.dataset.view === view);
-  });
+  syncNavigation();
   if (!state.user) {
     if (view === "accessDenied") {
       renderAccessDenied();
+      return;
+    }
+    if (view === "help") {
+      renderHelp();
       return;
     }
     renderLoggedOut();
@@ -249,6 +326,7 @@ async function setView(view) {
   els.loginView.classList.add("hidden");
   els.portalView.classList.toggle("hidden", view !== "portal");
   els.accessDeniedView.classList.toggle("hidden", view !== "accessDenied");
+  els.helpView.classList.toggle("hidden", view !== "help");
   els.adminView.classList.toggle("hidden", view !== "admin");
 
   if (view === "accessDenied") {
@@ -265,6 +343,11 @@ async function setView(view) {
       state.adminTab = firstAvailableAdminTab();
     }
     await loadAdmin();
+    return;
+  }
+
+  if (view === "help") {
+    renderHelp();
     return;
   }
 
@@ -292,6 +375,9 @@ function syncAdminTabs() {
   document.querySelectorAll(".admin-tab-panel").forEach((panel) => {
     panel.classList.toggle("hidden", panel.id !== `${state.adminTab}Panel`);
   });
+  const canExportAudit = can("audit.export");
+  els.exportAuditCSVButton.classList.toggle("hidden", !canExportAudit);
+  els.exportAuditJSONButton.classList.toggle("hidden", !canExportAudit);
 }
 
 async function loadPortal() {
@@ -371,8 +457,20 @@ function renderAccessDenied() {
   els.loginView.classList.add("hidden");
   els.portalView.classList.add("hidden");
   els.adminView.classList.add("hidden");
+  els.helpView.classList.add("hidden");
   els.accessDeniedView.classList.remove("hidden");
   history.replaceState(null, "", "/access-denied");
+}
+
+function renderHelp() {
+  els.pageTitle.textContent = "Помощь";
+  els.pageSubtitle.textContent = "Информация для работы с порталом";
+  els.loginView.classList.add("hidden");
+  els.portalView.classList.add("hidden");
+  els.adminView.classList.add("hidden");
+  els.accessDeniedView.classList.add("hidden");
+  els.helpView.classList.remove("hidden");
+  history.replaceState(null, "", "/help");
 }
 
 async function loadAdmin() {
@@ -447,8 +545,12 @@ function applyPortalChrome() {
     els.supportLink.textContent = settings.support_text;
     els.supportLink.href = settings.support_url;
     els.supportLink.classList.remove("hidden");
+    els.helpButton.textContent = settings.support_text;
+    els.helpButton.classList.remove("hidden");
   } else {
     els.supportLink.classList.add("hidden");
+    els.helpButton.textContent = "Помощь";
+    els.helpButton.classList.remove("hidden");
   }
   if (state.view === "portal" && state.user) {
     applyPortalTitle();
@@ -479,6 +581,8 @@ function renderPublicDownloads() {
   const html = renderDownloadLinks(state.publicDownloads);
   els.publicDownloadsLogin.innerHTML = html;
   els.publicDownloadsPortal.innerHTML = html;
+  attachCopyHandlers(els.publicDownloadsLogin);
+  attachCopyHandlers(els.publicDownloadsPortal);
 }
 
 function renderDownloadLinks(downloads) {
@@ -488,12 +592,16 @@ function renderDownloadLinks(downloads) {
   return downloads
     .map((download) => {
       const size = formatBytes(download.size_bytes || 0);
+      const sha = escapeHTML(download.sha256 || "");
       return `
-        <a class="download-item" href="${escapeHTML(download.url)}">
-          <strong>${escapeHTML(download.title)}</strong>
-          <span class="muted">${escapeHTML(download.description || download.file_name)}</span>
-          <span>${escapeHTML(download.file_name)} · ${escapeHTML(size)}</span>
-        </a>
+        <div class="download-item">
+          <a href="${escapeHTML(download.url)}">
+            <strong>${escapeHTML(download.title)}</strong>
+            <span class="muted">${escapeHTML(download.description || download.file_name)}</span>
+            <span>${escapeHTML(download.file_name)} · ${escapeHTML(size)}</span>
+          </a>
+          ${download.sha256 ? `<div class="hash-row"><span class="hash-line">sha256: ${sha}</span><button class="secondary compact-button" data-copy="${sha}" type="button">Копировать SHA</button></div>` : ""}
+        </div>
       `;
     })
     .join("");
@@ -501,6 +609,8 @@ function renderDownloadLinks(downloads) {
 
 async function loadResources() {
   els.resourceForm.classList.toggle("hidden", !can("resources.manage"));
+  els.nginxBundleButton.classList.toggle("hidden", !can("nginx.recommendations.read"));
+  await ensureGroupLookup();
   const data = await api("/api/v1/admin/resources");
   renderAdminResources(data.resources || []);
 }
@@ -518,13 +628,14 @@ function renderAdminResources(resources) {
           <strong>${escapeHTML(resource.Name)}</strong>
           <div class="muted">category: ${escapeHTML(resource.Category || "Общее")}</div>
           <div class="muted">${escapeHTML(resource.PublicHost)} -> ${escapeHTML(resource.InternalURL)}</div>
-          <div class="muted">groups: ${escapeHTML((resource.GroupIDs || []).join(", ") || "none")}</div>
+          <div class="muted">groups: ${escapeHTML(labelGroupIDs(resource.GroupIDs || []))}</div>
           <div class="muted">cidrs: ${escapeHTML((resource.AllowCIDRs || []).join(", ") || "any")}</div>
         </div>
         <div class="row-actions">
           ${can("resources.manage") ? `<button class="secondary" data-action="edit-resource" data-id="${escapeHTML(resource.ID)}">Редактировать</button>` : ""}
-          ${can("nginx.recommendations.read") ? `<button class="secondary" data-action="nginx" data-id="${escapeHTML(resource.ID)}">Nginx</button>` : ""}
-          ${can("resources.diagnostics") ? `<button class="secondary" data-action="diag" data-id="${escapeHTML(resource.ID)}">Диагностика</button>` : ""}
+	          ${can("nginx.recommendations.read") ? `<button class="secondary" data-action="nginx" data-id="${escapeHTML(resource.ID)}">Nginx</button>` : ""}
+	          ${can("resources.diagnostics") ? `<button class="secondary" data-action="diag" data-id="${escapeHTML(resource.ID)}">Диагностика</button>` : ""}
+	          ${can("resources.diagnostics") ? `<button class="secondary" data-action="diag-history" data-id="${escapeHTML(resource.ID)}">История</button>` : ""}
           ${can("resources.manage") ? `<button class="danger" data-action="delete-resource" data-id="${escapeHTML(resource.ID)}">Удалить</button>` : ""}
         </div>
         ${state.editingResourceID === resource.ID ? renderResourceEditForm(resource) : ""}
@@ -566,6 +677,7 @@ async function loadGroups() {
   els.groupForm.classList.toggle("hidden", !can("groups.manage"));
   const data = await api("/api/v1/admin/groups");
   const groups = data.groups || [];
+  state.adminGroups = groups;
   if (groups.length === 0) {
     els.adminGroups.innerHTML = `<div class="muted">Группы еще не созданы.</div>`;
     return;
@@ -578,22 +690,66 @@ async function loadGroups() {
           <strong>${escapeHTML(group.Name)}</strong>
           <div class="muted">${escapeHTML(group.Description || "Без описания")}</div>
           <div class="muted">id: ${escapeHTML(group.ID)}</div>
-          <div class="muted">permissions: ${escapeHTML((group.PermissionIDs || []).join(", ") || "none")}</div>
+          <div class="muted">permissions: ${escapeHTML(labelPermissions(group.PermissionIDs || []))}</div>
         </div>
         <div class="row-actions">
+          ${can("groups.manage") ? `<button class="secondary" data-action="edit-group" data-id="${escapeHTML(group.ID)}">Редактировать</button>` : ""}
           ${can("groups.manage") ? `<button class="danger" data-action="delete-group" data-id="${escapeHTML(group.ID)}">Удалить</button>` : ""}
         </div>
+        ${state.editingGroupID === group.ID ? renderGroupEditForm(group) : ""}
       </div>
     `
     )
     .join("");
   els.adminGroups.querySelectorAll("button").forEach((button) => {
-    button.addEventListener("click", () => deleteEntity(`/api/v1/admin/groups/${encodeURIComponent(button.dataset.id)}`, "Группа удалена"));
+    button.addEventListener("click", () => handleGroupAction(button.dataset.action, button.dataset.id));
   });
+  els.adminGroups.querySelectorAll("form[data-group-edit]").forEach((form) => {
+    form.addEventListener("submit", (event) => submitGroupEdit(event, form));
+  });
+}
+
+async function ensureGroupLookup() {
+  if (state.adminGroups.length || !can("groups.read")) {
+    return;
+  }
+  try {
+    const data = await api("/api/v1/admin/groups");
+    state.adminGroups = data.groups || [];
+  } catch {
+    state.adminGroups = [];
+  }
+}
+
+function labelGroupIDs(groupIDs) {
+  if (!groupIDs.length) return "none";
+  const byID = new Map(state.adminGroups.map((group) => [group.ID, group.Name]));
+  return groupIDs.map((id) => byID.get(id) || id).join(", ");
+}
+
+function labelPermissions(permissionIDs) {
+  if (!permissionIDs.length) return "none";
+  return permissionIDs.map((id) => permissionLabels[id] || id).join(", ");
+}
+
+function renderGroupEditForm(group) {
+  return `
+    <form class="inline-edit-form" data-group-edit data-id="${escapeHTML(group.ID)}">
+      <input name="name" placeholder="Название группы" value="${escapeHTML(group.Name)}" required />
+      <input name="description" placeholder="Описание" value="${escapeHTML(group.Description || "")}" />
+      <input name="permission_ids" placeholder="permissions через запятую" value="${escapeHTML((group.PermissionIDs || []).join(", "))}" />
+      <div class="form-actions">
+        <button type="submit">Сохранить</button>
+        <button class="secondary" type="button" data-action="cancel-group-edit" data-id="${escapeHTML(group.ID)}">Отмена</button>
+      </div>
+    </form>
+  `;
 }
 
 async function loadUsers() {
   els.userForm.classList.toggle("hidden", !can("users.manage"));
+  els.createUserAdminFlag.classList.toggle("hidden", !can("users.superadmin.manage"));
+  await ensureGroupLookup();
   const data = await api("/api/v1/admin/users");
   const users = data.users || [];
   if (users.length === 0) {
@@ -607,12 +763,15 @@ async function loadUsers() {
         <div>
           <strong>${escapeHTML(user.Username)}</strong>
           <div class="muted">${escapeHTML(user.DisplayName || "Без имени")} · ${user.IsAdmin ? "admin" : "user"}</div>
+          <div class="muted">groups: ${escapeHTML(labelGroupIDs(user.GroupIDs || []))}</div>
           <div class="${user.BlockedAt ? "status-bad" : "status-ok"}">${user.BlockedAt ? "blocked" : "active"}</div>
         </div>
         <div class="row-actions">
+          ${can("users.manage") ? `<button class="secondary" data-action="edit-user" data-id="${escapeHTML(user.ID)}">Редактировать</button>` : ""}
           ${can("users.manage") ? `<button class="secondary" data-action="block-user" data-id="${escapeHTML(user.ID)}" data-blocked="${user.BlockedAt ? "false" : "true"}">${user.BlockedAt ? "Разблокировать" : "Блокировать"}</button>` : ""}
           ${can("users.manage") ? `<button class="danger" data-action="delete-user" data-id="${escapeHTML(user.ID)}">Удалить</button>` : ""}
         </div>
+        ${state.editingUserID === user.ID ? renderUserEditForm(user) : ""}
       </div>
     `
     )
@@ -620,6 +779,32 @@ async function loadUsers() {
   els.adminUsers.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", () => handleUserAction(button.dataset.action, button.dataset.id, button.dataset.blocked === "true"));
   });
+  els.adminUsers.querySelectorAll("form[data-user-edit]").forEach((form) => {
+    form.addEventListener("submit", (event) => submitUserEdit(event, form));
+  });
+}
+
+function renderUserEditForm(user) {
+  return `
+    <form class="inline-edit-form" data-user-edit data-id="${escapeHTML(user.ID)}">
+      <input name="display_name" placeholder="Отображаемое имя" value="${escapeHTML(user.DisplayName || "")}" />
+      <input name="group_ids" placeholder="group ids через запятую" value="${escapeHTML((user.GroupIDs || []).join(", "))}" />
+      <input name="password" type="password" placeholder="Новый пароль, если нужно" />
+      ${
+        can("users.superadmin.manage")
+          ? `<label class="checkbox-line"><input name="is_admin" type="checkbox" ${user.IsAdmin ? "checked" : ""} /> Администратор</label>`
+          : ""
+      }
+      <label class="checkbox-line">
+        <input name="blocked" type="checkbox" ${user.BlockedAt ? "checked" : ""} />
+        Заблокирован
+      </label>
+      <div class="form-actions">
+        <button type="submit">Сохранить</button>
+        <button class="secondary" type="button" data-action="cancel-user-edit" data-id="${escapeHTML(user.ID)}">Отмена</button>
+      </div>
+    </form>
+  `;
 }
 
 async function loadSessions() {
@@ -651,7 +836,7 @@ async function loadSessions() {
 }
 
 async function loadAudit() {
-  const data = await api("/api/v1/admin/audit?limit=50");
+  const data = await api(`/api/v1/admin/audit?${auditQueryString(50)}`);
   const events = data.events || [];
   if (events.length === 0) {
     els.adminAudit.innerHTML = `<div class="muted">Audit events отсутствуют.</div>`;
@@ -662,14 +847,39 @@ async function loadAudit() {
       (event) => `
       <div class="table-row">
         <div>
-          <strong>${escapeHTML(event.Type)}</strong>
-          <div class="muted">${escapeHTML(event.Username || event.SubjectUserID || "system")} · ${escapeHTML(event.Outcome)} · ${formatDate(event.CreatedAt)}</div>
-          <div class="muted">${escapeHTML(event.Reason || event.ResourceID || "")}</div>
-        </div>
+	          <strong>${escapeHTML(event.Type)}</strong>
+	          <div class="muted">${escapeHTML(event.Username || event.SubjectUserID || "system")} · ${escapeHTML(event.Outcome)} · ${formatDate(event.CreatedAt)}</div>
+	          <div class="muted">${escapeHTML(event.Reason || event.ResourceID || "")}</div>
+	          ${event.MetadataJSON ? `<pre class="metadata-json">${escapeHTML(formatJSON(event.MetadataJSON))}</pre>` : ""}
+	        </div>
       </div>
     `
     )
     .join("");
+}
+
+function auditFiltersFromForm() {
+  const form = new FormData(els.auditFilterForm);
+  return {
+    username: String(form.get("username") || "").trim(),
+    type: String(form.get("type") || "").trim(),
+    resource_id: String(form.get("resource_id") || "").trim(),
+    outcome: String(form.get("outcome") || "").trim(),
+    from: String(form.get("from") || "").trim(),
+    to: String(form.get("to") || "").trim(),
+  };
+}
+
+function auditQueryString(limit) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  Object.entries(state.auditFilters || {}).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  return params.toString();
+}
+
+function exportAudit(format) {
+  window.open(`/api/v1/admin/audit/export?${auditQueryString(1000)}&format=${encodeURIComponent(format)}`, "_blank", "noopener,noreferrer");
 }
 
 async function handleResourceAction(action, id) {
@@ -691,8 +901,50 @@ async function handleResourceAction(action, id) {
     await showDiagnostics(id);
     return;
   }
+  if (action === "diag-history") {
+    await showDiagnosticsHistory(id);
+    return;
+  }
   if (action === "delete-resource") {
     await deleteEntity(`/api/v1/admin/resources/${encodeURIComponent(id)}`, "Ресурс удален");
+  }
+}
+
+async function handleGroupAction(action, id) {
+  if (action === "edit-group") {
+    state.editingGroupID = id;
+    await loadGroups();
+    return;
+  }
+  if (action === "cancel-group-edit") {
+    state.editingGroupID = "";
+    await loadGroups();
+    return;
+  }
+  if (action === "delete-group") {
+    await deleteEntity(`/api/v1/admin/groups/${encodeURIComponent(id)}`, "Группа удалена");
+  }
+}
+
+async function submitGroupEdit(event, form) {
+  event.preventDefault();
+  const id = form.dataset.id;
+  const data = new FormData(form);
+  try {
+    await api(`/api/v1/admin/groups/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      csrf: true,
+      body: {
+        name: data.get("name"),
+        description: data.get("description"),
+        permission_ids: splitCSV(data.get("permission_ids")),
+      },
+    });
+    state.editingGroupID = "";
+    els.operationOutput.textContent = "Группа обновлена";
+    await loadGroups();
+  } catch (error) {
+    showOperationError("Не удалось обновить группу", error);
   }
 }
 
@@ -742,30 +994,65 @@ function renderAdminDownloads(downloads) {
       (download) => `
       <div class="table-row">
         <div>
-          <strong>${escapeHTML(download.Title)}</strong>
-          <div class="muted">${escapeHTML(download.FileName)} · ${escapeHTML(formatBytes(download.SizeBytes || 0))}</div>
-          <div class="muted">${escapeHTML(download.Description || "Без описания")}</div>
-          <div class="${download.Enabled ? "status-ok" : "status-bad"}">${download.Enabled ? "published" : "disabled"}</div>
-        </div>
-        <div class="row-actions">
-          <a class="button-link secondary" href="/downloads/${escapeHTML(download.ID)}">Скачать</a>
-          ${
+	          <strong>${escapeHTML(download.Title)}</strong>
+	          <div class="muted">${escapeHTML(download.FileName)} · ${escapeHTML(formatBytes(download.SizeBytes || 0))}</div>
+	          ${download.SHA256 ? `<div class="hash-row"><span class="muted hash-line">sha256: ${escapeHTML(download.SHA256)}</span><button class="secondary compact-button" data-copy="${escapeHTML(download.SHA256)}" type="button">Копировать SHA</button></div>` : ""}
+	          <div class="muted">${escapeHTML(download.Description || "Без описания")}</div>
+	          <div class="${download.Enabled ? "status-ok" : "status-bad"}">${download.Enabled ? "published" : "disabled"}</div>
+	        </div>
+	        <div class="row-actions">
+	          <a class="button-link secondary" href="/downloads/${escapeHTML(download.ID)}">Скачать</a>
+	          ${can("downloads.manage") ? `<button class="secondary" data-action="edit-download" data-id="${escapeHTML(download.ID)}">Редактировать</button>` : ""}
+	          ${
             can("downloads.manage")
               ? `<button class="secondary" data-action="toggle-download" data-id="${escapeHTML(download.ID)}" data-enabled="${download.Enabled ? "false" : "true"}">${download.Enabled ? "Скрыть" : "Опубликовать"}</button>`
               : ""
           }
-          ${can("downloads.manage") ? `<button class="danger" data-action="delete-download" data-id="${escapeHTML(download.ID)}">Удалить</button>` : ""}
-        </div>
-      </div>
+	          ${can("downloads.manage") ? `<button class="danger" data-action="delete-download" data-id="${escapeHTML(download.ID)}">Удалить</button>` : ""}
+	        </div>
+	        ${state.editingDownloadID === download.ID ? renderDownloadEditForm(download) : ""}
+	      </div>
     `
     )
     .join("");
   els.adminDownloads.querySelectorAll("button").forEach((button) => {
+    if (button.dataset.copy) return;
     button.addEventListener("click", () => handleDownloadAction(button.dataset.action, button.dataset.id, button.dataset.enabled === "true"));
+  });
+  attachCopyHandlers(els.adminDownloads);
+  els.adminDownloads.querySelectorAll("form[data-download-edit]").forEach((form) => {
+    form.addEventListener("submit", (event) => submitDownloadEdit(event, form));
   });
 }
 
+function renderDownloadEditForm(download) {
+  return `
+    <form class="inline-edit-form" data-download-edit data-id="${escapeHTML(download.ID)}">
+      <input name="title" placeholder="Название" value="${escapeHTML(download.Title)}" required />
+      <input name="description" placeholder="Описание" value="${escapeHTML(download.Description || "")}" />
+      <label class="checkbox-line">
+        <input name="enabled" type="checkbox" ${download.Enabled ? "checked" : ""} />
+        Опубликован
+      </label>
+      <div class="form-actions">
+        <button type="submit">Сохранить</button>
+        <button class="secondary" type="button" data-action="cancel-download-edit" data-id="${escapeHTML(download.ID)}">Отмена</button>
+      </div>
+    </form>
+  `;
+}
+
 async function handleDownloadAction(action, id, enabled) {
+  if (action === "edit-download") {
+    state.editingDownloadID = id;
+    await loadDownloads();
+    return;
+  }
+  if (action === "cancel-download-edit") {
+    state.editingDownloadID = "";
+    await loadDownloads();
+    return;
+  }
   if (action === "toggle-download") {
     try {
       await api(`/api/v1/admin/downloads/${encodeURIComponent(id)}`, {
@@ -784,6 +1071,29 @@ async function handleDownloadAction(action, id, enabled) {
   if (action === "delete-download") {
     await deleteEntity(`/api/v1/admin/downloads/${encodeURIComponent(id)}`, "Файл удален");
     await refreshPublicData();
+  }
+}
+
+async function submitDownloadEdit(event, form) {
+  event.preventDefault();
+  const id = form.dataset.id;
+  const data = new FormData(form);
+  try {
+    await api(`/api/v1/admin/downloads/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      csrf: true,
+      body: {
+        title: data.get("title"),
+        description: data.get("description"),
+        enabled: data.get("enabled") === "on",
+      },
+    });
+    state.editingDownloadID = "";
+    els.operationOutput.textContent = "Файл обновлен";
+    await refreshPublicData();
+    await loadDownloads();
+  } catch (error) {
+    showOperationError("Не удалось обновить файл", error);
   }
 }
 
@@ -806,6 +1116,16 @@ function fillPortalSettingsForm(settings) {
 }
 
 async function handleUserAction(action, id, blocked) {
+  if (action === "edit-user") {
+    state.editingUserID = id;
+    await loadUsers();
+    return;
+  }
+  if (action === "cancel-user-edit") {
+    state.editingUserID = "";
+    await loadUsers();
+    return;
+  }
   if (action === "block-user") {
     try {
       await api(`/api/v1/admin/users/${encodeURIComponent(id)}`, {
@@ -825,7 +1145,39 @@ async function handleUserAction(action, id, blocked) {
   }
 }
 
+async function submitUserEdit(event, form) {
+  event.preventDefault();
+  const id = form.dataset.id;
+  const data = new FormData(form);
+  const body = {
+    display_name: data.get("display_name"),
+    group_ids: splitCSV(data.get("group_ids")),
+    blocked: data.get("blocked") === "on",
+  };
+  if (can("users.superadmin.manage")) {
+    body.is_admin = data.get("is_admin") === "on";
+  }
+  if (String(data.get("password") || "").trim() !== "") {
+    body.password = data.get("password");
+  }
+  try {
+    await api(`/api/v1/admin/users/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      csrf: true,
+      body,
+    });
+    state.editingUserID = "";
+    els.operationOutput.textContent = "Пользователь обновлен";
+    await loadUsers();
+  } catch (error) {
+    showOperationError("Не удалось обновить пользователя", error);
+  }
+}
+
 async function deleteEntity(path, message) {
+  if (!window.confirm("Подтвердите удаление. Операция необратима.")) {
+    return;
+  }
   try {
     await api(path, { method: "DELETE", csrf: true });
     els.operationOutput.textContent = message;
@@ -840,12 +1192,67 @@ async function showNginx(id) {
   els.operationOutput.textContent = data.nginx.snippet;
 }
 
+async function showNginxBundle() {
+  const data = await api("/api/v1/admin/nginx/bundle");
+  els.operationOutput.textContent = data.nginx.snippet;
+}
+
+function attachCopyHandlers(root) {
+  root.querySelectorAll("[data-copy]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      copyText(button.dataset.copy || "");
+    });
+  });
+}
+
+async function copyText(value) {
+  if (!value) return;
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+  }
+}
+
 async function showDiagnostics(id) {
   const data = await api(`/api/v1/admin/resources/${encodeURIComponent(id)}/diagnostics`, {
     method: "POST",
     csrf: true,
   });
-  els.operationOutput.textContent = JSON.stringify(data.diagnostics, null, 2);
+  els.operationOutput.textContent = renderDiagnosticsText(data.diagnostics, data.history || []);
+}
+
+async function showDiagnosticsHistory(id) {
+  const data = await api(`/api/v1/admin/resources/${encodeURIComponent(id)}/diagnostics?limit=20`);
+  els.operationOutput.textContent = renderDiagnosticsText(null, data.history || []);
+}
+
+function renderDiagnosticsText(current, history) {
+  const sections = [];
+  if (current) {
+    sections.push(`CURRENT\n${JSON.stringify(current, null, 2)}`);
+  }
+  if (!history.length) {
+    sections.push("HISTORY\nИстория диагностики пуста.");
+  } else {
+    sections.push(
+      "HISTORY\n" +
+        history
+          .map((run) => `${formatDate(run.CreatedAt)} · ${run.Outcome}\n${formatJSON(run.ResultJSON)}`)
+          .join("\n\n")
+    );
+  }
+  return sections.join("\n\n");
 }
 
 function renderSession(me) {
@@ -853,6 +1260,9 @@ function renderSession(me) {
     <div><strong>${escapeHTML(me.user.username)}</strong></div>
     <div>${canUseAdmin() ? "Администратор" : "Пользователь"}</div>
   `;
+  els.identityBadge.textContent = me.user.display_name || me.user.username;
+  els.identityBadge.classList.remove("hidden");
+  syncNavigation();
 }
 
 function renderLoggedOut() {
@@ -861,9 +1271,21 @@ function renderLoggedOut() {
   els.loginView.classList.remove("hidden");
   els.portalView.classList.add("hidden");
   els.accessDeniedView.classList.add("hidden");
+  els.helpView.classList.add("hidden");
   els.adminView.classList.add("hidden");
   els.logoutButton.classList.add("hidden");
+  els.identityBadge.classList.add("hidden");
   els.sessionPanel.innerHTML = `<span class="muted">Нет активной сессии</span>`;
+  syncNavigation();
+}
+
+function syncNavigation() {
+  document.querySelectorAll(".nav-link").forEach((button) => {
+    const view = button.dataset.view;
+    const visible = state.user && (view !== "admin" || canUseAdmin());
+    button.classList.toggle("hidden", !visible);
+    button.classList.toggle("active", visible && view === state.view);
+  });
 }
 
 async function api(path, options = {}) {
@@ -949,6 +1371,14 @@ function formatBytes(value) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
+
+function formatJSON(value) {
+  try {
+    return JSON.stringify(JSON.parse(value), null, 2);
+  } catch {
+    return value;
+  }
 }
 
 function escapeHTML(value) {

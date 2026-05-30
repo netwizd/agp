@@ -1,12 +1,17 @@
 package httpapi
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -96,19 +101,28 @@ func (s *Server) adminCreateDownload(w http.ResponseWriter, r *http.Request, ses
 		writeError(w, http.StatusBadRequest, "invalid_file_name")
 		return
 	}
+	if !s.downloadExtensionAllowed(fileName) {
+		writeError(w, http.StatusBadRequest, "download_extension_denied")
+		return
+	}
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
 		title = fileName
 	}
 	description := strings.TrimSpace(r.FormValue("description"))
 	enabled := r.FormValue("enabled") != "false"
-	contentType := strings.TrimSpace(header.Header.Get("Content-Type"))
-	if contentType == "" {
-		contentType = "application/octet-stream"
+	prefix, err := readUploadPrefix(r.Context(), file, 512)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "file_read_failed")
+		return
+	}
+	contentType := "application/octet-stream"
+	if len(prefix) > 0 {
+		contentType = http.DetectContentType(prefix)
 	}
 
 	storedName := newID("blob") + strings.ToLower(filepath.Ext(fileName))
-	size, err := s.persistDownloadFile(r.Context().Done(), storedName, file)
+	size, checksum, err := s.persistDownloadFile(r.Context(), storedName, io.MultiReader(bytes.NewReader(prefix), file))
 	if err != nil {
 		s.logger.Error("persist public download failed", "error", err)
 		writeError(w, http.StatusBadRequest, "file_store_failed")
@@ -120,6 +134,7 @@ func (s *Server) adminCreateDownload(w http.ResponseWriter, r *http.Request, ses
 		FileName:    fileName,
 		StoredName:  storedName,
 		ContentType: contentType,
+		SHA256:      checksum,
 		SizeBytes:   size,
 		Enabled:     enabled,
 	})
@@ -128,7 +143,15 @@ func (s *Server) adminCreateDownload(w http.ResponseWriter, r *http.Request, ses
 		writeStorageError(w, err, "download_create_failed")
 		return
 	}
-	s.audit(r, "admin.download.created", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", download.ID)
+	s.auditWithMetadata(r, "admin.download.created", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", download.ID, map[string]any{
+		"download_id":  download.ID,
+		"title":        download.Title,
+		"file_name":    download.FileName,
+		"sha256":       download.SHA256,
+		"size_bytes":   download.SizeBytes,
+		"content_type": download.ContentType,
+		"enabled":      download.Enabled,
+	})
 	writeJSON(w, http.StatusCreated, map[string]any{"download": download})
 }
 
@@ -151,7 +174,11 @@ func (s *Server) adminUpdateDownload(w http.ResponseWriter, r *http.Request, ses
 		writeStorageError(w, err, "download_update_failed")
 		return
 	}
-	s.audit(r, "admin.download.updated", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", download.ID)
+	s.auditWithMetadata(r, "admin.download.updated", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", download.ID, map[string]any{
+		"download_id": download.ID,
+		"title":       download.Title,
+		"enabled":     download.Enabled,
+	})
 	writeJSON(w, http.StatusOK, map[string]any{"download": download})
 }
 
@@ -169,41 +196,49 @@ func (s *Server) adminDeleteDownload(w http.ResponseWriter, r *http.Request, ses
 	if err := s.removeDownloadFile(download.StoredName); err != nil {
 		s.logger.Error("remove public download file failed", "error", err, "download_id", id)
 	}
-	s.audit(r, "admin.download.deleted", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", id)
+	s.auditWithMetadata(r, "admin.download.deleted", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", id, map[string]any{
+		"download_id": id,
+		"file_name":   download.FileName,
+		"sha256":      download.SHA256,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) persistDownloadFile(done <-chan struct{}, storedName string, src io.Reader) (int64, error) {
+func (s *Server) persistDownloadFile(ctx context.Context, storedName string, src io.Reader) (int64, string, error) {
 	if err := os.MkdirAll(s.cfg.DownloadsDir, 0o750); err != nil {
-		return 0, fmt.Errorf("create downloads dir: %w", err)
+		return 0, "", fmt.Errorf("create downloads dir: %w", err)
 	}
 	tmp, err := os.CreateTemp(s.cfg.DownloadsDir, ".upload-*")
 	if err != nil {
-		return 0, fmt.Errorf("create temp download: %w", err)
+		return 0, "", fmt.Errorf("create temp download: %w", err)
 	}
 	tmpPath := tmp.Name()
 	defer func() { _ = os.Remove(tmpPath) }()
 
 	limited := io.LimitReader(src, s.cfg.DownloadMaxBytes+1)
-	written, err := copyWithCancel(done, tmp, limited)
+	hasher := sha256.New()
+	written, err := copyWithCancel(ctx.Done(), io.MultiWriter(tmp, hasher), limited)
 	closeErr := tmp.Close()
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	if closeErr != nil {
-		return 0, fmt.Errorf("close temp download: %w", closeErr)
+		return 0, "", fmt.Errorf("close temp download: %w", closeErr)
 	}
 	if written > s.cfg.DownloadMaxBytes {
-		return 0, fmt.Errorf("download exceeds configured limit")
+		return 0, "", fmt.Errorf("download exceeds configured limit")
+	}
+	if err := s.scanDownloadFile(ctx, tmpPath); err != nil {
+		return 0, "", err
 	}
 	target, err := s.downloadPath(storedName)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	if err := os.Rename(tmpPath, target); err != nil {
-		return 0, fmt.Errorf("rename download: %w", err)
+		return 0, "", fmt.Errorf("rename download: %w", err)
 	}
-	return written, nil
+	return written, hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 func copyWithCancel(done <-chan struct{}, dst io.Writer, src io.Reader) (int64, error) {
@@ -237,6 +272,29 @@ func copyWithCancel(done <-chan struct{}, dst io.Writer, src io.Reader) (int64, 
 	}
 }
 
+func readUploadPrefix(ctx context.Context, src io.Reader, limit int) ([]byte, error) {
+	buf := make([]byte, limit)
+	var offset int
+	for offset < limit {
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("request cancelled")
+		default:
+		}
+		n, err := src.Read(buf[offset:])
+		if n > 0 {
+			offset += n
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return buf[:offset], nil
+			}
+			return nil, err
+		}
+	}
+	return buf[:offset], nil
+}
+
 func (s *Server) downloadPath(storedName string) (string, error) {
 	if storedName == "" || filepath.Base(storedName) != storedName || strings.Contains(storedName, "\x00") {
 		return "", fmt.Errorf("invalid stored name")
@@ -255,6 +313,38 @@ func (s *Server) removeDownloadFile(storedName string) error {
 	return nil
 }
 
+func (s *Server) downloadExtensionAllowed(fileName string) bool {
+	if len(s.cfg.DownloadAllowedExt) == 0 {
+		return true
+	}
+	ext := strings.ToLower(filepath.Ext(fileName))
+	for _, allowed := range s.cfg.DownloadAllowedExt {
+		if ext == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Server) scanDownloadFile(ctx context.Context, path string) error {
+	if strings.TrimSpace(s.cfg.DownloadScanCmd) == "" {
+		return nil
+	}
+	scanCtx, cancel := context.WithTimeout(ctx, s.cfg.DownloadScanTimeout)
+	defer cancel()
+	quotedPath := shellQuote(path)
+	command := strings.ReplaceAll(s.cfg.DownloadScanCmd, "{path}", quotedPath)
+	if command == s.cfg.DownloadScanCmd {
+		command = command + " " + quotedPath
+	}
+	cmd := exec.CommandContext(scanCtx, "/bin/sh", "-c", command)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("download scan failed: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 func publicDownloads(downloads []domain.PublicDownload) []map[string]any {
 	result := make([]map[string]any, 0, len(downloads))
 	for _, download := range downloads {
@@ -264,6 +354,7 @@ func publicDownloads(downloads []domain.PublicDownload) []map[string]any {
 			"description":  download.Description,
 			"file_name":    download.FileName,
 			"content_type": download.ContentType,
+			"sha256":       download.SHA256,
 			"size_bytes":   download.SizeBytes,
 			"url":          "/downloads/" + download.ID,
 		})
@@ -288,4 +379,8 @@ func safeFileName(name string) string {
 		return ""
 	}
 	return name
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }

@@ -33,6 +33,7 @@ user -> user_groups -> groups -> group_permissions -> permissions
 | `sessions.read` | List active sessions |
 | `sessions.revoke` | Revoke sessions |
 | `audit.read` | Read audit events |
+| `audit.export` | Export audit events |
 
 ## Group Management
 
@@ -59,5 +60,7 @@ creating groups.
 - Permissions are evaluated on every session lookup.
 - Blocked users are rejected even when they still have active sessions.
 - Missing permission returns `403`.
+- Audit export is separated from audit read because exported files contain IP,
+  User-Agent and administrative metadata.
 - `is_admin=true` should be treated as a break-glass/superuser mode and used
   sparingly in production.

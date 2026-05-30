@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS public_downloads (
     file_name TEXT NOT NULL,
     stored_name TEXT NOT NULL UNIQUE,
     content_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+    sha256 TEXT NOT NULL DEFAULT '',
     size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
     enabled INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

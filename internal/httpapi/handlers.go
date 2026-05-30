@@ -130,6 +130,11 @@ func (s *Server) resources(w http.ResponseWriter, r *http.Request, session *doma
 func (s *Server) authRequest(w http.ResponseWriter, r *http.Request) {
 	ip := s.clientIP(r)
 	ua := r.UserAgent()
+	if s.cfg.TrustProxyHeaders && !s.trustedProxyRequest(r) {
+		s.audit(r, "proxy.auth_request", "", "", "", ip, ua, "failure", "untrusted_proxy")
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 	session, err := s.lookupSession(r)
 	if err != nil {
 		s.audit(r, "proxy.auth_request", "", "", "", ip, ua, "failure", "unauthorized")
@@ -137,11 +142,7 @@ func (s *Server) authRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	host := r.Header.Get("X-Forwarded-Host")
-	if host == "" {
-		host = r.Host
-	}
-	host = normalizeHost(host)
+	host := normalizeHost(s.forwardedHost(r))
 	resource, err := s.store.FindResourceByPublicHost(r.Context(), host)
 	if err != nil {
 		reason := "resource_not_found"
@@ -210,6 +211,19 @@ func (s *Server) ipAllowed(r *http.Request, resourceID string, ipText string) bo
 }
 
 func (s *Server) audit(r *http.Request, eventType string, userID string, username string, resourceID string, ip string, ua string, outcome string, reason string) {
+	s.auditWithMetadata(r, eventType, userID, username, resourceID, ip, ua, outcome, reason, nil)
+}
+
+func (s *Server) auditWithMetadata(r *http.Request, eventType string, userID string, username string, resourceID string, ip string, ua string, outcome string, reason string, metadata map[string]any) {
+	metadataJSON := ""
+	if len(metadata) > 0 {
+		payload, err := json.Marshal(metadata)
+		if err != nil {
+			s.logger.Error("audit metadata marshal failed", "error", err, "event_type", eventType)
+		} else {
+			metadataJSON = string(payload)
+		}
+	}
 	event := domain.AuditEvent{
 		Type:          eventType,
 		SubjectUserID: userID,
@@ -219,6 +233,7 @@ func (s *Server) audit(r *http.Request, eventType string, userID string, usernam
 		UserAgent:     ua,
 		Outcome:       outcome,
 		Reason:        reason,
+		MetadataJSON:  metadataJSON,
 		CreatedAt:     time.Now().UTC(),
 	}
 	if err := s.store.AppendAudit(r.Context(), event); err != nil {

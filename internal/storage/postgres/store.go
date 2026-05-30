@@ -96,6 +96,23 @@ func (s *Store) Migrate(ctx context.Context) error {
 	return nil
 }
 
+func (s *Store) Ping(ctx context.Context) error {
+	if err := s.pool.Ping(ctx); err != nil {
+		return fmt.Errorf("ping postgres: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ApplyRetention(ctx context.Context, now time.Time, auditRetention time.Duration, sessionRetention time.Duration) error {
+	if _, err := s.pool.Exec(ctx, `DELETE FROM audit_events WHERE created_at < $1`, now.Add(-auditRetention)); err != nil {
+		return fmt.Errorf("prune audit events: %w", err)
+	}
+	if _, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE expires_at < $1 OR revoked_at < $1`, now.Add(-sessionRetention)); err != nil {
+		return fmt.Errorf("prune sessions: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) migrationApplied(ctx context.Context, version string) (bool, error) {
 	var existing string
 	err := s.pool.QueryRow(ctx, `SELECT version FROM schema_migrations WHERE version = $1`, version).Scan(&existing)
@@ -267,7 +284,7 @@ func (s *Store) ListResourceAllowCIDRs(ctx context.Context, resourceID string) (
 
 func (s *Store) ListPublicDownloads(ctx context.Context, includeDisabled bool) ([]domain.PublicDownload, error) {
 	query := `
-SELECT id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at
+	SELECT id, title, description, file_name, stored_name, content_type, sha256, size_bytes, enabled, created_at, updated_at
 FROM public_downloads`
 	if !includeDisabled {
 		query += ` WHERE enabled = true`
@@ -292,7 +309,7 @@ FROM public_downloads`
 
 func (s *Store) FindPublicDownloadByID(ctx context.Context, id string) (*domain.PublicDownload, error) {
 	row := s.pool.QueryRow(ctx, `
-SELECT id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at
+	SELECT id, title, description, file_name, stored_name, content_type, sha256, size_bytes, enabled, created_at, updated_at
 FROM public_downloads
 WHERE id = $1`, id)
 	download, err := scanPublicDownload(row)
@@ -312,6 +329,23 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
 		event.Type, event.SubjectUserID, event.Username, event.ResourceID, event.IP, event.UserAgent, event.Outcome, event.Reason, event.MetadataJSON, event.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("append audit: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) AppendResourceDiagnostics(ctx context.Context, run domain.ResourceDiagnosticsRun) error {
+	if run.ID == "" {
+		run.ID = storageID("diag")
+	}
+	if run.CreatedAt.IsZero() {
+		run.CreatedAt = time.Now().UTC()
+	}
+	_, err := s.pool.Exec(ctx, `
+	INSERT INTO resource_diagnostics(id, resource_id, outcome, result_json, created_by, created_at)
+	VALUES ($1, $2, $3, $4, $5, $6)`,
+		run.ID, run.ResourceID, run.Outcome, run.ResultJSON, run.CreatedBy, run.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("append resource diagnostics: %w", err)
 	}
 	return nil
 }
@@ -348,7 +382,7 @@ func (s *Store) DashboardStats(ctx context.Context) (*domain.DashboardStats, err
 	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_events`).Scan(&stats.AuditEventsCount); err != nil {
 		return nil, fmt.Errorf("count audit events: %w", err)
 	}
-	events, err := s.ListAuditEvents(ctx, 20)
+	events, err := s.ListAuditEvents(ctx, domain.AuditFilter{Limit: 20})
 	if err != nil {
 		return nil, err
 	}
@@ -372,6 +406,11 @@ ORDER BY username`)
 		if err != nil {
 			return nil, err
 		}
+		groupIDs, err := s.listUserGroupIDs(ctx, user.ID)
+		if err != nil {
+			return nil, err
+		}
+		user.GroupIDs = groupIDs
 		users = append(users, user)
 	}
 	return users, rows.Err()
@@ -668,9 +707,9 @@ func (s *Store) CreatePublicDownload(ctx context.Context, input domain.PublicDow
 	id := storageID("dl")
 	now := time.Now().UTC()
 	_, err := s.pool.Exec(ctx, `
-INSERT INTO public_downloads(id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-		id, input.Title, input.Description, input.FileName, input.StoredName, input.ContentType, input.SizeBytes, input.Enabled, now, now)
+	INSERT INTO public_downloads(id, title, description, file_name, stored_name, content_type, sha256, size_bytes, enabled, created_at, updated_at)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		id, input.Title, input.Description, input.FileName, input.StoredName, input.ContentType, input.SHA256, input.SizeBytes, input.Enabled, now, now)
 	if err != nil {
 		return nil, normalizePostgresError("create public download", err)
 	}
@@ -780,15 +819,18 @@ func (s *Store) RevokeSession(ctx context.Context, id string) error {
 	return ensureCommandAffected("revoke session", tag)
 }
 
-func (s *Store) ListAuditEvents(ctx context.Context, limit int) ([]domain.AuditEvent, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 100
+func (s *Store) ListAuditEvents(ctx context.Context, filter domain.AuditFilter) ([]domain.AuditEvent, error) {
+	if filter.Limit <= 0 || filter.Limit > 1000 {
+		filter.Limit = 100
 	}
-	rows, err := s.pool.Query(ctx, `
-SELECT event_type, subject_user_id, username, resource_id, ip, user_agent, outcome, reason, metadata_json, created_at
-FROM audit_events
-ORDER BY created_at DESC
-LIMIT $1`, limit)
+	where, args := auditFilterSQL(filter, 1)
+	args = append(args, filter.Limit)
+	query := `
+	SELECT event_type, subject_user_id, username, resource_id, ip, user_agent, outcome, reason, metadata_json, created_at
+	FROM audit_events` + where + `
+	ORDER BY created_at DESC
+	LIMIT $` + fmt.Sprint(len(args))
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list audit events: %w", err)
 	}
@@ -805,6 +847,33 @@ LIMIT $1`, limit)
 	return events, rows.Err()
 }
 
+func (s *Store) ListResourceDiagnostics(ctx context.Context, resourceID string, limit int) ([]domain.ResourceDiagnosticsRun, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := s.pool.Query(ctx, `
+	SELECT d.id, d.resource_id, r.name, d.outcome, d.result_json, d.created_by, d.created_at
+	FROM resource_diagnostics d
+	JOIN resources r ON r.id = d.resource_id
+	WHERE d.resource_id = $1
+	ORDER BY d.created_at DESC
+	LIMIT $2`, resourceID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list resource diagnostics: %w", err)
+	}
+	defer rows.Close()
+
+	var runs []domain.ResourceDiagnosticsRun
+	for rows.Next() {
+		var run domain.ResourceDiagnosticsRun
+		if err := rows.Scan(&run.ID, &run.ResourceID, &run.ResourceName, &run.Outcome, &run.ResultJSON, &run.CreatedBy, &run.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan resource diagnostics: %w", err)
+		}
+		runs = append(runs, run)
+	}
+	return runs, rows.Err()
+}
+
 func (s *Store) findUserByID(ctx context.Context, id string) (*domain.User, error) {
 	row := s.pool.QueryRow(ctx, `
 SELECT id, username, display_name, is_admin, blocked_at, created_at, updated_at
@@ -814,6 +883,11 @@ WHERE id = $1`, id)
 	if err != nil {
 		return nil, err
 	}
+	groupIDs, err := s.listUserGroupIDs(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	user.GroupIDs = groupIDs
 	return &user, nil
 }
 
@@ -838,7 +912,46 @@ SELECT g.name
 FROM groups g
 JOIN user_groups ug ON ug.group_id = g.id
 WHERE ug.user_id = $1
-ORDER BY g.name`, userID)
+	ORDER BY g.name`, userID)
+}
+
+func (s *Store) listUserGroupIDs(ctx context.Context, userID string) ([]string, error) {
+	return s.listStrings(ctx, `
+	SELECT group_id
+	FROM user_groups
+	WHERE user_id = $1
+	ORDER BY group_id`, userID)
+}
+
+func auditFilterSQL(filter domain.AuditFilter, firstArg int) (string, []any) {
+	var conditions []string
+	var args []any
+	add := func(condition string, value any) {
+		args = append(args, value)
+		conditions = append(conditions, fmt.Sprintf(condition, firstArg+len(args)-1))
+	}
+	if strings.TrimSpace(filter.EventType) != "" {
+		add("event_type = $%d", strings.TrimSpace(filter.EventType))
+	}
+	if strings.TrimSpace(filter.Username) != "" {
+		add("username ILIKE $%d", "%"+strings.TrimSpace(filter.Username)+"%")
+	}
+	if strings.TrimSpace(filter.ResourceID) != "" {
+		add("resource_id = $%d", strings.TrimSpace(filter.ResourceID))
+	}
+	if strings.TrimSpace(filter.Outcome) != "" {
+		add("outcome = $%d", strings.TrimSpace(filter.Outcome))
+	}
+	if filter.From != nil {
+		add("created_at >= $%d", *filter.From)
+	}
+	if filter.To != nil {
+		add("created_at <= $%d", *filter.To)
+	}
+	if len(conditions) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(conditions, " AND "), args
 }
 
 func (s *Store) listUserPermissions(ctx context.Context, userID string, isAdmin bool) ([]string, error) {
@@ -899,6 +1012,7 @@ func scanPublicDownload(row scanner) (domain.PublicDownload, error) {
 		&download.FileName,
 		&download.StoredName,
 		&download.ContentType,
+		&download.SHA256,
 		&download.SizeBytes,
 		&download.Enabled,
 		&download.CreatedAt,

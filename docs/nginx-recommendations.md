@@ -20,3 +20,7 @@ Generated snippets redirect `403` responses to
 `https://<portal-host>/access-denied`. AGP intentionally uses the same denial
 surface for missing resources and unauthorized resources so users cannot infer
 whether a guessed entry point exists.
+
+The portal server snippet includes CSP and HSTS headers. Resource server snippets
+include HSTS and baseline hardening headers, but do not inject a CSP because
+proxied applications may have their own content policy requirements.

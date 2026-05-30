@@ -1,0 +1,16 @@
+[Unit]
+Description=AGP PostgreSQL and downloads backup
+
+[Service]
+Type=oneshot
+User=agp
+Group=agp
+UMask=0077
+EnvironmentFile=/etc/agp/agp.env
+Environment=AGP_BACKUP_DIR=/var/backups/agp
+ExecStart=/usr/local/bin/agp-backup.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/backups/agp

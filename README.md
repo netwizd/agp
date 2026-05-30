@@ -61,7 +61,25 @@ See [docs/implementation-snapshot.md](docs/implementation-snapshot.md) for the
 current implementation status and [docs/roadmap.md](docs/roadmap.md) for the
 check-up and roadmap.
 
-For production v1.0 deployment, use
+For production v1.0 deployment, use the interactive Ubuntu installer:
+
+```bash
+sudo ./install.sh
+```
+
+The installer supports `auto` and `manual` modes. It asks for the minimum
+deployment inputs, generates the PostgreSQL application password, configures the
+local PostgreSQL role/database, installs official `nginx.org` Nginx when
+requested, installs `certbot` only when Let's Encrypt automation is requested,
+writes `/etc/agp/agp.env`, installs systemd units and can enable the backup
+timer.
+
+```bash
+sudo ./install.sh --manual
+sudo ./install.sh --auto
+```
+
+The detailed manual runbook is in
 [docs/production-v1.0.md](docs/production-v1.0.md). v1.1 identity and
 notification work is tracked in [docs/v1.1-plan.md](docs/v1.1-plan.md).
 

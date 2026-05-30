@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/netwizd/agp/internal/domain"
@@ -14,6 +15,24 @@ import (
 
 type Prober struct {
 	Timeout time.Duration
+	Policy  NetworkPolicy
+}
+
+type NetworkPolicy struct {
+	AllowCIDRs []*net.IPNet
+	DenyCIDRs  []*net.IPNet
+}
+
+func NewNetworkPolicy(allowCIDRs []string, denyCIDRs []string) (NetworkPolicy, error) {
+	allow, err := parseCIDRs(allowCIDRs)
+	if err != nil {
+		return NetworkPolicy{}, err
+	}
+	deny, err := parseCIDRs(denyCIDRs)
+	if err != nil {
+		return NetworkPolicy{}, err
+	}
+	return NetworkPolicy{AllowCIDRs: allow, DenyCIDRs: deny}, nil
 }
 
 func (p Prober) ProbeResource(ctx context.Context, resource domain.ResourceDetail) (*domain.ResourceDiagnostics, error) {
@@ -50,7 +69,27 @@ func (p Prober) ProbeResource(ctx context.Context, resource domain.ResourceDetai
 		InternalURL: resource.InternalURL,
 	}
 
-	result.DNS = checkDNS(ctx, host)
+	ips, dnsResult := resolveHost(ctx, host)
+	result.DNS = dnsResult
+	if dnsResult.OK {
+		if err := p.Policy.Allows(ips); err != nil {
+			result.TCP = domain.CheckResult{
+				OK:       false,
+				Target:   net.JoinHostPort(host, port),
+				Detail:   err.Error(),
+				Duration: 0,
+			}
+			result.HTTP = domain.CheckResult{
+				OK:       false,
+				Target:   parsed.String(),
+				Detail:   "skipped because diagnostics network policy blocked the target",
+				Duration: 0,
+			}
+			result.TotalDuration = time.Since(start)
+			return result, nil
+		}
+	}
+
 	result.TCP = checkTCP(ctx, net.JoinHostPort(host, port), timeout)
 	if result.TCP.OK {
 		result.HTTP = checkHTTP(ctx, parsed.String(), timeout)
@@ -66,22 +105,78 @@ func (p Prober) ProbeResource(ctx context.Context, resource domain.ResourceDetai
 }
 
 func checkDNS(ctx context.Context, host string) domain.CheckResult {
+	_, result := resolveHost(ctx, host)
+	return result
+}
+
+func resolveHost(ctx context.Context, host string) ([]net.IP, domain.CheckResult) {
 	start := time.Now()
 	addrs, err := net.DefaultResolver.LookupHost(ctx, host)
 	if err != nil {
-		return domain.CheckResult{
+		return nil, domain.CheckResult{
 			OK:       false,
 			Target:   host,
 			Detail:   err.Error(),
 			Duration: time.Since(start),
 		}
 	}
-	return domain.CheckResult{
+	ips := make([]net.IP, 0, len(addrs))
+	for _, addr := range addrs {
+		if ip := net.ParseIP(addr); ip != nil {
+			ips = append(ips, ip)
+		}
+	}
+	return ips, domain.CheckResult{
 		OK:       true,
 		Target:   host,
 		Detail:   fmt.Sprintf("%d address(es): %v", len(addrs), addrs),
 		Duration: time.Since(start),
 	}
+}
+
+func (p NetworkPolicy) Allows(ips []net.IP) error {
+	if len(ips) == 0 {
+		return fmt.Errorf("diagnostics target did not resolve to an IP address")
+	}
+	if len(p.AllowCIDRs) > 0 {
+		for _, ip := range ips {
+			if !cidrsContain(p.AllowCIDRs, ip) {
+				return fmt.Errorf("diagnostics target IP %s is outside AGP_DIAGNOSTICS_ALLOW_CIDRS", ip)
+			}
+		}
+		return nil
+	}
+	for _, ip := range ips {
+		if cidrsContain(p.DenyCIDRs, ip) {
+			return fmt.Errorf("diagnostics target IP %s is blocked by AGP_DIAGNOSTICS_DENY_CIDRS", ip)
+		}
+	}
+	return nil
+}
+
+func parseCIDRs(values []string) ([]*net.IPNet, error) {
+	networks := make([]*net.IPNet, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		_, network, err := net.ParseCIDR(value)
+		if err != nil {
+			return nil, fmt.Errorf("parse diagnostics cidr %q: %w", value, err)
+		}
+		networks = append(networks, network)
+	}
+	return networks, nil
+}
+
+func cidrsContain(networks []*net.IPNet, ip net.IP) bool {
+	for _, network := range networks {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func checkTCP(ctx context.Context, address string, timeout time.Duration) domain.CheckResult {

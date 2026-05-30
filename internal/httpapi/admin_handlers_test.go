@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -10,6 +11,9 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,16 +60,17 @@ func TestAdminAPIResourceAndNginxFlow(t *testing.T) {
 	}
 
 	api := NewServer(config.Config{
-		HTTPAddr:           "127.0.0.1:0",
-		PortalHost:         "portal.company.ru",
-		SessionCookieName:  "agp_session",
-		CSRFCookieName:     "agp_csrf",
-		CookieSecure:       false,
-		TrustProxyHeaders:  false,
-		SessionTTL:         time.Hour,
-		ShutdownTimeout:    time.Second,
-		LoginRateLimitMax:  5,
-		LoginRateLimitWind: time.Minute,
+		HTTPAddr:              "127.0.0.1:0",
+		PortalHost:            "portal.company.ru",
+		SessionCookieName:     "agp_session",
+		CSRFCookieName:        "agp_csrf",
+		CookieSecure:          false,
+		TrustProxyHeaders:     false,
+		DiagnosticsAllowCIDRs: []string{"127.0.0.0/8", "::1/128"},
+		SessionTTL:            time.Hour,
+		ShutdownTimeout:       time.Second,
+		LoginRateLimitMax:     5,
+		LoginRateLimitWind:    time.Minute,
 	}, store, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	server := httptest.NewServer(api.Handler())
 	t.Cleanup(server.Close)
@@ -128,6 +133,62 @@ func TestAdminAPIResourceAndNginxFlow(t *testing.T) {
 	httpPayload, ok := diagnosticsPayload["http"].(map[string]any)
 	if !ok || httpPayload["ok"] != true {
 		t.Fatalf("diagnostics response does not contain successful http check: %#v", diagnosticsPayload)
+	}
+	historyPayload, ok := diagBody["history"].([]any)
+	if !ok || len(historyPayload) == 0 {
+		t.Fatalf("diagnostics response does not contain history: %#v", diagBody)
+	}
+	diagnosticsHistory := getJSON(t, client, server.URL+"/api/v1/admin/resources/"+resourceID+"/diagnostics")
+	historyPayload, ok = diagnosticsHistory["history"].([]any)
+	if !ok || len(historyPayload) == 0 {
+		t.Fatalf("diagnostics history response is empty: %#v", diagnosticsHistory)
+	}
+	auditCSVReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/v1/admin/audit/export?format=csv&type=admin.resource.diagnostics", nil)
+	if err != nil {
+		t.Fatalf("build audit export request: %v", err)
+	}
+	auditCSVResp, err := client.Do(auditCSVReq)
+	if err != nil {
+		t.Fatalf("export audit csv: %v", err)
+	}
+	auditCSVBody, _ := io.ReadAll(auditCSVResp.Body)
+	_ = auditCSVResp.Body.Close()
+	if auditCSVResp.StatusCode != http.StatusOK || !bytes.Contains(auditCSVBody, []byte("admin.resource.diagnostics")) {
+		t.Fatalf("unexpected audit csv export: status=%d body=%s", auditCSVResp.StatusCode, auditCSVBody)
+	}
+
+	if err := store.AppendAudit(ctx, domain.AuditEvent{
+		Type:         "manual",
+		Username:     "=cmd|' /C calc'!A0",
+		Outcome:      "success",
+		Reason:       "+formula",
+		MetadataJSON: "{\"value\":\"@formula\"}",
+		CreatedAt:    time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("append malicious audit event: %v", err)
+	}
+	auditFormulaReq, err := http.NewRequest(http.MethodGet, server.URL+"/api/v1/admin/audit/export?format=csv&type=manual", nil)
+	if err != nil {
+		t.Fatalf("build audit formula export request: %v", err)
+	}
+	auditFormulaResp, err := client.Do(auditFormulaReq)
+	if err != nil {
+		t.Fatalf("export audit formula csv: %v", err)
+	}
+	auditFormulaBody, _ := io.ReadAll(auditFormulaResp.Body)
+	_ = auditFormulaResp.Body.Close()
+	rows, err := csv.NewReader(bytes.NewReader(auditFormulaBody)).ReadAll()
+	if err != nil {
+		t.Fatalf("parse audit formula csv: %v body=%s", err, auditFormulaBody)
+	}
+	if len(rows) < 2 {
+		t.Fatalf("expected audit formula row, got %d rows: %s", len(rows), auditFormulaBody)
+	}
+	if got := rows[1][2]; !strings.HasPrefix(got, "'=") {
+		t.Fatalf("expected formula username to be escaped, got %q in csv %s", got, auditFormulaBody)
+	}
+	if got := rows[1][7]; !strings.HasPrefix(got, "'+") {
+		t.Fatalf("expected formula reason to be escaped, got %q in csv %s", got, auditFormulaBody)
 	}
 }
 
@@ -210,6 +271,52 @@ func TestAdminAPIPermissions(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected ok for dashboard reader, got %d", resp.StatusCode)
 	}
+
+	userManagerGroup, err := store.CreateGroup(ctx, domain.GroupInput{
+		Name:          "User Managers",
+		PermissionIDs: []string{authz.PermUsersManage},
+	})
+	if err != nil {
+		t.Fatalf("create user-manager group: %v", err)
+	}
+	if _, err := store.CreateUser(ctx, domain.UserInput{
+		Username:     "manager",
+		PasswordHash: passwordHash,
+		GroupIDs:     []string{userManagerGroup.ID},
+	}); err != nil {
+		t.Fatalf("create manager user: %v", err)
+	}
+	managerClient := clientWithJar(t, server.Client())
+	loginBody := postJSON(t, managerClient, server.URL+"/api/v1/auth/login", map[string]string{
+		"username": "manager",
+		"password": password,
+	}, nil)
+	csrfToken, ok := loginBody["csrf_token"].(string)
+	if !ok || csrfToken == "" {
+		t.Fatalf("login response does not contain csrf token: %#v", loginBody)
+	}
+	payload, err := json.Marshal(map[string]any{
+		"username": "escalated",
+		"password": password,
+		"is_admin": true,
+	})
+	if err != nil {
+		t.Fatalf("marshal escalation payload: %v", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/admin/users", bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("build escalation request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", csrfToken)
+	resp, err = managerClient.Do(req)
+	if err != nil {
+		t.Fatalf("create escalated user: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected forbidden for user-manager superadmin escalation, got %d", resp.StatusCode)
+	}
 }
 
 func TestPublicDownloadsAndPortalSettings(t *testing.T) {
@@ -291,6 +398,9 @@ func TestPublicDownloadsAndPortalSettings(t *testing.T) {
 	if downloadID == "" {
 		t.Fatalf("upload response does not contain ID: %#v", downloadPayload)
 	}
+	if contentType, _ := downloadPayload["ContentType"].(string); !strings.HasPrefix(contentType, "text/plain") {
+		t.Fatalf("expected server-detected text/plain content type, got %#v", downloadPayload["ContentType"])
+	}
 
 	publicDownloads := getJSON(t, server.Client(), server.URL+"/api/v1/public/downloads")
 	downloads, ok := publicDownloads["downloads"].([]any)
@@ -306,6 +416,9 @@ func TestPublicDownloadsAndPortalSettings(t *testing.T) {
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || string(body) != "vpn client payload" {
 		t.Fatalf("unexpected download response %d: %q", resp.StatusCode, body)
+	}
+	if contentType := resp.Header.Get("Content-Type"); !strings.HasPrefix(contentType, "text/plain") {
+		t.Fatalf("expected server-detected text/plain download content type, got %q", contentType)
 	}
 
 	doJSON(t, client, http.MethodPatch, server.URL+"/api/v1/admin/downloads/"+downloadID, map[string]bool{"enabled": false}, map[string]string{"X-CSRF-Token": csrfToken})
@@ -390,13 +503,244 @@ func TestReadinessAndMetrics(t *testing.T) {
 	for _, marker := range [][]byte{
 		[]byte("agp_up 1"),
 		[]byte("agp_db_up 1"),
-		[]byte("agp_users_total"),
-		[]byte("agp_resources_total"),
-		[]byte("agp_audit_events_total"),
 	} {
 		if !bytes.Contains(body, marker) {
 			t.Fatalf("metrics body does not contain %q: %s", marker, body)
 		}
+	}
+}
+
+func TestAuthRequestIgnoresUntrustedForwardedHost(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(t.TempDir() + "/agp.db")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatalf("migrate sqlite: %v", err)
+	}
+
+	password := "enterprise-user-password"
+	passwordHash, err := auth.HashPassword(password, auth.DefaultArgon2idParams)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	group, err := store.CreateGroup(ctx, domain.GroupInput{Name: "Users"})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if _, err := store.CreateUser(ctx, domain.UserInput{Username: "user", PasswordHash: passwordHash, GroupIDs: []string{group.ID}}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if _, err := store.CreateResource(ctx, domain.ResourceInput{Name: "Allowed", InternalURL: "http://allowed.internal", PublicHost: "allowed.company.test", Enabled: true, GroupIDs: []string{group.ID}}); err != nil {
+		t.Fatalf("create allowed resource: %v", err)
+	}
+	if _, err := store.CreateResource(ctx, domain.ResourceInput{Name: "Spoofed", InternalURL: "http://spoofed.internal", PublicHost: "spoofed.company.test", Enabled: true}); err != nil {
+		t.Fatalf("create spoofed resource: %v", err)
+	}
+
+	server := httptest.NewServer(NewServer(config.Config{
+		SessionCookieName:  "agp_session",
+		CSRFCookieName:     "agp_csrf",
+		SessionTTL:         time.Hour,
+		LoginRateLimitMax:  5,
+		LoginRateLimitWind: time.Minute,
+		TrustProxyHeaders:  false,
+	}, store, slog.New(slog.NewTextHandler(io.Discard, nil))).Handler())
+	t.Cleanup(server.Close)
+
+	client := clientWithJar(t, server.Client())
+	postJSON(t, client, server.URL+"/api/v1/auth/login", map[string]string{"username": "user", "password": password}, nil)
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/auth/request", nil)
+	if err != nil {
+		t.Fatalf("build auth request: %v", err)
+	}
+	req.Host = "allowed.company.test"
+	req.Header.Set("X-Forwarded-Host", "spoofed.company.test")
+	attachJarCookies(t, client, server.URL, req)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("auth request: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("expected auth request to use Host when proxy is untrusted, got %d", resp.StatusCode)
+	}
+}
+
+func TestAuthRequestRequiresTrustedProxyWhenProxyHeadersEnabled(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(t.TempDir() + "/agp.db")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatalf("migrate sqlite: %v", err)
+	}
+
+	password := "enterprise-user-password"
+	passwordHash, err := auth.HashPassword(password, auth.DefaultArgon2idParams)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	group, err := store.CreateGroup(ctx, domain.GroupInput{Name: "Users"})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if _, err := store.CreateUser(ctx, domain.UserInput{Username: "user", PasswordHash: passwordHash, GroupIDs: []string{group.ID}}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if _, err := store.CreateResource(ctx, domain.ResourceInput{Name: "Allowed", InternalURL: "http://allowed.internal", PublicHost: "allowed.company.test", Enabled: true, GroupIDs: []string{group.ID}}); err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	server := httptest.NewServer(NewServer(config.Config{
+		SessionCookieName:  "agp_session",
+		CSRFCookieName:     "agp_csrf",
+		SessionTTL:         time.Hour,
+		LoginRateLimitMax:  5,
+		LoginRateLimitWind: time.Minute,
+		TrustProxyHeaders:  true,
+		TrustedProxyCIDRs:  []string{"10.0.0.0/8"},
+	}, store, slog.New(slog.NewTextHandler(io.Discard, nil))).Handler())
+	t.Cleanup(server.Close)
+
+	client := clientWithJar(t, server.Client())
+	postJSON(t, client, server.URL+"/api/v1/auth/login", map[string]string{"username": "user", "password": password}, nil)
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/auth/request", nil)
+	if err != nil {
+		t.Fatalf("build auth request: %v", err)
+	}
+	req.Host = "allowed.company.test"
+	attachJarCookies(t, client, server.URL, req)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("auth request: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected untrusted proxy request to be denied, got %d", resp.StatusCode)
+	}
+}
+
+func TestAuditExportRequiresExportPermission(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(t.TempDir() + "/agp.db")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatalf("migrate sqlite: %v", err)
+	}
+
+	password := "enterprise-user-password"
+	passwordHash, err := auth.HashPassword(password, auth.DefaultArgon2idParams)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	group, err := store.CreateGroup(ctx, domain.GroupInput{Name: "Auditors", PermissionIDs: []string{authz.PermAuditRead}})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if _, err := store.CreateUser(ctx, domain.UserInput{Username: "auditor", PasswordHash: passwordHash, GroupIDs: []string{group.ID}}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := store.AppendAudit(ctx, domain.AuditEvent{Type: "manual", Username: "auditor", Outcome: "success", CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatalf("append audit: %v", err)
+	}
+
+	server := httptest.NewServer(NewServer(config.Config{
+		SessionCookieName:  "agp_session",
+		CSRFCookieName:     "agp_csrf",
+		SessionTTL:         time.Hour,
+		LoginRateLimitMax:  5,
+		LoginRateLimitWind: time.Minute,
+	}, store, slog.New(slog.NewTextHandler(io.Discard, nil))).Handler())
+	t.Cleanup(server.Close)
+
+	client := clientWithJar(t, server.Client())
+	postJSON(t, client, server.URL+"/api/v1/auth/login", map[string]string{"username": "auditor", "password": password}, nil)
+	getJSON(t, client, server.URL+"/api/v1/admin/audit")
+
+	resp, err := client.Get(server.URL + "/api/v1/admin/audit/export?format=csv")
+	if err != nil {
+		t.Fatalf("export audit: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected audit export to require audit.export, got %d", resp.StatusCode)
+	}
+}
+
+func TestDiagnosticsBlocksDeniedCIDRs(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(t.TempDir() + "/agp.db")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatalf("migrate sqlite: %v", err)
+	}
+
+	password := "enterprise-admin-password"
+	passwordHash, err := auth.HashPassword(password, auth.DefaultArgon2idParams)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	if _, err := store.CreateUser(ctx, domain.UserInput{Username: "admin", PasswordHash: passwordHash, IsAdmin: true}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	resource, err := store.CreateResource(ctx, domain.ResourceInput{Name: "Loopback", InternalURL: "http://127.0.0.1:1", PublicHost: "loopback.company.test", Enabled: true})
+	if err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	server := httptest.NewServer(NewServer(config.Config{
+		SessionCookieName:    "agp_session",
+		CSRFCookieName:       "agp_csrf",
+		SessionTTL:           time.Hour,
+		LoginRateLimitMax:    5,
+		LoginRateLimitWind:   time.Minute,
+		DiagnosticsDenyCIDRs: []string{"127.0.0.0/8"},
+	}, store, slog.New(slog.NewTextHandler(io.Discard, nil))).Handler())
+	t.Cleanup(server.Close)
+
+	client := clientWithJar(t, server.Client())
+	loginBody := postJSON(t, client, server.URL+"/api/v1/auth/login", map[string]string{"username": "admin", "password": password}, nil)
+	csrfToken, _ := loginBody["csrf_token"].(string)
+	body := postJSON(t, client, server.URL+"/api/v1/admin/resources/"+resource.ID+"/diagnostics", nil, map[string]string{"X-CSRF-Token": csrfToken})
+	diagnosticsPayload, ok := body["diagnostics"].(map[string]any)
+	if !ok {
+		t.Fatalf("diagnostics response does not contain diagnostics: %#v", body)
+	}
+	tcpPayload, ok := diagnosticsPayload["tcp"].(map[string]any)
+	if !ok {
+		t.Fatalf("diagnostics response does not contain tcp check: %#v", diagnosticsPayload)
+	}
+	if tcpPayload["ok"] != false || !strings.Contains(tcpPayload["detail"].(string), "AGP_DIAGNOSTICS_DENY_CIDRS") {
+		t.Fatalf("expected diagnostics to block denied CIDR, got %#v", tcpPayload)
+	}
+}
+
+func TestDownloadScannerQuotesPlaceholderPath(t *testing.T) {
+	path := t.TempDir() + "/scan target 'quoted'.txt"
+	if err := os.WriteFile(path, []byte("payload"), 0o600); err != nil {
+		t.Fatalf("write scan target: %v", err)
+	}
+	server := NewServer(config.Config{
+		DownloadScanCmd:     "test -f {path}",
+		DownloadScanTimeout: time.Second,
+		LoginRateLimitMax:   5,
+		LoginRateLimitWind:  time.Minute,
+	}, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err := server.scanDownloadFile(context.Background(), path); err != nil {
+		t.Fatalf("scanner command should quote placeholder path: %v", err)
 	}
 }
 
@@ -505,4 +849,15 @@ func clientWithJar(t *testing.T, client *http.Client) *http.Client {
 	}
 	client.Jar = jar
 	return client
+}
+
+func attachJarCookies(t *testing.T, client *http.Client, rawURL string, req *http.Request) {
+	t.Helper()
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("parse url: %v", err)
+	}
+	for _, cookie := range client.Jar.Cookies(parsed) {
+		req.AddCookie(cookie)
+	}
 }

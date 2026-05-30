@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,9 +13,16 @@ import (
 	"github.com/netwizd/agp/internal/config"
 	"github.com/netwizd/agp/internal/httpapi"
 	"github.com/netwizd/agp/internal/runtime"
+	"github.com/netwizd/agp/internal/version"
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--version" {
+		info := version.Info()
+		fmt.Printf("agp %s commit=%s built_at=%s go=%s\n", info["version"], info["commit"], info["built_at"], info["go_version"])
+		return
+	}
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
@@ -41,6 +49,10 @@ func main() {
 
 	if err := store.Migrate(ctx); err != nil {
 		logger.Error("storage migration failed", "error", err)
+		os.Exit(1)
+	}
+	if err := store.ApplyRetention(ctx, time.Now().UTC(), cfg.AuditRetention, cfg.SessionRetention); err != nil {
+		logger.Error("storage retention cleanup failed", "error", err)
 		os.Exit(1)
 	}
 

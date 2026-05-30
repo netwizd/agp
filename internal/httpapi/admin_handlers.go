@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"net"
@@ -8,8 +9,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/netwizd/agp/internal/auth"
+	"github.com/netwizd/agp/internal/authz"
 	"github.com/netwizd/agp/internal/diagnostics"
 	"github.com/netwizd/agp/internal/domain"
 	nginxgen "github.com/netwizd/agp/internal/reverseproxy/nginx"
@@ -92,6 +95,14 @@ func (s *Server) adminCreateUser(w http.ResponseWriter, r *http.Request, session
 		writeError(w, http.StatusBadRequest, "invalid_user")
 		return
 	}
+	if req.IsAdmin && !canManageSuperAdmin(session) {
+		s.auditWithMetadata(r, "admin.user.superadmin_denied", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "failure", "missing_permission", map[string]any{
+			"target_username": username,
+			"requested":       true,
+		})
+		writeError(w, http.StatusForbidden, "superadmin_permission_required")
+		return
+	}
 	passwordHash, err := auth.HashPassword(req.Password, auth.DefaultArgon2idParams)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "weak_password")
@@ -108,7 +119,12 @@ func (s *Server) adminCreateUser(w http.ResponseWriter, r *http.Request, session
 		writeStorageError(w, err, "user_create_failed")
 		return
 	}
-	s.audit(r, "admin.user.created", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", user.ID)
+	s.auditWithMetadata(r, "admin.user.created", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", user.ID, map[string]any{
+		"target_user_id": user.ID,
+		"username":       user.Username,
+		"is_admin":       user.IsAdmin,
+		"group_ids":      user.GroupIDs,
+	})
 	writeJSON(w, http.StatusCreated, map[string]any{"user": user})
 }
 
@@ -116,6 +132,25 @@ func (s *Server) adminUpdateUser(w http.ResponseWriter, r *http.Request, session
 	var req adminUpdateUserRequest
 	if !decodeJSON(w, r, &req) {
 		return
+	}
+	targetID := r.PathValue("id")
+	if req.IsAdmin != nil {
+		if targetID == session.User.ID {
+			s.auditWithMetadata(r, "admin.user.superadmin_denied", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "failure", "self_admin_change", map[string]any{
+				"target_user_id": targetID,
+				"requested":      *req.IsAdmin,
+			})
+			writeError(w, http.StatusBadRequest, "cannot_change_own_admin_status")
+			return
+		}
+		if !canManageSuperAdmin(session) {
+			s.auditWithMetadata(r, "admin.user.superadmin_denied", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "failure", "missing_permission", map[string]any{
+				"target_user_id": targetID,
+				"requested":      *req.IsAdmin,
+			})
+			writeError(w, http.StatusForbidden, "superadmin_permission_required")
+			return
+		}
 	}
 	update := domain.UserUpdate{
 		DisplayName: req.DisplayName,
@@ -134,12 +169,32 @@ func (s *Server) adminUpdateUser(w http.ResponseWriter, r *http.Request, session
 		update.UpdateGroups = true
 		update.GroupIDs = normalizeIDs(*req.GroupIDs)
 	}
-	user, err := s.store.UpdateUser(r.Context(), r.PathValue("id"), update)
+	user, err := s.store.UpdateUser(r.Context(), targetID, update)
 	if err != nil {
 		writeStorageError(w, err, "user_update_failed")
 		return
 	}
-	s.audit(r, "admin.user.updated", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", user.ID)
+	changed := map[string]any{}
+	if req.DisplayName != nil {
+		changed["display_name"] = *req.DisplayName
+	}
+	if req.IsAdmin != nil {
+		changed["is_admin"] = *req.IsAdmin
+	}
+	if req.Blocked != nil {
+		changed["blocked"] = *req.Blocked
+	}
+	if req.Password != nil {
+		changed["password"] = "changed"
+	}
+	if req.GroupIDs != nil {
+		changed["group_ids"] = normalizeIDs(*req.GroupIDs)
+	}
+	s.auditWithMetadata(r, "admin.user.updated", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", user.ID, map[string]any{
+		"target_user_id": user.ID,
+		"username":       user.Username,
+		"changed":        changed,
+	})
 	writeJSON(w, http.StatusOK, map[string]any{"user": user})
 }
 
@@ -153,7 +208,7 @@ func (s *Server) adminDeleteUser(w http.ResponseWriter, r *http.Request, session
 		writeStorageError(w, err, "user_delete_failed")
 		return
 	}
-	s.audit(r, "admin.user.deleted", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", id)
+	s.auditWithMetadata(r, "admin.user.deleted", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", id, map[string]any{"target_user_id": id})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -182,7 +237,11 @@ func (s *Server) adminCreateGroup(w http.ResponseWriter, r *http.Request, sessio
 		writeStorageError(w, err, "group_create_failed")
 		return
 	}
-	s.audit(r, "admin.group.created", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", group.ID)
+	s.auditWithMetadata(r, "admin.group.created", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", group.ID, map[string]any{
+		"target_group_id": group.ID,
+		"name":            group.Name,
+		"permission_ids":  group.PermissionIDs,
+	})
 	writeJSON(w, http.StatusCreated, map[string]any{"group": group})
 }
 
@@ -201,7 +260,11 @@ func (s *Server) adminUpdateGroup(w http.ResponseWriter, r *http.Request, sessio
 		writeStorageError(w, err, "group_update_failed")
 		return
 	}
-	s.audit(r, "admin.group.updated", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", group.ID)
+	s.auditWithMetadata(r, "admin.group.updated", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", group.ID, map[string]any{
+		"target_group_id": group.ID,
+		"name":            group.Name,
+		"permission_ids":  group.PermissionIDs,
+	})
 	writeJSON(w, http.StatusOK, map[string]any{"group": group})
 }
 
@@ -211,7 +274,7 @@ func (s *Server) adminDeleteGroup(w http.ResponseWriter, r *http.Request, sessio
 		writeStorageError(w, err, "group_delete_failed")
 		return
 	}
-	s.audit(r, "admin.group.deleted", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", id)
+	s.auditWithMetadata(r, "admin.group.deleted", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", id, map[string]any{"target_group_id": id})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -249,7 +312,13 @@ func (s *Server) adminCreateResource(w http.ResponseWriter, r *http.Request, ses
 		writeStorageError(w, err, "resource_create_failed")
 		return
 	}
-	s.audit(r, "admin.resource.created", session.User.ID, session.User.Username, resource.ID, s.clientIP(r), r.UserAgent(), "success", "")
+	s.auditWithMetadata(r, "admin.resource.created", session.User.ID, session.User.Username, resource.ID, s.clientIP(r), r.UserAgent(), "success", "", map[string]any{
+		"resource_id":  resource.ID,
+		"public_host":  resource.PublicHost,
+		"internal_url": resource.InternalURL,
+		"group_ids":    resource.GroupIDs,
+		"allow_cidrs":  resource.AllowCIDRs,
+	})
 	writeJSON(w, http.StatusCreated, map[string]any{"resource": resource})
 }
 
@@ -268,7 +337,13 @@ func (s *Server) adminUpdateResource(w http.ResponseWriter, r *http.Request, ses
 		writeStorageError(w, err, "resource_update_failed")
 		return
 	}
-	s.audit(r, "admin.resource.updated", session.User.ID, session.User.Username, resource.ID, s.clientIP(r), r.UserAgent(), "success", "")
+	s.auditWithMetadata(r, "admin.resource.updated", session.User.ID, session.User.Username, resource.ID, s.clientIP(r), r.UserAgent(), "success", "", map[string]any{
+		"resource_id":  resource.ID,
+		"public_host":  resource.PublicHost,
+		"internal_url": resource.InternalURL,
+		"group_ids":    resource.GroupIDs,
+		"allow_cidrs":  resource.AllowCIDRs,
+	})
 	writeJSON(w, http.StatusOK, map[string]any{"resource": resource})
 }
 
@@ -278,7 +353,7 @@ func (s *Server) adminDeleteResource(w http.ResponseWriter, r *http.Request, ses
 		writeStorageError(w, err, "resource_delete_failed")
 		return
 	}
-	s.audit(r, "admin.resource.deleted", session.User.ID, session.User.Username, id, s.clientIP(r), r.UserAgent(), "success", "")
+	s.auditWithMetadata(r, "admin.resource.deleted", session.User.ID, session.User.Username, id, s.clientIP(r), r.UserAgent(), "success", "", map[string]any{"resource_id": id})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -297,13 +372,45 @@ func (s *Server) adminResourceNginx(w http.ResponseWriter, r *http.Request, sess
 	writeJSON(w, http.StatusOK, map[string]any{"nginx": recommendation})
 }
 
+func (s *Server) adminNginxBundle(w http.ResponseWriter, r *http.Request, session *domain.SessionContext) {
+	resources, err := s.store.ListResources(r.Context())
+	if err != nil {
+		s.logger.Error("admin nginx bundle resources failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "nginx_generation_failed")
+		return
+	}
+	bundle, err := nginxgen.GenerateBundle(resources, s.cfg.PortalHost)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "nginx_generation_failed")
+		return
+	}
+	s.auditWithMetadata(r, "admin.nginx.bundle_generated", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", "", map[string]any{
+		"portal_host":    bundle.PortalHost,
+		"resource_count": len(resources),
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"nginx": bundle})
+}
+
 func (s *Server) adminResourceDiagnostics(w http.ResponseWriter, r *http.Request, session *domain.SessionContext) {
 	resource, err := s.store.FindResourceByID(r.Context(), r.PathValue("id"))
 	if err != nil {
 		writeStorageError(w, err, "resource_get_failed")
 		return
 	}
-	result, err := diagnostics.Prober{}.ProbeResource(r.Context(), *resource)
+	if !s.diagnosticsLimiter.Allow(session.User.ID+"|"+resource.ID, time.Now()) {
+		s.auditWithMetadata(r, "admin.resource.diagnostics", session.User.ID, session.User.Username, resource.ID, s.clientIP(r), r.UserAgent(), "failure", "rate_limited", map[string]any{
+			"resource_id": resource.ID,
+		})
+		writeError(w, http.StatusTooManyRequests, "rate_limited")
+		return
+	}
+	policy, err := diagnostics.NewNetworkPolicy(s.cfg.DiagnosticsAllowCIDRs, s.cfg.DiagnosticsDenyCIDRs)
+	if err != nil {
+		s.logger.Error("invalid diagnostics policy", "error", err)
+		writeError(w, http.StatusInternalServerError, "diagnostics_policy_invalid")
+		return
+	}
+	result, err := diagnostics.Prober{Policy: policy}.ProbeResource(r.Context(), *resource)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "diagnostics_failed")
 		return
@@ -312,8 +419,46 @@ func (s *Server) adminResourceDiagnostics(w http.ResponseWriter, r *http.Request
 	if result.DNS.OK && result.TCP.OK && result.HTTP.OK {
 		outcome = "success"
 	}
-	s.audit(r, "admin.resource.diagnostics", session.User.ID, session.User.Username, resource.ID, s.clientIP(r), r.UserAgent(), outcome, "")
-	writeJSON(w, http.StatusOK, map[string]any{"diagnostics": result})
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "diagnostics_store_failed")
+		return
+	}
+	if err := s.store.AppendResourceDiagnostics(r.Context(), domain.ResourceDiagnosticsRun{
+		ResourceID: resource.ID,
+		Outcome:    outcome,
+		ResultJSON: string(resultJSON),
+		CreatedBy:  session.User.ID,
+	}); err != nil {
+		s.logger.Error("resource diagnostics history append failed", "error", err, "resource_id", resource.ID)
+		writeError(w, http.StatusInternalServerError, "diagnostics_store_failed")
+		return
+	}
+	s.auditWithMetadata(r, "admin.resource.diagnostics", session.User.ID, session.User.Username, resource.ID, s.clientIP(r), r.UserAgent(), outcome, "", map[string]any{
+		"resource_id": resource.ID,
+		"outcome":     outcome,
+		"dns_ok":      result.DNS.OK,
+		"tcp_ok":      result.TCP.OK,
+		"http_ok":     result.HTTP.OK,
+	})
+	history, err := s.store.ListResourceDiagnostics(r.Context(), resource.ID, 10)
+	if err != nil {
+		s.logger.Error("resource diagnostics history list failed", "error", err, "resource_id", resource.ID)
+		writeError(w, http.StatusInternalServerError, "diagnostics_history_failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"diagnostics": result, "history": history})
+}
+
+func (s *Server) adminResourceDiagnosticsHistory(w http.ResponseWriter, r *http.Request, _ *domain.SessionContext) {
+	limit := queryLimit(r, 20, 100)
+	history, err := s.store.ListResourceDiagnostics(r.Context(), r.PathValue("id"), limit)
+	if err != nil {
+		s.logger.Error("resource diagnostics history failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "diagnostics_history_failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"history": history})
 }
 
 func (s *Server) adminListSessions(w http.ResponseWriter, r *http.Request, _ *domain.SessionContext) {
@@ -336,27 +481,95 @@ func (s *Server) adminRevokeSession(w http.ResponseWriter, r *http.Request, sess
 		writeStorageError(w, err, "session_revoke_failed")
 		return
 	}
-	s.audit(r, "admin.session.revoked", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", id)
+	s.auditWithMetadata(r, "admin.session.revoked", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", id, map[string]any{"target_session_id": id})
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) adminListAudit(w http.ResponseWriter, r *http.Request, _ *domain.SessionContext) {
-	limit := 100
-	if raw := r.URL.Query().Get("limit"); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_limit")
-			return
-		}
-		limit = parsed
+	filter, ok := auditFilterFromRequest(w, r, 100, 1000)
+	if !ok {
+		return
 	}
-	events, err := s.store.ListAuditEvents(r.Context(), limit)
+	events, err := s.store.ListAuditEvents(r.Context(), filter)
 	if err != nil {
 		s.logger.Error("admin list audit failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "audit_list_failed")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": events})
+}
+
+func (s *Server) adminExportAudit(w http.ResponseWriter, r *http.Request, session *domain.SessionContext) {
+	filter, ok := auditFilterFromRequest(w, r, 500, 5000)
+	if !ok {
+		return
+	}
+	events, err := s.store.ListAuditEvents(r.Context(), filter)
+	if err != nil {
+		s.logger.Error("admin export audit failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "audit_export_failed")
+		return
+	}
+	format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
+	if format != "json" {
+		format = "csv"
+	}
+	s.auditWithMetadata(r, "admin.audit.exported", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", "", map[string]any{
+		"format":      format,
+		"limit":       filter.Limit,
+		"type":        filter.EventType,
+		"username":    filter.Username,
+		"resource_id": filter.ResourceID,
+		"outcome":     filter.Outcome,
+		"from":        auditTimeForMetadata(filter.From),
+		"to":          auditTimeForMetadata(filter.To),
+		"event_count": len(events),
+	})
+	switch format {
+	case "json":
+		w.Header().Set("Content-Disposition", `attachment; filename="agp-audit.json"`)
+		writeJSON(w, http.StatusOK, map[string]any{"events": events})
+	default:
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="agp-audit.csv"`)
+		writer := csv.NewWriter(w)
+		_ = writer.Write([]string{"created_at", "type", "username", "subject_user_id", "resource_id", "ip", "outcome", "reason", "metadata_json"})
+		for _, event := range events {
+			_ = writer.Write([]string{
+				event.CreatedAt.Format(time.RFC3339),
+				safeCSVCell(event.Type),
+				safeCSVCell(event.Username),
+				safeCSVCell(event.SubjectUserID),
+				safeCSVCell(event.ResourceID),
+				safeCSVCell(event.IP),
+				safeCSVCell(event.Outcome),
+				safeCSVCell(event.Reason),
+				safeCSVCell(event.MetadataJSON),
+			})
+		}
+		writer.Flush()
+	}
+}
+
+func auditTimeForMetadata(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return value.Format(time.RFC3339)
+}
+
+func safeCSVCell(value string) string {
+	cleaned := strings.NewReplacer("\r", " ", "\n", " ", "\t", " ").Replace(value)
+	trimmed := strings.TrimLeft(cleaned, " ")
+	if trimmed == "" {
+		return cleaned
+	}
+	switch trimmed[0] {
+	case '=', '+', '-', '@':
+		return "'" + cleaned
+	default:
+		return cleaned
+	}
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
@@ -367,6 +580,61 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 		return false
 	}
 	return true
+}
+
+func queryLimit(r *http.Request, fallback int, max int) int {
+	limit := fallback
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			limit = parsed
+		}
+	}
+	if limit <= 0 || limit > max {
+		return fallback
+	}
+	return limit
+}
+
+func auditFilterFromRequest(w http.ResponseWriter, r *http.Request, fallbackLimit int, maxLimit int) (domain.AuditFilter, bool) {
+	values := r.URL.Query()
+	filter := domain.AuditFilter{
+		Limit:      queryLimit(r, fallbackLimit, maxLimit),
+		EventType:  strings.TrimSpace(values.Get("type")),
+		Username:   strings.TrimSpace(values.Get("username")),
+		ResourceID: strings.TrimSpace(values.Get("resource_id")),
+		Outcome:    strings.TrimSpace(values.Get("outcome")),
+	}
+	if raw := strings.TrimSpace(values.Get("from")); raw != "" {
+		parsed, err := parseAuditTime(raw, false)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_from")
+			return domain.AuditFilter{}, false
+		}
+		filter.From = &parsed
+	}
+	if raw := strings.TrimSpace(values.Get("to")); raw != "" {
+		parsed, err := parseAuditTime(raw, true)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_to")
+			return domain.AuditFilter{}, false
+		}
+		filter.To = &parsed
+	}
+	return filter, true
+}
+
+func parseAuditTime(raw string, endOfDay bool) (time.Time, error) {
+	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+		return parsed.UTC(), nil
+	}
+	parsed, err := time.Parse("2006-01-02", raw)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if endOfDay {
+		parsed = parsed.Add(24*time.Hour - time.Nanosecond)
+	}
+	return parsed.UTC(), nil
 }
 
 func writeStorageError(w http.ResponseWriter, err error, fallback string) {
@@ -382,6 +650,13 @@ func writeStorageError(w http.ResponseWriter, err error, fallback string) {
 
 func normalizeUsername(username string) string {
 	return strings.ToLower(strings.TrimSpace(username))
+}
+
+func canManageSuperAdmin(session *domain.SessionContext) bool {
+	if session.User.IsAdmin {
+		return true
+	}
+	return authz.HasPermission(session.Permissions, authz.PermUsersSuperAdminManage)
 }
 
 func groupInputFromRequest(req adminGroupRequest) (domain.GroupInput, bool) {

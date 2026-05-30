@@ -14,7 +14,7 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if _, err := s.store.DashboardStats(r.Context()); err != nil {
+	if err := s.store.Ping(r.Context()); err != nil {
 		s.logger.Error("readiness check failed", "error", err)
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
 			"status": "not_ready",
@@ -41,20 +41,13 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats, err := s.store.DashboardStats(r.Context())
-	if err != nil {
+	if err := s.store.Ping(r.Context()); err != nil {
 		s.logger.Error("metrics storage query failed", "error", err)
 		builder.WriteString("agp_db_up 0\n")
 		writeMetrics(w, builder.String())
 		return
 	}
 	builder.WriteString("agp_db_up 1\n")
-	writeGauge(&builder, "agp_users_total", "Total users.", stats.UsersCount)
-	writeGauge(&builder, "agp_users_blocked_total", "Blocked users.", stats.BlockedUsersCount)
-	writeGauge(&builder, "agp_sessions_active_total", "Active sessions.", stats.ActiveSessionsCount)
-	writeGauge(&builder, "agp_resources_total", "Configured resources.", stats.ResourcesCount)
-	writeGauge(&builder, "agp_public_downloads_total", "Configured public downloads.", stats.PublicDownloadsCount)
-	writeGauge(&builder, "agp_audit_events_total", "Persisted audit events.", stats.AuditEventsCount)
 	writeMetrics(w, builder.String())
 }
 

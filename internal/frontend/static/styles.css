@@ -26,6 +26,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -53,6 +54,7 @@ button.secondary:hover {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   border: 1px solid var(--line);
@@ -162,6 +164,25 @@ p {
   margin-top: 4px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.identity-badge {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 10px;
+}
+
 .content {
   padding: 26px 30px;
 }
@@ -189,6 +210,25 @@ p {
 
 .public-downloads-panel {
   width: min(520px, 100%);
+}
+
+.downloads-disclosure {
+  align-self: start;
+}
+
+.downloads-disclosure summary {
+  cursor: pointer;
+  font-weight: 700;
+  list-style-position: inside;
+}
+
+.downloads-disclosure .download-list {
+  margin-top: 14px;
+}
+
+#downloadsPortalPanel {
+  width: 100%;
+  margin-bottom: 22px;
 }
 
 .login-form label {
@@ -300,8 +340,28 @@ p {
   border-radius: 8px;
 }
 
+.download-item a {
+  display: grid;
+  gap: 5px;
+  color: inherit;
+  text-decoration: none;
+}
+
 .download-item:hover {
   border-color: var(--accent);
+}
+
+.hash-line {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+
+.hash-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .portal-footer {
@@ -349,6 +409,22 @@ p {
   max-width: 760px;
   display: grid;
   gap: 14px;
+}
+
+.help-panel {
+  max-width: 980px;
+  display: grid;
+  gap: 18px;
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.help-grid h3 {
+  margin: 0 0 6px;
 }
 
 .metrics {
@@ -399,6 +475,7 @@ p {
 .resource-form,
 .compact-form,
 .settings-form,
+.audit-filter-form,
 .inline-edit-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -410,6 +487,7 @@ p {
 .compact-form button,
 .settings-form button,
 .settings-form textarea,
+.audit-filter-form button,
 .inline-edit-form .form-actions {
   grid-column: span 2;
 }
@@ -455,6 +533,11 @@ p {
   gap: 8px;
 }
 
+.compact-button {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
 .danger {
   background: var(--danger);
 }
@@ -482,6 +565,16 @@ p {
   padding: 16px;
 }
 
+.metadata-json {
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-muted);
+  border-radius: 6px;
+  padding: 10px;
+}
+
 .hidden {
   display: none !important;
 }
@@ -500,6 +593,7 @@ p {
   .resource-form,
   .compact-form,
   .settings-form,
+  .audit-filter-form,
   .inline-edit-form,
   .login-view {
     grid-template-columns: 1fr;
@@ -508,7 +602,8 @@ p {
   .resource-form button,
   .compact-form button,
   .settings-form button,
-  .settings-form textarea {
+  .settings-form textarea,
+  .audit-filter-form button {
     grid-column: auto;
   }
 
@@ -518,5 +613,19 @@ p {
 
   .portal-intro {
     display: grid;
+  }
+
+  .topbar {
+    height: auto;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 18px;
+    flex-direction: column;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }

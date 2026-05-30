@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"time"
 
 	"github.com/netwizd/agp/internal/domain"
 )
@@ -18,6 +19,8 @@ func (e errString) Error() string { return string(e) }
 type Store interface {
 	Close() error
 	Migrate(ctx context.Context) error
+	Ping(ctx context.Context) error
+	ApplyRetention(ctx context.Context, now time.Time, auditRetention time.Duration, sessionRetention time.Duration) error
 	FindUserByUsername(ctx context.Context, username string) (*domain.UserWithPassword, error)
 	CreateSession(ctx context.Context, session domain.Session) error
 	FindSessionByTokenHash(ctx context.Context, tokenHash string) (*domain.SessionContext, error)
@@ -29,6 +32,7 @@ type Store interface {
 	ListPublicDownloads(ctx context.Context, includeDisabled bool) ([]domain.PublicDownload, error)
 	FindPublicDownloadByID(ctx context.Context, id string) (*domain.PublicDownload, error)
 	AppendAudit(ctx context.Context, event domain.AuditEvent) error
+	AppendResourceDiagnostics(ctx context.Context, run domain.ResourceDiagnosticsRun) error
 	GetPortalSettings(ctx context.Context) (*domain.PortalSettings, error)
 	DashboardStats(ctx context.Context) (*domain.DashboardStats, error)
 	ListUsers(ctx context.Context) ([]domain.User, error)
@@ -50,5 +54,6 @@ type Store interface {
 	UpdatePortalSettings(ctx context.Context, settings domain.PortalSettings) (*domain.PortalSettings, error)
 	ListActiveSessions(ctx context.Context) ([]domain.ActiveSession, error)
 	RevokeSession(ctx context.Context, id string) error
-	ListAuditEvents(ctx context.Context, limit int) ([]domain.AuditEvent, error)
+	ListAuditEvents(ctx context.Context, filter domain.AuditFilter) ([]domain.AuditEvent, error)
+	ListResourceDiagnostics(ctx context.Context, resourceID string, limit int) ([]domain.ResourceDiagnosticsRun, error)
 }

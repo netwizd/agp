@@ -15,6 +15,7 @@ import (
 	"github.com/netwizd/agp/internal/domain"
 	"github.com/netwizd/agp/internal/runtime"
 	"github.com/netwizd/agp/internal/storage"
+	"github.com/netwizd/agp/internal/version"
 )
 
 func main() {
@@ -24,6 +25,9 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case "version":
+		info := version.Info()
+		fmt.Printf("agpctl %s commit=%s built_at=%s go=%s\n", info["version"], info["commit"], info["built_at"], info["go_version"])
 	case "hash-password":
 		if err := hashPassword(); err != nil {
 			fmt.Fprintf(os.Stderr, "hash-password failed: %v\n", err)
@@ -42,6 +46,7 @@ func main() {
 
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage:")
+	fmt.Fprintln(os.Stderr, "  agpctl version")
 	fmt.Fprintln(os.Stderr, "  agpctl hash-password")
 	fmt.Fprintln(os.Stderr, "  agpctl create-admin -username admin [-display-name Administrator] [-group-name Administrators]")
 }

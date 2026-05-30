@@ -34,7 +34,7 @@ func (s *Store) DashboardStats(ctx context.Context) (*domain.DashboardStats, err
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM audit_events`).Scan(&stats.AuditEventsCount); err != nil {
 		return nil, fmt.Errorf("count audit events: %w", err)
 	}
-	events, err := s.ListAuditEvents(ctx, 20)
+	events, err := s.ListAuditEvents(ctx, domain.AuditFilter{Limit: 20})
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +58,11 @@ ORDER BY username`)
 		if err != nil {
 			return nil, err
 		}
+		groupIDs, err := listStrings(ctx, s.db, `SELECT group_id FROM user_groups WHERE user_id = ? ORDER BY group_id`, user.ID)
+		if err != nil {
+			return nil, err
+		}
+		user.GroupIDs = groupIDs
 		users = append(users, user)
 	}
 	return users, rows.Err()
@@ -372,9 +377,9 @@ func (s *Store) CreatePublicDownload(ctx context.Context, input domain.PublicDow
 	id := storageID("dl")
 	now := time.Now().UTC()
 	_, err := s.db.ExecContext(ctx, `
-INSERT INTO public_downloads(id, title, description, file_name, stored_name, content_type, size_bytes, enabled, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, input.Title, input.Description, input.FileName, input.StoredName, input.ContentType, input.SizeBytes, boolToInt(input.Enabled), now, now)
+	INSERT INTO public_downloads(id, title, description, file_name, stored_name, content_type, sha256, size_bytes, enabled, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, input.Title, input.Description, input.FileName, input.StoredName, input.ContentType, input.SHA256, input.SizeBytes, boolToInt(input.Enabled), now, now)
 	if err != nil {
 		return nil, normalizeSQLiteError("create public download", err)
 	}
@@ -486,15 +491,17 @@ func (s *Store) RevokeSession(ctx context.Context, id string) error {
 	return ensureRowsAffected("revoke session", res)
 }
 
-func (s *Store) ListAuditEvents(ctx context.Context, limit int) ([]domain.AuditEvent, error) {
-	if limit <= 0 || limit > 500 {
-		limit = 100
+func (s *Store) ListAuditEvents(ctx context.Context, filter domain.AuditFilter) ([]domain.AuditEvent, error) {
+	if filter.Limit <= 0 || filter.Limit > 1000 {
+		filter.Limit = 100
 	}
+	where, args := sqliteAuditFilterSQL(filter)
+	args = append(args, filter.Limit)
 	rows, err := s.db.QueryContext(ctx, `
-SELECT event_type, subject_user_id, username, resource_id, ip, user_agent, outcome, reason, metadata_json, created_at
-FROM audit_events
-ORDER BY created_at DESC
-LIMIT ?`, limit)
+	SELECT event_type, subject_user_id, username, resource_id, ip, user_agent, outcome, reason, metadata_json, created_at
+	FROM audit_events`+where+`
+	ORDER BY created_at DESC
+	LIMIT ?`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list audit events: %w", err)
 	}
@@ -511,6 +518,33 @@ LIMIT ?`, limit)
 	return events, rows.Err()
 }
 
+func (s *Store) ListResourceDiagnostics(ctx context.Context, resourceID string, limit int) ([]domain.ResourceDiagnosticsRun, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := s.db.QueryContext(ctx, `
+	SELECT d.id, d.resource_id, r.name, d.outcome, d.result_json, d.created_by, d.created_at
+	FROM resource_diagnostics d
+	JOIN resources r ON r.id = d.resource_id
+	WHERE d.resource_id = ?
+	ORDER BY d.created_at DESC
+	LIMIT ?`, resourceID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list resource diagnostics: %w", err)
+	}
+	defer rows.Close()
+
+	var runs []domain.ResourceDiagnosticsRun
+	for rows.Next() {
+		var run domain.ResourceDiagnosticsRun
+		if err := rows.Scan(&run.ID, &run.ResourceID, &run.ResourceName, &run.Outcome, &run.ResultJSON, &run.CreatedBy, &run.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan resource diagnostics: %w", err)
+		}
+		runs = append(runs, run)
+	}
+	return runs, rows.Err()
+}
+
 func (s *Store) findUserByID(ctx context.Context, id string) (*domain.User, error) {
 	row := s.db.QueryRowContext(ctx, `
 SELECT id, username, display_name, is_admin, blocked_at, created_at, updated_at
@@ -520,6 +554,11 @@ WHERE id = ?`, id)
 	if err != nil {
 		return nil, err
 	}
+	groupIDs, err := listStrings(ctx, s.db, `SELECT group_id FROM user_groups WHERE user_id = ? ORDER BY group_id`, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	user.GroupIDs = groupIDs
 	return &user, nil
 }
 
@@ -569,6 +608,7 @@ func scanPublicDownload(row scanner) (domain.PublicDownload, error) {
 		&download.FileName,
 		&download.StoredName,
 		&download.ContentType,
+		&download.SHA256,
 		&download.SizeBytes,
 		&enabled,
 		&download.CreatedAt,
@@ -652,6 +692,39 @@ func listStrings(ctx context.Context, q queryer, query string, args ...any) ([]s
 		values = append(values, value)
 	}
 	return values, rows.Err()
+}
+
+func sqliteAuditFilterSQL(filter domain.AuditFilter) (string, []any) {
+	var conditions []string
+	var args []any
+	if strings.TrimSpace(filter.EventType) != "" {
+		conditions = append(conditions, "event_type = ?")
+		args = append(args, strings.TrimSpace(filter.EventType))
+	}
+	if strings.TrimSpace(filter.Username) != "" {
+		conditions = append(conditions, "LOWER(username) LIKE LOWER(?)")
+		args = append(args, "%"+strings.TrimSpace(filter.Username)+"%")
+	}
+	if strings.TrimSpace(filter.ResourceID) != "" {
+		conditions = append(conditions, "resource_id = ?")
+		args = append(args, strings.TrimSpace(filter.ResourceID))
+	}
+	if strings.TrimSpace(filter.Outcome) != "" {
+		conditions = append(conditions, "outcome = ?")
+		args = append(args, strings.TrimSpace(filter.Outcome))
+	}
+	if filter.From != nil {
+		conditions = append(conditions, "created_at >= ?")
+		args = append(args, *filter.From)
+	}
+	if filter.To != nil {
+		conditions = append(conditions, "created_at <= ?")
+		args = append(args, *filter.To)
+	}
+	if len(conditions) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(conditions, " AND "), args
 }
 
 func replaceUserGroups(ctx context.Context, tx *sql.Tx, userID string, groupIDs []string) error {

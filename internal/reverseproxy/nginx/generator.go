@@ -18,6 +18,12 @@ type Recommendation struct {
 	Warnings   []string `json:"warnings"`
 }
 
+type Bundle struct {
+	PortalHost string   `json:"portal_host"`
+	Snippet    string   `json:"snippet"`
+	Warnings   []string `json:"warnings"`
+}
+
 func GenerateResourceServer(resource domain.ResourceDetail, portalHost string) (*Recommendation, error) {
 	warnings := make([]string, 0)
 	publicHost, err := normalizeHost(resource.PublicHost)
@@ -60,6 +66,37 @@ func GenerateResourceServer(resource domain.ResourceDetail, portalHost string) (
 	}, nil
 }
 
+func GenerateBundle(resources []domain.ResourceDetail, portalHost string) (*Bundle, error) {
+	warnings := make([]string, 0)
+	portalHost, err := normalizeHost(portalHost)
+	if err != nil {
+		return nil, fmt.Errorf("invalid portal host: %w", err)
+	}
+
+	var out bytes.Buffer
+	if err := bundleHeaderTemplate.Execute(&out, map[string]any{"PortalHost": portalHost}); err != nil {
+		return nil, fmt.Errorf("render nginx portal server: %w", err)
+	}
+	for _, resource := range resources {
+		recommendation, err := GenerateResourceServer(resource, portalHost)
+		if err != nil {
+			return nil, fmt.Errorf("render resource %s: %w", resource.ID, err)
+		}
+		if len(recommendation.Warnings) > 0 {
+			for _, warning := range recommendation.Warnings {
+				warnings = append(warnings, fmt.Sprintf("%s: %s", resource.PublicHost, warning))
+			}
+		}
+		out.WriteString("\n\n")
+		out.WriteString(recommendation.Snippet)
+	}
+	return &Bundle{
+		PortalHost: portalHost,
+		Snippet:    strings.TrimSpace(out.String()) + "\n",
+		Warnings:   warnings,
+	}, nil
+}
+
 func normalizeHost(host string) (string, error) {
 	host = strings.ToLower(strings.TrimSpace(host))
 	if host == "" {
@@ -96,6 +133,40 @@ func normalizeProxyURL(raw string) (string, error) {
 	return parsed.String(), nil
 }
 
+var bundleHeaderTemplate = template.Must(template.New("bundle-header").Parse(`
+upstream agp_backend {
+    server 127.0.0.1:8080;
+    keepalive 32;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name {{ .PortalHost }};
+
+    ssl_certificate /etc/letsencrypt/live/{{ .PortalHost }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ .PortalHost }}/privkey.pem;
+
+    access_log /var/log/nginx/agp.portal.access.log;
+    error_log /var/log/nginx/agp.portal.error.log warn;
+
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy no-referrer always;
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    location / {
+        proxy_pass http://agp_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+}
+`))
+
 var resourceServerTemplate = template.Must(template.New("resource-server").Parse(`
 server {
     listen 443 ssl http2;
@@ -106,6 +177,11 @@ server {
 
     access_log /var/log/nginx/agp.resources.access.log;
     error_log /var/log/nginx/agp.resources.error.log warn;
+
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy no-referrer always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     auth_request /_agp_auth;
     auth_request_set $agp_user $upstream_http_x_agp_user;

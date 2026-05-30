@@ -18,7 +18,7 @@
         </div>
         <nav class="nav">
           <button class="nav-link active" data-view="portal">Портал</button>
-          <button class="nav-link" data-view="admin">Админка</button>
+          <button class="nav-link" data-view="admin">Администрирование</button>
         </nav>
         <div class="session-panel" id="sessionPanel"></div>
       </aside>
@@ -29,7 +29,12 @@
             <h1 id="pageTitle">Портал</h1>
             <p id="pageSubtitle">Доступные внутренние ресурсы</p>
           </div>
-          <button class="secondary hidden" id="logoutButton">Выйти</button>
+          <div class="topbar-actions">
+            <button class="secondary" id="showDownloadsButton" type="button">Скачать</button>
+            <button class="secondary hidden" id="helpButton" type="button">Помощь</button>
+            <span class="identity-badge hidden" id="identityBadge"></span>
+            <button class="secondary hidden" id="logoutButton">Выйти</button>
+          </div>
         </section>
 
         <section class="login-view" id="loginView">
@@ -46,12 +51,10 @@
             <button type="submit">Войти</button>
             <div class="form-error" id="loginError"></div>
           </form>
-          <section class="panel public-downloads-panel">
-            <div class="section-header">
-              <h2>Файлы для скачивания</h2>
-            </div>
+          <details class="panel public-downloads-panel downloads-disclosure" id="downloadsLoginPanel">
+            <summary>Файлы для скачивания</summary>
             <div class="download-list" id="publicDownloadsLogin"></div>
-          </section>
+          </details>
         </section>
 
         <section class="content hidden" id="portalView">
@@ -62,6 +65,10 @@
             </div>
             <a class="support-link hidden" id="supportLink" href="#" rel="noreferrer">Поддержка</a>
           </section>
+          <details class="panel public-downloads-panel downloads-disclosure" id="downloadsPortalPanel">
+            <summary>Файлы для скачивания</summary>
+            <div class="download-list" id="publicDownloadsPortal"></div>
+          </details>
           <div class="section-header">
             <h2>Доступные сервисы</h2>
           </div>
@@ -70,10 +77,6 @@
             <div class="category-filter" id="categoryFilter"></div>
           </div>
           <div class="resource-grid" id="resourceGrid"></div>
-          <div class="section-header downloads-header">
-            <h2>Файлы для скачивания</h2>
-          </div>
-          <div class="download-list" id="publicDownloadsPortal"></div>
           <footer class="portal-footer" id="portalFooter"></footer>
         </section>
 
@@ -85,6 +88,29 @@
               существует ли запрошенная точка входа.
             </p>
             <button id="backToPortalButton" type="button">Вернуться в портал</button>
+          </section>
+        </section>
+
+        <section class="content hidden" id="helpView">
+          <section class="panel help-panel">
+            <h2>Помощь</h2>
+            <p id="helpIntro">
+              Используйте портал для входа во внутренние сервисы и скачивания корпоративных материалов.
+            </p>
+            <div class="help-grid">
+              <div>
+                <h3>Доступ к сервисам</h3>
+                <p class="muted">Если нужного ресурса нет в списке, обратитесь к администратору портала.</p>
+              </div>
+              <div>
+                <h3>Файлы</h3>
+                <p class="muted">Проверяйте SHA-256 перед установкой вспомогательного ПО.</p>
+              </div>
+              <div>
+                <h3>Безопасность</h3>
+                <p class="muted">Не передавайте учетные данные и завершайте сессию кнопкой выхода.</p>
+              </div>
+            </div>
           </section>
         </section>
 
@@ -103,6 +129,7 @@
             <section class="panel admin-tab-panel" id="resourcesPanel">
               <div class="section-header">
                 <h2>Ресурсы</h2>
+                <button class="secondary" id="nginxBundleButton" type="button">Nginx bundle</button>
               </div>
               <form class="resource-form" id="resourceForm">
                 <input name="name" placeholder="Название" required />
@@ -176,7 +203,7 @@
                 <input name="display_name" placeholder="Отображаемое имя" />
                 <input name="password" type="password" placeholder="Пароль" required />
                 <input name="group_ids" placeholder="group ids через запятую" />
-                <label class="checkbox-line">
+                <label class="checkbox-line" id="createUserAdminFlag">
                   <input name="is_admin" type="checkbox" />
                   Администратор
                 </label>
@@ -195,14 +222,33 @@
             <section class="panel admin-tab-panel hidden" id="auditPanel">
               <div class="section-header">
                 <h2>Аудит</h2>
-                <button class="secondary" id="refreshAuditButton">Обновить</button>
+                <div class="row-actions">
+                  <button class="secondary" id="exportAuditCSVButton" type="button">CSV</button>
+                  <button class="secondary" id="exportAuditJSONButton" type="button">JSON</button>
+                  <button class="secondary" id="refreshAuditButton" type="button">Обновить</button>
+                </div>
               </div>
+              <form class="audit-filter-form" id="auditFilterForm">
+                <input name="username" placeholder="Пользователь" />
+                <input name="type" placeholder="Тип события" />
+                <input name="resource_id" placeholder="Ресурс" />
+                <select name="outcome">
+                  <option value="">Любой результат</option>
+                  <option value="success">success</option>
+                  <option value="failure">failure</option>
+                </select>
+                <input name="from" type="date" />
+                <input name="to" type="date" />
+                <button type="submit">Фильтр</button>
+                <button class="secondary" id="resetAuditFiltersButton" type="button">Сброс</button>
+              </form>
               <div class="table-list" id="adminAudit"></div>
             </section>
 
             <section class="panel">
               <div class="section-header">
                 <h2>Операции</h2>
+                <button class="secondary" id="copyOperationButton" type="button">Копировать</button>
               </div>
               <pre class="snippet" id="operationOutput">Выберите ресурс для генерации Nginx или диагностики.</pre>
             </section>

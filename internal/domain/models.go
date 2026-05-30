@@ -7,6 +7,7 @@ type User struct {
 	Username    string
 	DisplayName string
 	IsAdmin     bool
+	GroupIDs    []string
 	BlockedAt   *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -87,6 +88,16 @@ type AuditEvent struct {
 	CreatedAt     time.Time
 }
 
+type AuditFilter struct {
+	Limit      int
+	EventType  string
+	Username   string
+	ResourceID string
+	Outcome    string
+	From       *time.Time
+	To         *time.Time
+}
+
 type DashboardStats struct {
 	UsersCount           int
 	BlockedUsersCount    int
@@ -104,6 +115,7 @@ type PublicDownload struct {
 	FileName    string
 	StoredName  string
 	ContentType string
+	SHA256      string
 	SizeBytes   int64
 	Enabled     bool
 	CreatedAt   time.Time
@@ -116,6 +128,7 @@ type PublicDownloadInput struct {
 	FileName    string
 	StoredName  string
 	ContentType string
+	SHA256      string
 	SizeBytes   int64
 	Enabled     bool
 }
@@ -195,6 +208,16 @@ type ResourceDiagnostics struct {
 	TCP           CheckResult   `json:"tcp"`
 	HTTP          CheckResult   `json:"http"`
 	TotalDuration time.Duration `json:"total_duration"`
+}
+
+type ResourceDiagnosticsRun struct {
+	ID           string
+	ResourceID   string
+	ResourceName string
+	Outcome      string
+	ResultJSON   string
+	CreatedBy    string
+	CreatedAt    time.Time
 }
 
 type CheckResult struct {

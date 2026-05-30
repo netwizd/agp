@@ -38,6 +38,7 @@ permissions. See [rbac.md](rbac.md).
 | `GET` | `/api/v1/admin/sessions` | list active sessions |
 | `DELETE` | `/api/v1/admin/sessions/{id}` | revoke session |
 | `GET` | `/api/v1/admin/audit?limit=100` | list audit events |
+| `GET` | `/api/v1/admin/audit/export?format=csv` | export audit events; requires `audit.export` |
 
 ## Public Endpoints
 
@@ -64,3 +65,7 @@ permissions. See [rbac.md](rbac.md).
 
 The API validates public host, internal URL and CIDR syntax before storing a
 resource.
+
+Resource diagnostics are subject to `AGP_DIAGNOSTICS_ALLOW_CIDRS`,
+`AGP_DIAGNOSTICS_DENY_CIDRS` and per-user/resource rate limiting. By default,
+loopback, link-local and metadata-style target ranges are blocked.

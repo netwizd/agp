@@ -123,8 +123,14 @@ Current permissions:
 - `resources.read`
 - `resources.manage`
 - `resources.diagnostics`
+- `downloads.read`
+- `downloads.manage`
+- `portal.settings.read`
+- `portal.settings.manage`
+- `sessions.read`
 - `sessions.revoke`
 - `audit.read`
+- `audit.export`
 - `nginx.recommendations.read`
 
 ### Operational Hardening

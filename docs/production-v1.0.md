@@ -36,6 +36,23 @@ Recommended filesystem layout:
 
 ## Install
 
+Recommended path on a dedicated Ubuntu 22.04/24.04 host:
+
+```bash
+sudo ./install.sh
+```
+
+The installer asks for the portal DNS name, PostgreSQL database/user names,
+initial administrator credentials, Nginx/TLS choices and `auto` vs `manual`
+execution mode. It generates the PostgreSQL application password automatically,
+configures PostgreSQL with SCRAM authentication, writes `/etc/agp/agp.env`,
+installs systemd units, starts AGP, optionally configures the official
+`nginx.org` package repository, requests a Let's Encrypt certificate and enables
+the backup timer.
+
+Manual installation steps are kept below for audited deployments or non-standard
+infrastructure.
+
 1. Build binaries:
 
 ```bash
@@ -68,6 +85,15 @@ AGP_DATABASE_DSN=postgres://agp:change-me@127.0.0.1:5432/agp?sslmode=require
 AGP_DOWNLOADS_DIR=/var/lib/agp/downloads
 AGP_COOKIE_SECURE=true
 AGP_TRUST_PROXY_HEADERS=true
+AGP_TRUSTED_PROXY_CIDRS=127.0.0.1/32,10.0.0.0/8
+AGP_AUDIT_RETENTION=8760h
+AGP_SESSION_RETENTION=720h
+AGP_DOWNLOAD_ALLOWED_EXTENSIONS=.zip,.msi,.exe,.pkg,.dmg,.pdf,.txt,.rdp,.ovpn,.conf
+# optional external scanner; {path} is replaced with the temporary upload path
+AGP_DOWNLOAD_SCAN_COMMAND=clamscan --no-summary {path}
+# optional diagnostics allowlist; if set, every resolved target IP must match it
+AGP_DIAGNOSTICS_ALLOW_CIDRS=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+AGP_DIAGNOSTICS_DENY_CIDRS=127.0.0.0/8,::1/128,169.254.0.0/16,fe80::/10,0.0.0.0/8,::/128
 ```
 
 5. Install systemd unit and Nginx config:
@@ -98,28 +124,35 @@ curl -fsS http://127.0.0.1:8080/metrics
 
 `/healthz` confirms the HTTP process is serving.
 `/readyz` confirms the storage backend can be queried.
-`/metrics` exports basic Prometheus-style gauges.
+`/metrics` exports cheap process/storage liveness gauges. Administrative counts
+are intentionally kept in the authenticated dashboard so Prometheus scraping does
+not run heavy table scans.
 
 Nginx should expose `/healthz` and `/readyz` according to the deployment policy.
 `/metrics` should be limited to localhost or monitoring networks.
 
 ## Backup
 
-PostgreSQL minimum:
+Install backup scripts and timer:
 
 ```bash
-pg_dump --format=custom --file=/secure-backups/agp-$(date +%F).dump agp
+sudo install -o root -g root -m 0755 scripts/agp-backup.sh scripts/agp-restore.sh /usr/local/bin/
+sudo install -o root -g root -m 0644 deploy/systemd/agp-backup.service /etc/systemd/system/agp-backup.service
+sudo install -o root -g root -m 0644 deploy/systemd/agp-backup.timer /etc/systemd/system/agp-backup.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now agp-backup.timer
 ```
 
-Downloads directory:
+Manual backup:
 
 ```bash
-tar -C /var/lib/agp -czf /secure-backups/agp-downloads-$(date +%F).tar.gz downloads
+sudo -u agp AGP_BACKUP_DIR=/secure-backups AGP_DATABASE_NAME=agp /usr/local/bin/agp-backup.sh
 ```
 
 Production requirements:
 
 - encrypt backups before off-host transfer;
+- keep backup files and checksum manifests mode `0600`;
 - keep backup retention aligned with audit policy;
 - test restore monthly;
 - monitor backup freshness.
@@ -128,8 +161,11 @@ Production requirements:
 
 ```bash
 createdb agp_restore
-pg_restore --dbname=agp_restore /secure-backups/agp-YYYY-MM-DD.dump
-tar -C /var/lib/agp -xzf /secure-backups/agp-downloads-YYYY-MM-DD.tar.gz
+AGP_DOWNLOADS_PARENT=/var/lib/agp /usr/local/bin/agp-restore.sh \
+  /secure-backups/agp-db-YYYYMMDDTHHMMSSZ.dump \
+  /secure-backups/agp-downloads-YYYYMMDDTHHMMSSZ.tar.gz \
+  agp_restore \
+  /secure-backups/agp-YYYYMMDDTHHMMSSZ.sha256
 ```
 
 Run AGP against the restored DB in a maintenance environment and verify:
@@ -148,12 +184,8 @@ Before tagging v1.0:
 ./scripts/release-check.sh
 ```
 
-If a disposable PostgreSQL database is available:
-
-```bash
-AGP_TEST_POSTGRES_DSN='postgres://agp:change-me@127.0.0.1:5432/agp?sslmode=require' \
-  ./scripts/release-check.sh
-```
+`AGP_TEST_POSTGRES_DSN` is mandatory for v1.0 release checks. The script fails
+without a live PostgreSQL DSN.
 
 Manual checks:
 
