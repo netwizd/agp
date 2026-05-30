@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,9 +11,7 @@ import (
 
 	"github.com/netwizd/agp/internal/config"
 	"github.com/netwizd/agp/internal/httpapi"
-	"github.com/netwizd/agp/internal/storage"
-	"github.com/netwizd/agp/internal/storage/postgres"
-	"github.com/netwizd/agp/internal/storage/sqlite"
+	"github.com/netwizd/agp/internal/runtime"
 )
 
 func main() {
@@ -31,7 +28,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	store, err := openStore(ctx, cfg)
+	store, err := runtime.OpenStore(ctx, cfg)
 	if err != nil {
 		logger.Error("storage open failed", "error", err)
 		os.Exit(1)
@@ -77,16 +74,5 @@ func main() {
 			logger.Error("http server failed", "error", err)
 			os.Exit(1)
 		}
-	}
-}
-
-func openStore(ctx context.Context, cfg config.Config) (storage.Store, error) {
-	switch cfg.DatabaseDriver {
-	case "postgres":
-		return postgres.Open(ctx, cfg.DatabaseDSN)
-	case "sqlite":
-		return sqlite.Open(cfg.DatabasePath)
-	default:
-		return nil, fmt.Errorf("unsupported database driver %q", cfg.DatabaseDriver)
 	}
 }

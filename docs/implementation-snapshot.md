@@ -1,0 +1,69 @@
+# Implementation Snapshot
+
+Current branch: `main`.
+
+## Реализовано
+
+| Area | Status |
+| --- | --- |
+| Go backend | HTTP server, graceful shutdown, structured JSON logging |
+| Auth | local username/password login, Argon2id password hashes |
+| Sessions | server-side sessions, hashed session tokens, CSRF token for mutating API |
+| User portal API | `/api/v1/me`, `/api/v1/resources` |
+| Nginx integration | `/auth/request` endpoint for `auth_request` |
+| Admin API | users, groups, resources, sessions, audit, dashboard |
+| Nginx recommendations | generated per-resource server block snippets, no auto-apply |
+| PostgreSQL | production storage backend with embedded migrations |
+| SQLite | development/small-install fallback with same storage contract |
+| Audit | login/logout, proxy auth decisions and admin actions persisted |
+| Bootstrap | `agpctl hash-password`, `agpctl create-admin` |
+| Documentation | architecture, security, operations, PostgreSQL, Admin API, Nginx recommendations |
+
+## Security Model
+
+- protected resources fail closed on missing session, missing resource, storage
+  error, invalid CIDR, disabled resource or missing group mapping;
+- backend trusts proxy headers only when configured to do so;
+- state-changing admin endpoints require CSRF;
+- session cookies are `HttpOnly`, `Secure` by default and `SameSite=Lax`;
+- AGP generates Nginx snippets but does not modify system Nginx configs.
+
+## Verification
+
+Current automated checks:
+
+```bash
+go test ./...
+go vet ./...
+go build -trimpath -o bin/agp ./cmd/agp
+go build -trimpath -o bin/agpctl ./cmd/agpctl
+git diff --check
+```
+
+Covered by tests:
+
+- Nginx recommendation generation;
+- unsafe host rejection;
+- invalid CIDR rejection;
+- admin login/session/CSRF/resource creation/Nginx recommendation flow via
+  `httptest` and SQLite.
+
+## Not Implemented Yet
+
+| Area | Gap |
+| --- | --- |
+| Frontend | no user portal UI or admin UI yet |
+| PostgreSQL integration test | no live PostgreSQL test harness yet |
+| RBAC granularity | admin is currently boolean, not permission-based |
+| Rate limiting | in-memory only, not Redis-backed |
+| MFA/SSO | LDAP/AD/TOTP/SSO not implemented |
+| Resource health checks | no active upstream diagnostics yet |
+| SIEM/export | audit is stored in DB, no external export yet |
+| Config apply | Nginx recommendations are manual-review only |
+
+## Next Recommended Increment
+
+1. Add static portal/admin UI shell.
+2. Add PostgreSQL integration test profile for local/CI environments.
+3. Replace boolean admin with permission-based RBAC.
+4. Add resource diagnostics: DNS resolution, TCP connect, HTTP health probe.

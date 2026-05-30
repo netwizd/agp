@@ -8,7 +8,20 @@ AGP does not ship with a default password. Generate an Argon2id hash locally:
 printf '%s\n' "$AGP_ADMIN_PASSWORD" | go run ./cmd/agpctl hash-password
 ```
 
-Insert the first administrator into PostgreSQL:
+Preferred bootstrap path:
+
+```bash
+printf '%s\n' "$AGP_ADMIN_PASSWORD" | go run ./cmd/agpctl create-admin \
+  -username admin \
+  -display-name "Administrator" \
+  -group-name "Administrators"
+```
+
+The command uses the same `AGP_DATABASE_DRIVER`, `AGP_DATABASE_DSN` and
+`AGP_DATABASE_PATH` settings as the backend. It applies migrations before
+creating the administrator.
+
+Manual PostgreSQL equivalent:
 
 ```sql
 INSERT INTO users(id, username, password_hash, display_name, is_admin)

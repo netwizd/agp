@@ -50,6 +50,15 @@ go run ./cmd/agp
 By default the backend listens on `127.0.0.1:8080` and expects PostgreSQL at
 `127.0.0.1:5432`. For local fallback set `AGP_DATABASE_DRIVER=sqlite`.
 
+Create the first administrator:
+
+```bash
+printf '%s\n' "$AGP_ADMIN_PASSWORD" | go run ./cmd/agpctl create-admin
+```
+
+See [docs/implementation-snapshot.md](docs/implementation-snapshot.md) for the
+current implementation status.
+
 ## Security Posture
 
 AGP is a security boundary. Production deployments must keep the backend bound
