@@ -80,6 +80,26 @@ sudo ./install.sh --manual
 sudo ./install.sh --auto
 ```
 
+After the first installation, update an existing server from the repository
+with:
+
+```bash
+cd /opt/agp-src
+sudo ./update.sh --manual
+```
+
+For unattended maintenance windows:
+
+```bash
+cd /opt/agp-src
+sudo ./update.sh --auto
+```
+
+The updater runs `git pull --ff-only`, builds `agp` and `agpctl`, runs Go
+checks by default, backs up the current binaries and systemd unit, restarts AGP
+and verifies `/readyz`. If readiness fails after replacement, it attempts to
+restore the previous binaries.
+
 The detailed manual runbook is in
 [docs/production-v1.0.md](docs/production-v1.0.md). v1.1 identity and
 notification work is tracked in [docs/v1.1-plan.md](docs/v1.1-plan.md).
