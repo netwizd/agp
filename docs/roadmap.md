@@ -30,7 +30,7 @@ model, permission-based RBAC foundation, Nginx `auth_request` контракт,
 | Nginx auth_request | Implemented | MVP-ready | fail-closed authorization endpoint |
 | Nginx recommendations | Implemented | MVP-ready | generated snippets, no auto-apply |
 | Audit | Implemented | Needs retention/export strategy | DB-backed events |
-| Frontend | Partial | Needs feature completion | embedded shell with resources/downloads/settings/groups/users/sessions/audit tabs |
+| Frontend | Partial | Needs feature completion | searchable/grouped portal catalog with resources/downloads/settings/groups/users/sessions/audit tabs |
 | PostgreSQL runtime validation | Partial | Needs CI wiring | opt-in live DB integration test exists |
 | Permission model | Partial | Needs UX/templates | permission-based middleware and group permissions exist |
 | Rate limiting | Partial | Single-node only | in-memory limiter |
@@ -68,6 +68,8 @@ model, permission-based RBAC foundation, Nginx `auth_request` контракт,
 
 - Login screen.
 - User portal resource list.
+- Search and category filters for large resource catalogs.
+- Generic access denied page for unauthorized or unknown entry points.
 - Public downloads on login and portal screens.
 - Admin dashboard counters.
 - Admin resources/downloads/settings/groups/users/sessions/audit tabs.
@@ -155,10 +157,11 @@ AGP MVP should be considered ready when the following are complete:
 1. User portal UI:
    - login;
    - available resources;
+   - search/filter by catalog category;
    - public downloads;
    - portal helper text;
    - logout;
-   - 401/403 pages.
+   - 401/403/access denied pages.
 2. Admin UI:
    - dashboard;
    - users/groups/resources management;

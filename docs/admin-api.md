@@ -53,6 +53,7 @@ permissions. See [rbac.md](rbac.md).
 {
   "name": "1C Enterprise",
   "description": "Internal 1C service",
+  "category": "Finance",
   "internal_url": "http://e1c.osrp.local",
   "public_host": "e1c.company.ru",
   "enabled": true,

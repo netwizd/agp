@@ -41,6 +41,7 @@ type adminGroupRequest struct {
 type adminCreateResourceRequest struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
+	Category    string   `json:"category"`
 	Icon        string   `json:"icon"`
 	InternalURL string   `json:"internal_url"`
 	PublicHost  string   `json:"public_host"`
@@ -52,6 +53,7 @@ type adminCreateResourceRequest struct {
 type adminUpdateResourceRequest struct {
 	Name        *string   `json:"name"`
 	Description *string   `json:"description"`
+	Category    *string   `json:"category"`
 	Icon        *string   `json:"icon"`
 	InternalURL *string   `json:"internal_url"`
 	PublicHost  *string   `json:"public_host"`
@@ -407,6 +409,7 @@ func resourceInputFromCreate(req adminCreateResourceRequest) (domain.ResourceInp
 	return domain.ResourceInput{
 		Name:        strings.TrimSpace(req.Name),
 		Description: strings.TrimSpace(req.Description),
+		Category:    strings.TrimSpace(req.Category),
 		Icon:        strings.TrimSpace(req.Icon),
 		InternalURL: internalURL,
 		PublicHost:  publicHost,
@@ -420,6 +423,7 @@ func resourceUpdateFromRequest(req adminUpdateResourceRequest) (domain.ResourceU
 	update := domain.ResourceUpdate{
 		Name:        trimStringPointer(req.Name),
 		Description: trimStringPointer(req.Description),
+		Category:    trimStringPointer(req.Category),
 		Icon:        trimStringPointer(req.Icon),
 		InternalURL: trimStringPointer(req.InternalURL),
 		PublicHost:  trimHostPointer(req.PublicHost),

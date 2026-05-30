@@ -117,7 +117,7 @@ server {
     proxy_set_header X-AGP-Groups $agp_groups;
 
     error_page 401 =302 https://{{ .PortalHost }}/login;
-    error_page 403 /403.html;
+    error_page 403 =302 https://{{ .PortalHost }}/access-denied;
 
     location = /_agp_auth {
         internal;
@@ -130,11 +130,6 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header Cookie $http_cookie;
-    }
-
-    location = /403.html {
-        root /opt/agp/errors;
-        internal;
     }
 
     location / {

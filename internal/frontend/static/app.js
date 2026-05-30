@@ -12,6 +12,9 @@ const state = {
   adminTab: "resources",
   settings: null,
   publicDownloads: [],
+  resources: [],
+  resourceQuery: "",
+  resourceCategory: "all",
 };
 
 const els = {
@@ -22,12 +25,16 @@ const els = {
   pageSubtitle: document.getElementById("pageSubtitle"),
   loginView: document.getElementById("loginView"),
   portalView: document.getElementById("portalView"),
+  accessDeniedView: document.getElementById("accessDeniedView"),
   adminView: document.getElementById("adminView"),
   sessionPanel: document.getElementById("sessionPanel"),
   logoutButton: document.getElementById("logoutButton"),
   loginForm: document.getElementById("loginForm"),
   loginError: document.getElementById("loginError"),
   resourceGrid: document.getElementById("resourceGrid"),
+  resourceSearch: document.getElementById("resourceSearch"),
+  categoryFilter: document.getElementById("categoryFilter"),
+  backToPortalButton: document.getElementById("backToPortalButton"),
   publicDownloadsLogin: document.getElementById("publicDownloadsLogin"),
   publicDownloadsPortal: document.getElementById("publicDownloadsPortal"),
   welcomeTitle: document.getElementById("welcomeTitle"),
@@ -58,6 +65,13 @@ document.querySelectorAll(".nav-link").forEach((button) => {
 els.adminTabs.querySelectorAll("button").forEach((button) => {
   button.addEventListener("click", () => setAdminTab(button.dataset.adminTab));
 });
+
+els.resourceSearch.addEventListener("input", () => {
+  state.resourceQuery = els.resourceSearch.value.trim().toLowerCase();
+  renderResources();
+});
+
+els.backToPortalButton.addEventListener("click", () => setView("portal"));
 
 els.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -95,6 +109,7 @@ els.resourceForm.addEventListener("submit", async (event) => {
       csrf: true,
       body: {
         name: form.get("name"),
+        category: form.get("category"),
         public_host: form.get("public_host"),
         internal_url: form.get("internal_url"),
         enabled: true,
@@ -201,12 +216,18 @@ async function bootstrap() {
     state.permissions = me.permissions || [];
     renderSession(me);
     els.logoutButton.classList.remove("hidden");
-    if (location.pathname.startsWith("/admin") && canUseAdmin()) {
+    if (location.pathname.startsWith("/access-denied")) {
+      await setView("accessDenied");
+    } else if (location.pathname.startsWith("/admin") && canUseAdmin()) {
       await setView("admin");
     } else {
       await setView("portal");
     }
   } catch {
+    if (location.pathname.startsWith("/access-denied")) {
+      renderAccessDenied();
+      return;
+    }
     renderLoggedOut();
   }
 }
@@ -217,12 +238,22 @@ async function setView(view) {
     button.classList.toggle("active", button.dataset.view === view);
   });
   if (!state.user) {
+    if (view === "accessDenied") {
+      renderAccessDenied();
+      return;
+    }
     renderLoggedOut();
     return;
   }
   els.loginView.classList.add("hidden");
   els.portalView.classList.toggle("hidden", view !== "portal");
+  els.accessDeniedView.classList.toggle("hidden", view !== "accessDenied");
   els.adminView.classList.toggle("hidden", view !== "admin");
+
+  if (view === "accessDenied") {
+    renderAccessDenied();
+    return;
+  }
 
   if (view === "admin") {
     els.pageTitle.textContent = "Админка";
@@ -265,16 +296,30 @@ function syncAdminTabs() {
 async function loadPortal() {
   renderPublicDownloads();
   const data = await api("/api/v1/resources");
-  const resources = data.resources || [];
-  if (resources.length === 0) {
+  state.resources = data.resources || [];
+  state.resourceQuery = "";
+  state.resourceCategory = "all";
+  els.resourceSearch.value = "";
+  renderCategoryFilter();
+  renderResources();
+}
+
+function renderResources() {
+  const resources = filteredResources();
+  if (state.resources.length === 0) {
     els.resourceGrid.innerHTML = `<div class="muted">Нет доступных ресурсов.</div>`;
+    return;
+  }
+  if (resources.length === 0) {
+    els.resourceGrid.innerHTML = `<div class="muted">По текущему фильтру ничего не найдено.</div>`;
     return;
   }
   els.resourceGrid.innerHTML = resources
     .map((resource) => {
       const href = `https://${escapeHTML(resource.PublicHost)}`;
       return `
-        <a class="resource-item" href="${href}">
+        <a class="resource-item" href="${href}" target="_blank" rel="noopener noreferrer">
+          <span class="resource-category">${escapeHTML(resource.Category || "Общее")}</span>
           <strong>${escapeHTML(resource.Name)}</strong>
           <span class="muted">${escapeHTML(resource.Description || resource.PublicHost)}</span>
           <span>${escapeHTML(resource.PublicHost)}</span>
@@ -282,6 +327,51 @@ async function loadPortal() {
       `;
     })
     .join("");
+}
+
+function filteredResources() {
+  return state.resources.filter((resource) => {
+    const category = resource.Category || "Общее";
+    if (state.resourceCategory !== "all" && category !== state.resourceCategory) {
+      return false;
+    }
+    if (!state.resourceQuery) {
+      return true;
+    }
+    const haystack = [resource.Name, resource.Description, resource.PublicHost, category].join(" ").toLowerCase();
+    return haystack.includes(state.resourceQuery);
+  });
+}
+
+function renderCategoryFilter() {
+  const categories = Array.from(new Set(state.resources.map((resource) => resource.Category || "Общее"))).sort((a, b) =>
+    a.localeCompare(b)
+  );
+  const buttons = [
+    `<button class="chip ${state.resourceCategory === "all" ? "active" : ""}" data-category="all">Все</button>`,
+    ...categories.map(
+      (category) =>
+        `<button class="chip ${state.resourceCategory === category ? "active" : ""}" data-category="${escapeHTML(category)}">${escapeHTML(category)}</button>`
+    ),
+  ];
+  els.categoryFilter.innerHTML = buttons.join("");
+  els.categoryFilter.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.resourceCategory = button.dataset.category || "all";
+      renderCategoryFilter();
+      renderResources();
+    });
+  });
+}
+
+function renderAccessDenied() {
+  els.pageTitle.textContent = "Доступ запрещен";
+  els.pageSubtitle.textContent = "Ресурс не найден или не разрешен для вашей учетной записи";
+  els.loginView.classList.add("hidden");
+  els.portalView.classList.add("hidden");
+  els.adminView.classList.add("hidden");
+  els.accessDeniedView.classList.remove("hidden");
+  history.replaceState(null, "", "/access-denied");
 }
 
 async function loadAdmin() {
@@ -425,6 +515,7 @@ function renderAdminResources(resources) {
       <div class="table-row">
         <div>
           <strong>${escapeHTML(resource.Name)}</strong>
+          <div class="muted">category: ${escapeHTML(resource.Category || "Общее")}</div>
           <div class="muted">${escapeHTML(resource.PublicHost)} -> ${escapeHTML(resource.InternalURL)}</div>
           <div class="muted">groups: ${escapeHTML((resource.GroupIDs || []).join(", ") || "none")}</div>
         </div>
@@ -700,6 +791,7 @@ function renderLoggedOut() {
   els.pageSubtitle.textContent = "Авторизация в AGP";
   els.loginView.classList.remove("hidden");
   els.portalView.classList.add("hidden");
+  els.accessDeniedView.classList.add("hidden");
   els.adminView.classList.add("hidden");
   els.logoutButton.classList.add("hidden");
   els.sessionPanel.innerHTML = `<span class="muted">Нет активной сессии</span>`;

@@ -194,7 +194,7 @@ func (s *Store) DeleteSession(ctx context.Context, tokenHash string) error {
 
 func (s *Store) ListResourcesForUser(ctx context.Context, userID string) ([]domain.Resource, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT DISTINCT r.id, r.name, r.description, r.icon, r.internal_url, r.public_host, r.enabled, r.created_at, r.updated_at
+SELECT DISTINCT r.id, r.name, r.description, r.category, r.icon, r.internal_url, r.public_host, r.enabled, r.created_at, r.updated_at
 FROM resources r
 JOIN resource_groups rg ON rg.resource_id = r.id
 JOIN user_groups ug ON ug.group_id = rg.group_id
@@ -210,7 +210,7 @@ ORDER BY r.name`, userID)
 	for rows.Next() {
 		var resource domain.Resource
 		var enabled int
-		if err := rows.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
+		if err := rows.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan resource: %w", err)
 		}
 		resource.Enabled = intToBool(enabled)
@@ -224,13 +224,13 @@ ORDER BY r.name`, userID)
 
 func (s *Store) FindResourceByPublicHost(ctx context.Context, host string) (*domain.Resource, error) {
 	row := s.db.QueryRowContext(ctx, `
-SELECT id, name, description, icon, internal_url, public_host, enabled, created_at, updated_at
+SELECT id, name, description, category, icon, internal_url, public_host, enabled, created_at, updated_at
 FROM resources
 WHERE public_host = ?`, host)
 
 	var resource domain.Resource
 	var enabled int
-	if err := row.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
+	if err := row.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, storage.ErrNotFound
 		}

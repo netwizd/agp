@@ -26,6 +26,10 @@ Access to resources requires all checks to pass:
 The system must fail closed on storage errors, invalid allowlist CIDRs and
 unknown resources.
 
+Missing resources and unauthorized resources are intentionally presented through
+the same access-denied UX. Operators should avoid custom Nginx error pages that
+reveal whether a guessed hostname or path exists.
+
 ## Auditability
 
 Audit events are persisted for:

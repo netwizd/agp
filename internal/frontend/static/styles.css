@@ -215,6 +215,31 @@ p {
   gap: 14px;
 }
 
+.resource-toolbar {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.category-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 7px 10px;
+}
+
+.chip:hover,
+.chip.active {
+  border-color: var(--accent);
+  background: var(--surface-muted);
+}
+
 .portal-intro {
   display: flex;
   justify-content: space-between;
@@ -297,7 +322,8 @@ p {
   min-height: 118px;
   padding: 18px;
   display: grid;
-  align-content: space-between;
+  align-content: start;
+  gap: 8px;
   color: inherit;
   text-decoration: none;
 }
@@ -308,6 +334,21 @@ p {
 
 .resource-item strong {
   font-size: 17px;
+}
+
+.resource-category {
+  width: fit-content;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.access-denied-panel {
+  max-width: 760px;
+  display: grid;
+  gap: 14px;
 }
 
 .metrics {

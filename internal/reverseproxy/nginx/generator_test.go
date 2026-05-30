@@ -36,6 +36,9 @@ func TestGenerateResourceServer(t *testing.T) {
 	if !strings.Contains(recommendation.Snippet, "proxy_pass http://e1c.osrp.local;") {
 		t.Fatalf("snippet does not contain proxy_pass: %s", recommendation.Snippet)
 	}
+	if !strings.Contains(recommendation.Snippet, "error_page 403 =302 https://portal.company.ru/access-denied;") {
+		t.Fatalf("snippet does not contain access denied redirect: %s", recommendation.Snippet)
+	}
 	if len(recommendation.Warnings) != 0 {
 		t.Fatalf("unexpected warnings: %#v", recommendation.Warnings)
 	}

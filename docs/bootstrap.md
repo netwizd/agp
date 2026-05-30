@@ -43,11 +43,12 @@ VALUES ('grp_admins', 'Administrators', 'AGP administrators');
 INSERT INTO user_groups(user_id, group_id)
 VALUES ('usr_admin', 'grp_admins');
 
-INSERT INTO resources(id, name, description, internal_url, public_host, enabled)
+INSERT INTO resources(id, name, description, category, internal_url, public_host, enabled)
 VALUES (
     'res_e1c',
     '1C Enterprise',
     'Internal 1C service',
+    'Finance',
     'http://e1c.osrp.local',
     'e1c.company.ru',
     true

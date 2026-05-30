@@ -13,7 +13,7 @@ delivery roadmap.
 | Auth | local username/password login, Argon2id password hashes |
 | Sessions | server-side sessions, hashed session tokens, CSRF token for mutating API |
 | User portal API | `/api/v1/me`, `/api/v1/resources`, public portal settings and downloads |
-| Frontend shell | embedded static login, public downloads, portal and admin UI shell with resources/downloads/settings/groups/users/sessions/audit tabs |
+| Frontend shell | embedded static login, searchable/grouped portal catalog, public downloads and admin UI shell with resources/downloads/settings/groups/users/sessions/audit tabs |
 | Nginx integration | `/auth/request` endpoint for `auth_request` |
 | Admin API | users, groups, resources, sessions, audit, dashboard |
 | RBAC | permission-based admin middleware with group permissions and `is_admin` superuser compatibility |
@@ -21,6 +21,7 @@ delivery roadmap.
 | Resource diagnostics | admin-triggered DNS, TCP and HTTP upstream checks |
 | Public downloads | unauthenticated enabled file list/downloads, admin upload/hide/delete |
 | Portal customization | DB-backed brand name, logo text, page titles, support link and footer |
+| Access denied UX | generic `/access-denied` page for missing or unauthorized proxied resources |
 | PostgreSQL | production storage backend with embedded migrations |
 | SQLite | development/small-install fallback with same storage contract |
 | Audit | login/logout, proxy auth decisions and admin actions persisted |
@@ -31,6 +32,8 @@ delivery roadmap.
 
 - protected resources fail closed on missing session, missing resource, storage
   error, invalid CIDR, disabled resource or missing group mapping;
+- missing and unauthorized resources share the same denial surface to reduce
+  entry-point enumeration signals;
 - backend trusts proxy headers only when configured to do so;
 - state-changing admin endpoints require CSRF;
 - session cookies are `HttpOnly`, `Secure` by default and `SameSite=Lax`;

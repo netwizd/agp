@@ -52,7 +52,7 @@ MVP is single-node by design. The clean scaling path is:
 | Database unavailable | Login and authorization fail closed |
 | Invalid CIDR in allowlist | Resource access fails closed |
 | Expired session | `401`, redirect to portal login through Nginx |
-| Unauthorized resource | `403`, audited as `access_denied` |
+| Unauthorized or unknown resource | generic access denied UX, audited internally |
 
 ## Deployment Model
 

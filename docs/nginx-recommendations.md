@@ -15,3 +15,8 @@ The recommended operational flow is:
 This keeps AGP as the access control plane while Nginx remains the data plane.
 Automatic config application can be added later through a privileged local agent
 with explicit RBAC, audit events and `nginx -t` gating.
+
+Generated snippets redirect `403` responses to
+`https://<portal-host>/access-denied`. AGP intentionally uses the same denial
+surface for missing resources and unauthorized resources so users cannot infer
+whether a guessed entry point exists.

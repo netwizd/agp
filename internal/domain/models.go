@@ -30,6 +30,7 @@ type Resource struct {
 	ID          string
 	Name        string
 	Description string
+	Category    string
 	Icon        string
 	InternalURL string
 	PublicHost  string
@@ -164,6 +165,7 @@ type GroupInput struct {
 type ResourceInput struct {
 	Name        string
 	Description string
+	Category    string
 	Icon        string
 	InternalURL string
 	PublicHost  string
@@ -175,6 +177,7 @@ type ResourceInput struct {
 type ResourceUpdate struct {
 	Name             *string
 	Description      *string
+	Category         *string
 	Icon             *string
 	InternalURL      *string
 	PublicHost       *string
