@@ -1392,14 +1392,7 @@ async function api(path, options = {}) {
   }
   const response = await fetch(path, init);
   if (!response.ok) {
-    let detail = "";
-    try {
-      const payload = await response.json();
-      detail = payload.error || "";
-    } catch {
-      detail = await response.text().catch(() => "");
-    }
-    throw new Error(`HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
+    throw new Error(await responseErrorMessage(response));
   }
   if (response.status === 204) {
     return {};
@@ -1422,16 +1415,23 @@ async function uploadDownload(form) {
   }
   const response = await fetch("/api/v1/admin/downloads", init);
   if (!response.ok) {
-    let detail = "";
-    try {
-      const payload = await response.json();
-      detail = payload.error || "";
-    } catch {
-      detail = await response.text().catch(() => "");
-    }
-    throw new Error(`HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
+    throw new Error(await responseErrorMessage(response));
   }
   return response.json();
+}
+
+async function responseErrorMessage(response) {
+  let detail = "";
+  try {
+    const payload = await response.json();
+    detail = payload.error || "";
+  } catch {
+    detail = await response.text().catch(() => "");
+  }
+  if (response.status === 413) {
+    return "HTTP 413: файл больше лимита Nginx/client_max_body_size или AGP_DOWNLOAD_MAX_BYTES";
+  }
+  return `HTTP ${response.status}${detail ? `: ${detail}` : ""}`;
 }
 
 function showOperationError(prefix, error) {

@@ -98,6 +98,7 @@ func TestGenerateBundleContainsProtectedPathLocation(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"server_name enter.company.ru;",
+		"client_max_body_size 256m;",
 		"location = /_agp_auth {",
 		"location ^~ /anything-needed {",
 		"auth_request /_agp_auth;",

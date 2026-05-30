@@ -228,6 +228,7 @@ server {
     listen 443 ssl;
     http2 on;
     server_name {{ .PortalHost }};
+    client_max_body_size 256m;
 
     # Replace these paths with your real TLS certificate files.
     ssl_certificate /etc/nginx/ssl/portal/cert.pem;

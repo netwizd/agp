@@ -39,3 +39,8 @@ The AGP backend sends CSP for its own portal pages. Nginx snippets intentionally
 do not add CSP at the shared server level because proxied legacy applications
 may rely on inline scripts or styles. Legacy resource server snippets include
 HSTS and baseline hardening headers, but also avoid injecting CSP.
+
+The portal server snippet sets `client_max_body_size 256m` to match the default
+`AGP_DOWNLOAD_MAX_BYTES=268435456` upload policy for public downloads. If the
+application limit is changed, keep the Nginx value at least as large as the AGP
+limit plus multipart overhead.

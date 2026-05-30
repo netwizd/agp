@@ -623,6 +623,7 @@ server {
     listen 443 ssl;
     http2 on;
     server_name ${PORTAL_HOST};
+    client_max_body_size 256m;
 
     ssl_certificate ${cert};
     ssl_certificate_key ${key};
