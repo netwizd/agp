@@ -27,6 +27,7 @@ type Store interface {
 	DeleteSession(ctx context.Context, tokenHash string) error
 	ListResourcesForUser(ctx context.Context, userID string) ([]domain.Resource, error)
 	FindResourceByPublicHost(ctx context.Context, host string) (*domain.Resource, error)
+	FindResourceByPublicRoute(ctx context.Context, host string, path string) (*domain.Resource, error)
 	UserHasResourceAccess(ctx context.Context, userID string, resourceID string) (bool, error)
 	ListResourceAllowCIDRs(ctx context.Context, resourceID string) ([]string, error)
 	ListPublicDownloads(ctx context.Context, includeDisabled bool) ([]domain.PublicDownload, error)

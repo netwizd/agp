@@ -7,10 +7,19 @@ The recommended operational flow is:
 
 1. administrator creates or updates a resource in AGP;
 2. administrator opens `GET /api/v1/admin/resources/{id}/nginx`;
-3. AGP returns a server block snippet and warnings;
+3. AGP returns a protected `location` snippet for path-based resources or a
+   legacy server block snippet for host-based resources;
 4. administrator reviews the snippet;
 5. administrator runs `nginx -t`;
 6. administrator reloads Nginx.
+
+The default production model is one public portal host with many protected
+paths. For example, resource metadata
+`public_host=enter.company.ru`, `public_path=/osrp-do`,
+`internal_url=http://e1c.osrp.local/osrp-do` produces a protected Nginx
+location on the portal server. The location uses `auth_request /_agp_auth`
+before `proxy_pass`, so access is still controlled by AGP sessions, groups and
+optional CIDR allowlists.
 
 This keeps AGP as the access control plane while Nginx remains the data plane.
 Automatic config application can be added later through a privileged local agent
@@ -21,6 +30,6 @@ Generated snippets redirect `403` responses to
 surface for missing resources and unauthorized resources so users cannot infer
 whether a guessed entry point exists.
 
-The portal server snippet includes CSP and HSTS headers. Resource server snippets
-include HSTS and baseline hardening headers, but do not inject a CSP because
-proxied applications may have their own content policy requirements.
+The portal server snippet includes CSP and HSTS headers. Legacy resource server
+snippets include HSTS and baseline hardening headers, but do not inject a CSP
+because proxied applications may have their own content policy requirements.

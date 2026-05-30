@@ -280,6 +280,45 @@ p {
   background: var(--surface-muted);
 }
 
+.chip-row,
+.selector-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.data-chip,
+.selector-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--text);
+  padding: 6px 10px;
+}
+
+.selector-chip {
+  cursor: pointer;
+}
+
+.selector-chip input {
+  width: auto;
+  margin: 0;
+}
+
+.selector-chip:has(input:checked) {
+  border-color: var(--accent);
+  background: #e8f2ff;
+}
+
+.field-label {
+  margin-bottom: 8px;
+  color: var(--muted);
+}
+
 .portal-intro {
   display: flex;
   justify-content: space-between;
@@ -492,6 +531,10 @@ p {
   grid-column: span 2;
 }
 
+.form-field-full {
+  grid-column: span 2;
+}
+
 .inline-edit-form {
   margin: 4px 0 0;
   padding-top: 12px;
@@ -604,6 +647,10 @@ p {
   .settings-form button,
   .settings-form textarea,
   .audit-filter-form button {
+    grid-column: auto;
+  }
+
+  .form-field-full {
     grid-column: auto;
   }
 

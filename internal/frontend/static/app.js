@@ -83,6 +83,7 @@ const els = {
   adminSessions: document.getElementById("adminSessions"),
   adminAudit: document.getElementById("adminAudit"),
   resourceForm: document.getElementById("resourceForm"),
+  resourceGroupSelector: document.getElementById("resourceGroupSelector"),
   nginxBundleButton: document.getElementById("nginxBundleButton"),
   groupForm: document.getElementById("groupForm"),
   userForm: document.getElementById("userForm"),
@@ -167,10 +168,10 @@ els.resourceForm.addEventListener("submit", async (event) => {
       body: {
         name: form.get("name"),
         category: form.get("category"),
-        public_host: form.get("public_host"),
+        public_path: form.get("public_path"),
         internal_url: form.get("internal_url"),
         enabled: true,
-        group_ids: splitCSV(form.get("group_ids")),
+        group_ids: selectedValues(els.resourceForm, "group_ids"),
         allow_cidrs: splitCSV(form.get("allow_cidrs")),
       },
     });
@@ -403,13 +404,13 @@ function renderResources() {
   }
   els.resourceGrid.innerHTML = resources
     .map((resource) => {
-      const href = `https://${escapeHTML(resource.PublicHost)}`;
+      const href = publicResourceURL(resource);
       return `
         <a class="resource-item" href="${href}" target="_blank" rel="noopener noreferrer">
           <span class="resource-category">${escapeHTML(resource.Category || "Общее")}</span>
           <strong>${escapeHTML(resource.Name)}</strong>
-          <span class="muted">${escapeHTML(resource.Description || resource.PublicHost)}</span>
-          <span>${escapeHTML(resource.PublicHost)}</span>
+          <span class="muted">${escapeHTML(resource.Description || resource.InternalURL || resource.PublicHost)}</span>
+          <span>${escapeHTML(resource.PublicPath || resource.PublicHost)}</span>
         </a>
       `;
     })
@@ -425,7 +426,9 @@ function filteredResources() {
     if (!state.resourceQuery) {
       return true;
     }
-    const haystack = [resource.Name, resource.Description, resource.PublicHost, category].join(" ").toLowerCase();
+    const haystack = [resource.Name, resource.Description, resource.PublicHost, resource.PublicPath, resource.InternalURL, category]
+      .join(" ")
+      .toLowerCase();
     return haystack.includes(state.resourceQuery);
   });
 }
@@ -611,6 +614,9 @@ async function loadResources() {
   els.resourceForm.classList.toggle("hidden", !can("resources.manage"));
   els.nginxBundleButton.classList.toggle("hidden", !can("nginx.recommendations.read"));
   await ensureGroupLookup();
+  if (els.resourceGroupSelector) {
+    els.resourceGroupSelector.innerHTML = renderGroupSelector([]);
+  }
   const data = await api("/api/v1/admin/resources");
   renderAdminResources(data.resources || []);
 }
@@ -627,8 +633,8 @@ function renderAdminResources(resources) {
         <div>
           <strong>${escapeHTML(resource.Name)}</strong>
           <div class="muted">category: ${escapeHTML(resource.Category || "Общее")}</div>
-          <div class="muted">${escapeHTML(resource.PublicHost)} -> ${escapeHTML(resource.InternalURL)}</div>
-          <div class="muted">groups: ${escapeHTML(labelGroupIDs(resource.GroupIDs || []))}</div>
+          <div class="muted">${escapeHTML(resource.PublicHost)}${escapeHTML(resource.PublicPath || "")} -> ${escapeHTML(resource.InternalURL)}</div>
+          <div class="chip-row">${groupChips(resource.GroupIDs || [])}</div>
           <div class="muted">cidrs: ${escapeHTML((resource.AllowCIDRs || []).join(", ") || "any")}</div>
         </div>
         <div class="row-actions">
@@ -656,10 +662,11 @@ function renderResourceEditForm(resource) {
     <form class="inline-edit-form" data-resource-edit data-id="${escapeHTML(resource.ID)}">
       <input name="name" placeholder="Название" value="${escapeHTML(resource.Name)}" required />
       <input name="category" placeholder="Группа в каталоге" value="${escapeHTML(resource.Category || "")}" />
-      <input name="public_host" placeholder="public host" value="${escapeHTML(resource.PublicHost)}" required />
+      <input name="public_host" placeholder="public host портала" value="${escapeHTML(resource.PublicHost)}" />
+      <input name="public_path" placeholder="/osrp-do" value="${escapeHTML(resource.PublicPath || "")}" required />
       <input name="internal_url" placeholder="http://internal.local" value="${escapeHTML(resource.InternalURL)}" required />
       <input name="description" placeholder="Описание" value="${escapeHTML(resource.Description || "")}" />
-      <input name="group_ids" placeholder="group ids через запятую" value="${escapeHTML((resource.GroupIDs || []).join(", "))}" />
+      <div class="form-field-full">${renderGroupSelector(resource.GroupIDs || [])}</div>
       <input name="allow_cidrs" placeholder="CIDR через запятую" value="${escapeHTML((resource.AllowCIDRs || []).join(", "))}" />
       <label class="checkbox-line">
         <input name="enabled" type="checkbox" ${resource.Enabled ? "checked" : ""} />
@@ -725,6 +732,36 @@ function labelGroupIDs(groupIDs) {
   if (!groupIDs.length) return "none";
   const byID = new Map(state.adminGroups.map((group) => [group.ID, group.Name]));
   return groupIDs.map((id) => byID.get(id) || id).join(", ");
+}
+
+function groupChips(groupIDs) {
+  if (!groupIDs.length) return `<span class="muted">groups: none</span>`;
+  const byID = new Map(state.adminGroups.map((group) => [group.ID, group.Name]));
+  return groupIDs
+    .map((id) => `<span class="data-chip">${escapeHTML(byID.get(id) || id)}</span>`)
+    .join("");
+}
+
+function renderGroupSelector(selectedGroupIDs) {
+  if (!state.adminGroups.length) {
+    return `<div class="muted">Группы не созданы. Без группы доступ к ресурсу будет запрещен.</div>`;
+  }
+  const selected = new Set(selectedGroupIDs || []);
+  return `
+    <div class="field-label">Доступные группы</div>
+    <div class="selector-chips">
+      ${state.adminGroups
+        .map(
+          (group) => `
+          <label class="selector-chip">
+            <input name="group_ids" type="checkbox" value="${escapeHTML(group.ID)}" ${selected.has(group.ID) ? "checked" : ""} />
+            <span>${escapeHTML(group.Name)}</span>
+          </label>
+        `
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function labelPermissions(permissionIDs) {
@@ -961,9 +998,10 @@ async function submitResourceEdit(event, form) {
         category: data.get("category"),
         description: data.get("description"),
         public_host: data.get("public_host"),
+        public_path: data.get("public_path"),
         internal_url: data.get("internal_url"),
         enabled: data.get("enabled") === "on",
-        group_ids: splitCSV(data.get("group_ids")),
+        group_ids: selectedValues(form, "group_ids"),
         allow_cidrs: splitCSV(data.get("allow_cidrs")),
       },
     });
@@ -1356,6 +1394,17 @@ function splitCSV(value) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function selectedValues(form, name) {
+  return Array.from(form.querySelectorAll(`input[name="${name}"]:checked`)).map((input) => input.value);
+}
+
+function publicResourceURL(resource) {
+  const host = String(resource.PublicHost || window.location.host || "").trim();
+  const path = String(resource.PublicPath || "").trim();
+  const protocol = window.location.protocol === "http:" ? "http:" : "https:";
+  return `${protocol}//${escapeHTML(host)}${escapeHTML(path)}`;
 }
 
 function formatDate(value) {

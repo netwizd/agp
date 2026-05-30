@@ -242,7 +242,7 @@ func (s *Store) DeleteSession(ctx context.Context, tokenHash string) error {
 
 func (s *Store) ListResourcesForUser(ctx context.Context, userID string) ([]domain.Resource, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT DISTINCT r.id, r.name, r.description, r.category, r.icon, r.internal_url, r.public_host, r.enabled, r.created_at, r.updated_at
+SELECT DISTINCT r.id, r.name, r.description, r.category, r.icon, r.internal_url, r.public_host, r.public_path, r.enabled, r.created_at, r.updated_at
 FROM resources r
 JOIN resource_groups rg ON rg.resource_id = r.id
 JOIN user_groups ug ON ug.group_id = rg.group_id
@@ -258,7 +258,7 @@ ORDER BY r.name`, userID)
 	for rows.Next() {
 		var resource domain.Resource
 		var enabled int
-		if err := rows.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
+		if err := rows.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &resource.PublicPath, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan resource: %w", err)
 		}
 		resource.Enabled = intToBool(enabled)
@@ -272,17 +272,41 @@ ORDER BY r.name`, userID)
 
 func (s *Store) FindResourceByPublicHost(ctx context.Context, host string) (*domain.Resource, error) {
 	row := s.db.QueryRowContext(ctx, `
-SELECT id, name, description, category, icon, internal_url, public_host, enabled, created_at, updated_at
+SELECT id, name, description, category, icon, internal_url, public_host, public_path, enabled, created_at, updated_at
 FROM resources
 WHERE public_host = ?`, host)
 
 	var resource domain.Resource
 	var enabled int
-	if err := row.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
+	if err := row.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &resource.PublicPath, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, storage.ErrNotFound
 		}
 		return nil, fmt.Errorf("find resource by public host: %w", err)
+	}
+	resource.Enabled = intToBool(enabled)
+	return &resource, nil
+}
+
+func (s *Store) FindResourceByPublicRoute(ctx context.Context, host string, path string) (*domain.Resource, error) {
+	row := s.db.QueryRowContext(ctx, `
+SELECT id, name, description, category, icon, internal_url, public_host, public_path, enabled, created_at, updated_at
+FROM resources
+WHERE public_host = ?
+  AND (
+    (public_path <> '' AND (? = public_path OR ? LIKE public_path || '/%'))
+    OR public_path = ''
+  )
+ORDER BY CASE WHEN public_path = '' THEN 0 ELSE 1 END DESC, length(public_path) DESC
+LIMIT 1`, host, path, path)
+
+	var resource domain.Resource
+	var enabled int
+	if err := row.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &resource.PublicPath, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, storage.ErrNotFound
+		}
+		return nil, fmt.Errorf("find resource by public route: %w", err)
 	}
 	resource.Enabled = intToBool(enabled)
 	return &resource, nil

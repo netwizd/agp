@@ -35,6 +35,7 @@ type Resource struct {
 	Icon        string
 	InternalURL string
 	PublicHost  string
+	PublicPath  string
 	Enabled     bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -182,6 +183,7 @@ type ResourceInput struct {
 	Icon        string
 	InternalURL string
 	PublicHost  string
+	PublicPath  string
 	Enabled     bool
 	GroupIDs    []string
 	AllowCIDRs  []string
@@ -194,6 +196,7 @@ type ResourceUpdate struct {
 	Icon             *string
 	InternalURL      *string
 	PublicHost       *string
+	PublicPath       *string
 	Enabled          *bool
 	GroupIDs         []string
 	UpdateGroups     bool

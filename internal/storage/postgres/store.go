@@ -218,7 +218,7 @@ func (s *Store) DeleteSession(ctx context.Context, tokenHash string) error {
 
 func (s *Store) ListResourcesForUser(ctx context.Context, userID string) ([]domain.Resource, error) {
 	rows, err := s.pool.Query(ctx, `
-SELECT DISTINCT r.id, r.name, r.description, r.category, r.icon, r.internal_url, r.public_host, r.enabled, r.created_at, r.updated_at
+SELECT DISTINCT r.id, r.name, r.description, r.category, r.icon, r.internal_url, r.public_host, r.public_path, r.enabled, r.created_at, r.updated_at
 FROM resources r
 JOIN resource_groups rg ON rg.resource_id = r.id
 JOIN user_groups ug ON ug.group_id = rg.group_id
@@ -233,7 +233,7 @@ ORDER BY r.name`, userID)
 	var resources []domain.Resource
 	for rows.Next() {
 		var resource domain.Resource
-		if err := rows.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &resource.Enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
+		if err := rows.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &resource.PublicPath, &resource.Enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan resource: %w", err)
 		}
 		resources = append(resources, resource)
@@ -246,16 +246,38 @@ ORDER BY r.name`, userID)
 
 func (s *Store) FindResourceByPublicHost(ctx context.Context, host string) (*domain.Resource, error) {
 	row := s.pool.QueryRow(ctx, `
-SELECT id, name, description, category, icon, internal_url, public_host, enabled, created_at, updated_at
+SELECT id, name, description, category, icon, internal_url, public_host, public_path, enabled, created_at, updated_at
 FROM resources
 WHERE public_host = $1`, host)
 
 	var resource domain.Resource
-	if err := row.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &resource.Enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
+	if err := row.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &resource.PublicPath, &resource.Enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, storage.ErrNotFound
 		}
 		return nil, fmt.Errorf("find resource by public host: %w", err)
+	}
+	return &resource, nil
+}
+
+func (s *Store) FindResourceByPublicRoute(ctx context.Context, host string, path string) (*domain.Resource, error) {
+	row := s.pool.QueryRow(ctx, `
+SELECT id, name, description, category, icon, internal_url, public_host, public_path, enabled, created_at, updated_at
+FROM resources
+WHERE public_host = $1
+  AND (
+    (public_path <> '' AND ($2 = public_path OR $2 LIKE public_path || '/%'))
+    OR public_path = ''
+  )
+ORDER BY CASE WHEN public_path = '' THEN 0 ELSE 1 END DESC, length(public_path) DESC
+LIMIT 1`, host, path)
+
+	var resource domain.Resource
+	if err := row.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &resource.PublicPath, &resource.Enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, storage.ErrNotFound
+		}
+		return nil, fmt.Errorf("find resource by public route: %w", err)
 	}
 	return &resource, nil
 }
@@ -575,7 +597,7 @@ func (s *Store) DeleteGroup(ctx context.Context, id string) error {
 
 func (s *Store) ListResources(ctx context.Context) ([]domain.ResourceDetail, error) {
 	rows, err := s.pool.Query(ctx, `
-SELECT id, name, description, category, icon, internal_url, public_host, enabled, created_at, updated_at
+SELECT id, name, description, category, icon, internal_url, public_host, public_path, enabled, created_at, updated_at
 FROM resources
 ORDER BY name`)
 	if err != nil {
@@ -596,7 +618,7 @@ ORDER BY name`)
 
 func (s *Store) FindResourceByID(ctx context.Context, id string) (*domain.ResourceDetail, error) {
 	row := s.pool.QueryRow(ctx, `
-SELECT id, name, description, category, icon, internal_url, public_host, enabled, created_at, updated_at
+SELECT id, name, description, category, icon, internal_url, public_host, public_path, enabled, created_at, updated_at
 FROM resources
 WHERE id = $1`, id)
 	resource, err := s.scanResourceDetail(ctx, row)
@@ -616,9 +638,9 @@ func (s *Store) CreateResource(ctx context.Context, input domain.ResourceInput) 
 	id := storageID("res")
 	now := time.Now().UTC()
 	_, err = tx.Exec(ctx, `
-INSERT INTO resources(id, name, description, category, icon, internal_url, public_host, enabled, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-		id, input.Name, input.Description, input.Category, input.Icon, input.InternalURL, input.PublicHost, input.Enabled, now, now)
+INSERT INTO resources(id, name, description, category, icon, internal_url, public_host, public_path, enabled, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		id, input.Name, input.Description, input.Category, input.Icon, input.InternalURL, input.PublicHost, input.PublicPath, input.Enabled, now, now)
 	if err != nil {
 		return nil, normalizePostgresError("create resource", err)
 	}
@@ -669,6 +691,11 @@ func (s *Store) UpdateResource(ctx context.Context, id string, update domain.Res
 	if update.PublicHost != nil {
 		if _, err := tx.Exec(ctx, `UPDATE resources SET public_host = $1, updated_at = now() WHERE id = $2`, *update.PublicHost, id); err != nil {
 			return nil, normalizePostgresError("update resource public host", err)
+		}
+	}
+	if update.PublicPath != nil {
+		if _, err := tx.Exec(ctx, `UPDATE resources SET public_path = $1, updated_at = now() WHERE id = $2`, *update.PublicPath, id); err != nil {
+			return nil, normalizePostgresError("update resource public path", err)
 		}
 	}
 	if update.Enabled != nil {
@@ -1050,7 +1077,7 @@ func scanPortalSettings(row scanner) (domain.PortalSettings, error) {
 
 func (s *Store) scanResourceDetail(ctx context.Context, row scanner) (domain.ResourceDetail, error) {
 	var detail domain.ResourceDetail
-	if err := row.Scan(&detail.ID, &detail.Name, &detail.Description, &detail.Category, &detail.Icon, &detail.InternalURL, &detail.PublicHost, &detail.Enabled, &detail.CreatedAt, &detail.UpdatedAt); err != nil {
+	if err := row.Scan(&detail.ID, &detail.Name, &detail.Description, &detail.Category, &detail.Icon, &detail.InternalURL, &detail.PublicHost, &detail.PublicPath, &detail.Enabled, &detail.CreatedAt, &detail.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.ResourceDetail{}, storage.ErrNotFound
 		}

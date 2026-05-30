@@ -48,6 +48,7 @@ type adminCreateResourceRequest struct {
 	Icon        string   `json:"icon"`
 	InternalURL string   `json:"internal_url"`
 	PublicHost  string   `json:"public_host"`
+	PublicPath  string   `json:"public_path"`
 	Enabled     *bool    `json:"enabled"`
 	GroupIDs    []string `json:"group_ids"`
 	AllowCIDRs  []string `json:"allow_cidrs"`
@@ -60,6 +61,7 @@ type adminUpdateResourceRequest struct {
 	Icon        *string   `json:"icon"`
 	InternalURL *string   `json:"internal_url"`
 	PublicHost  *string   `json:"public_host"`
+	PublicPath  *string   `json:"public_path"`
 	Enabled     *bool     `json:"enabled"`
 	GroupIDs    *[]string `json:"group_ids"`
 	AllowCIDRs  *[]string `json:"allow_cidrs"`
@@ -302,7 +304,7 @@ func (s *Server) adminCreateResource(w http.ResponseWriter, r *http.Request, ses
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	input, ok := resourceInputFromCreate(req)
+	input, ok := s.resourceInputFromCreate(req)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid_resource")
 		return
@@ -315,6 +317,7 @@ func (s *Server) adminCreateResource(w http.ResponseWriter, r *http.Request, ses
 	s.auditWithMetadata(r, "admin.resource.created", session.User.ID, session.User.Username, resource.ID, s.clientIP(r), r.UserAgent(), "success", "", map[string]any{
 		"resource_id":  resource.ID,
 		"public_host":  resource.PublicHost,
+		"public_path":  resource.PublicPath,
 		"internal_url": resource.InternalURL,
 		"group_ids":    resource.GroupIDs,
 		"allow_cidrs":  resource.AllowCIDRs,
@@ -327,7 +330,7 @@ func (s *Server) adminUpdateResource(w http.ResponseWriter, r *http.Request, ses
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	update, ok := resourceUpdateFromRequest(req)
+	update, ok := s.resourceUpdateFromRequest(req)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid_resource")
 		return
@@ -340,6 +343,7 @@ func (s *Server) adminUpdateResource(w http.ResponseWriter, r *http.Request, ses
 	s.auditWithMetadata(r, "admin.resource.updated", session.User.ID, session.User.Username, resource.ID, s.clientIP(r), r.UserAgent(), "success", "", map[string]any{
 		"resource_id":  resource.ID,
 		"public_host":  resource.PublicHost,
+		"public_path":  resource.PublicPath,
 		"internal_url": resource.InternalURL,
 		"group_ids":    resource.GroupIDs,
 		"allow_cidrs":  resource.AllowCIDRs,
@@ -671,12 +675,19 @@ func groupInputFromRequest(req adminGroupRequest) (domain.GroupInput, bool) {
 	}, true
 }
 
-func resourceInputFromCreate(req adminCreateResourceRequest) (domain.ResourceInput, bool) {
+func (s *Server) resourceInputFromCreate(req adminCreateResourceRequest) (domain.ResourceInput, bool) {
 	enabled := true
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
 	publicHost := normalizeHostInput(req.PublicHost)
+	if publicHost == "" {
+		publicHost = normalizeHostInput(s.cfg.PortalHost)
+	}
+	publicPath, ok := normalizePublicPath(req.PublicPath)
+	if !ok {
+		return domain.ResourceInput{}, false
+	}
 	internalURL := strings.TrimSpace(req.InternalURL)
 	if strings.TrimSpace(req.Name) == "" || publicHost == "" || !validInternalURL(internalURL) || !validCIDRs(req.AllowCIDRs) {
 		return domain.ResourceInput{}, false
@@ -688,13 +699,14 @@ func resourceInputFromCreate(req adminCreateResourceRequest) (domain.ResourceInp
 		Icon:        strings.TrimSpace(req.Icon),
 		InternalURL: internalURL,
 		PublicHost:  publicHost,
+		PublicPath:  publicPath,
 		Enabled:     enabled,
 		GroupIDs:    normalizeIDs(req.GroupIDs),
 		AllowCIDRs:  normalizeIDs(req.AllowCIDRs),
 	}, true
 }
 
-func resourceUpdateFromRequest(req adminUpdateResourceRequest) (domain.ResourceUpdate, bool) {
+func (s *Server) resourceUpdateFromRequest(req adminUpdateResourceRequest) (domain.ResourceUpdate, bool) {
 	update := domain.ResourceUpdate{
 		Name:        trimStringPointer(req.Name),
 		Description: trimStringPointer(req.Description),
@@ -703,6 +715,17 @@ func resourceUpdateFromRequest(req adminUpdateResourceRequest) (domain.ResourceU
 		InternalURL: trimStringPointer(req.InternalURL),
 		PublicHost:  trimHostPointer(req.PublicHost),
 		Enabled:     req.Enabled,
+	}
+	if update.PublicHost != nil && *update.PublicHost == "" {
+		defaultHost := normalizeHostInput(s.cfg.PortalHost)
+		update.PublicHost = &defaultHost
+	}
+	if req.PublicPath != nil {
+		publicPath, ok := normalizePublicPath(*req.PublicPath)
+		if !ok {
+			return domain.ResourceUpdate{}, false
+		}
+		update.PublicPath = &publicPath
 	}
 	if update.InternalURL != nil && !validInternalURL(*update.InternalURL) {
 		return domain.ResourceUpdate{}, false
@@ -773,6 +796,26 @@ func normalizeHostInput(host string) string {
 		host = parsed
 	}
 	return host
+}
+
+func normalizePublicPath(path string) (string, bool) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", true
+	}
+	if !strings.HasPrefix(path, "/") || path == "/" {
+		return "", false
+	}
+	if strings.Contains(path, "..") || strings.ContainsAny(path, " \t\r\n;{}") {
+		return "", false
+	}
+	if _, err := url.ParseRequestURI(path); err != nil {
+		return "", false
+	}
+	for len(path) > 1 && strings.HasSuffix(path, "/") {
+		path = strings.TrimSuffix(path, "/")
+	}
+	return path, true
 }
 
 func validInternalURL(raw string) bool {

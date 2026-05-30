@@ -14,6 +14,7 @@ import (
 type Recommendation struct {
 	ResourceID string   `json:"resource_id"`
 	PublicHost string   `json:"public_host"`
+	PublicPath string   `json:"public_path"`
 	Snippet    string   `json:"snippet"`
 	Warnings   []string `json:"warnings"`
 }
@@ -38,6 +39,10 @@ func GenerateResourceServer(resource domain.ResourceDetail, portalHost string) (
 		portalHost = "portal.company.ru"
 		warnings = append(warnings, "portal host is not configured; placeholder portal.company.ru is used")
 	}
+	publicPath, err := normalizePublicPath(resource.PublicPath)
+	if err != nil {
+		return nil, err
+	}
 	if len(resource.GroupIDs) == 0 {
 		warnings = append(warnings, "resource has no group mapping; AGP will deny access until at least one group is assigned")
 	}
@@ -51,16 +56,23 @@ func GenerateResourceServer(resource domain.ResourceDetail, portalHost string) (
 	}
 
 	var out bytes.Buffer
-	if err := resourceServerTemplate.Execute(&out, map[string]any{
+	templateData := map[string]any{
 		"PublicHost":  publicHost,
+		"PublicPath":  publicPath,
 		"InternalURL": internalURL,
 		"PortalHost":  portalHost,
-	}); err != nil {
+	}
+	tmpl := resourceServerTemplate
+	if publicPath != "" {
+		tmpl = resourceLocationTemplate
+	}
+	if err := tmpl.Execute(&out, templateData); err != nil {
 		return nil, fmt.Errorf("render nginx recommendation: %w", err)
 	}
 	return &Recommendation{
 		ResourceID: resource.ID,
 		PublicHost: publicHost,
+		PublicPath: publicPath,
 		Snippet:    strings.TrimSpace(out.String()) + "\n",
 		Warnings:   warnings,
 	}, nil
@@ -77,6 +89,7 @@ func GenerateBundle(resources []domain.ResourceDetail, portalHost string) (*Bund
 	if err := bundleHeaderTemplate.Execute(&out, map[string]any{"PortalHost": portalHost}); err != nil {
 		return nil, fmt.Errorf("render nginx portal server: %w", err)
 	}
+	var legacyServers []string
 	for _, resource := range resources {
 		recommendation, err := GenerateResourceServer(resource, portalHost)
 		if err != nil {
@@ -84,11 +97,22 @@ func GenerateBundle(resources []domain.ResourceDetail, portalHost string) (*Bund
 		}
 		if len(recommendation.Warnings) > 0 {
 			for _, warning := range recommendation.Warnings {
-				warnings = append(warnings, fmt.Sprintf("%s: %s", resource.PublicHost, warning))
+				warnings = append(warnings, fmt.Sprintf("%s%s: %s", resource.PublicHost, resource.PublicPath, warning))
 			}
 		}
+		if recommendation.PublicPath == "" {
+			legacyServers = append(legacyServers, recommendation.Snippet)
+			continue
+		}
+		out.WriteString("\n")
+		out.WriteString(indent(recommendation.Snippet, "    "))
+	}
+	if err := bundlePortalFallbackTemplate.Execute(&out, nil); err != nil {
+		return nil, fmt.Errorf("render nginx portal fallback: %w", err)
+	}
+	for _, server := range legacyServers {
 		out.WriteString("\n\n")
-		out.WriteString(recommendation.Snippet)
+		out.WriteString(server)
 	}
 	return &Bundle{
 		PortalHost: portalHost,
@@ -115,6 +139,26 @@ func normalizeHost(host string) (string, error) {
 	return host, nil
 }
 
+func normalizePublicPath(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", nil
+	}
+	if !strings.HasPrefix(path, "/") || path == "/" {
+		return "", fmt.Errorf("public path must start with / and include a path segment")
+	}
+	if strings.Contains(path, "..") || strings.ContainsAny(path, " \t\r\n;{}") {
+		return "", fmt.Errorf("public path contains invalid nginx characters")
+	}
+	if _, err := url.ParseRequestURI(path); err != nil {
+		return "", fmt.Errorf("invalid public path: %w", err)
+	}
+	for len(path) > 1 && strings.HasSuffix(path, "/") {
+		path = strings.TrimSuffix(path, "/")
+	}
+	return path, nil
+}
+
 func normalizeProxyURL(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	parsed, err := url.Parse(raw)
@@ -131,6 +175,16 @@ func normalizeProxyURL(raw string) (string, error) {
 		return "", fmt.Errorf("internal url contains invalid nginx characters")
 	}
 	return parsed.String(), nil
+}
+
+func indent(text string, prefix string) string {
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = prefix + line
+		}
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 var bundleHeaderTemplate = template.Must(template.New("bundle-header").Parse(`
@@ -155,6 +209,21 @@ server {
     add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; object-src 'none'" always;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
+    location = /_agp_auth {
+        internal;
+        proxy_pass http://agp_backend/auth/request;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Original-URI $request_uri;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Cookie $http_cookie;
+    }
+`))
+
+var bundlePortalFallbackTemplate = template.Must(template.New("bundle-portal-fallback").Parse(`
     location / {
         proxy_pass http://agp_backend;
         proxy_http_version 1.1;
@@ -164,6 +233,29 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
     }
+}
+`))
+
+var resourceLocationTemplate = template.Must(template.New("resource-location").Parse(`
+location ^~ {{ .PublicPath }} {
+    auth_request /_agp_auth;
+    auth_request_set $agp_user $upstream_http_x_agp_user;
+    auth_request_set $agp_user_id $upstream_http_x_agp_user_id;
+    auth_request_set $agp_groups $upstream_http_x_agp_groups;
+
+    error_page 401 =302 https://{{ .PortalHost }}/login;
+    error_page 403 =302 https://{{ .PortalHost }}/access-denied;
+
+    proxy_pass {{ .InternalURL }};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-AGP-User $agp_user;
+    proxy_set_header X-AGP-User-ID $agp_user_id;
+    proxy_set_header X-AGP-Groups $agp_groups;
 }
 `))
 

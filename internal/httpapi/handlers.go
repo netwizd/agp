@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -143,11 +144,12 @@ func (s *Server) authRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	host := normalizeHost(s.forwardedHost(r))
-	resource, err := s.store.FindResourceByPublicHost(r.Context(), host)
+	path := originalRequestPath(r)
+	resource, err := s.store.FindResourceByPublicRoute(r.Context(), host, path)
 	if err != nil {
 		reason := "resource_not_found"
 		if !errors.Is(err, storage.ErrNotFound) {
-			s.logger.Error("find resource failed", "error", err, "host", host)
+			s.logger.Error("find resource failed", "error", err, "host", host, "path", path)
 			reason = "storage_error"
 		}
 		s.audit(r, "proxy.auth_request", session.User.ID, session.User.Username, "", ip, ua, "failure", reason)
@@ -182,6 +184,18 @@ func (s *Server) authRequest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-AGP-User-ID", session.User.ID)
 	w.Header().Set("X-AGP-Groups", strings.Join(session.Groups, ","))
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func originalRequestPath(r *http.Request) string {
+	originalURI := strings.TrimSpace(r.Header.Get("X-Original-URI"))
+	if originalURI == "" {
+		originalURI = r.URL.RequestURI()
+	}
+	parsed, err := url.ParseRequestURI(originalURI)
+	if err != nil || parsed.Path == "" {
+		return "/"
+	}
+	return parsed.Path
 }
 
 func (s *Server) ipAllowed(r *http.Request, resourceID string, ipText string) bool {

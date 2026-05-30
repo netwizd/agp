@@ -55,16 +55,22 @@ permissions. See [rbac.md](rbac.md).
   "name": "1C Enterprise",
   "description": "Internal 1C service",
   "category": "Finance",
-  "internal_url": "http://e1c.osrp.local",
-  "public_host": "e1c.company.ru",
+  "internal_url": "http://e1c.osrp.local/osrp-do",
+  "public_host": "enter.company.ru",
+  "public_path": "/osrp-do",
   "enabled": true,
   "group_ids": ["grp_admins"],
   "allow_cidrs": ["10.50.0.0/16"]
 }
 ```
 
-The API validates public host, internal URL and CIDR syntax before storing a
-resource.
+`public_host` is the public portal host. `public_path` is the protected entry
+point on that host. With the example above AGP expects Nginx to protect
+`https://enter.company.ru/osrp-do` and proxy it to
+`http://e1c.osrp.local/osrp-do`.
+
+The API validates public host, public path, internal URL and CIDR syntax before
+storing a resource.
 
 Resource diagnostics are subject to `AGP_DIAGNOSTICS_ALLOW_CIDRS`,
 `AGP_DIAGNOSTICS_DENY_CIDRS` and per-user/resource rate limiting. By default,

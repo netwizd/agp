@@ -44,6 +44,68 @@ func TestGenerateResourceServer(t *testing.T) {
 	}
 }
 
+func TestGeneratePathResourceLocation(t *testing.T) {
+	resource := domain.ResourceDetail{
+		Resource: domain.Resource{
+			ID:          "res_osrp_do",
+			Name:        "1C ОСРП",
+			InternalURL: "http://e1c.osrp.local/osrp-do",
+			PublicHost:  "enter.company.ru",
+			PublicPath:  "/osrp-do",
+			Enabled:     true,
+		},
+		GroupIDs: []string{"grp_users"},
+	}
+
+	recommendation, err := GenerateResourceServer(resource, "enter.company.ru")
+	if err != nil {
+		t.Fatalf("GenerateResourceServer returned error: %v", err)
+	}
+	for _, expected := range []string{
+		"location ^~ /osrp-do {",
+		"auth_request /_agp_auth;",
+		"proxy_pass http://e1c.osrp.local/osrp-do;",
+		"error_page 403 =302 https://enter.company.ru/access-denied;",
+	} {
+		if !strings.Contains(recommendation.Snippet, expected) {
+			t.Fatalf("snippet does not contain %q: %s", expected, recommendation.Snippet)
+		}
+	}
+	if strings.Contains(recommendation.Snippet, "server_name") {
+		t.Fatalf("path resource recommendation must be a location snippet, got: %s", recommendation.Snippet)
+	}
+}
+
+func TestGenerateBundleContainsProtectedPathLocation(t *testing.T) {
+	bundle, err := GenerateBundle([]domain.ResourceDetail{
+		{
+			Resource: domain.Resource{
+				ID:          "res_osrp_do",
+				InternalURL: "http://e1c.osrp.local/osrp-do",
+				PublicHost:  "enter.company.ru",
+				PublicPath:  "/osrp-do",
+				Enabled:     true,
+			},
+			GroupIDs: []string{"grp_users"},
+		},
+	}, "enter.company.ru")
+	if err != nil {
+		t.Fatalf("GenerateBundle returned error: %v", err)
+	}
+	for _, expected := range []string{
+		"server_name enter.company.ru;",
+		"location = /_agp_auth {",
+		"location ^~ /osrp-do {",
+		"auth_request /_agp_auth;",
+		"proxy_pass http://e1c.osrp.local/osrp-do;",
+		"location / {",
+	} {
+		if !strings.Contains(bundle.Snippet, expected) {
+			t.Fatalf("bundle does not contain %q: %s", expected, bundle.Snippet)
+		}
+	}
+}
+
 func TestGenerateResourceServerRejectsUnsafeHost(t *testing.T) {
 	resource := domain.ResourceDetail{
 		Resource: domain.Resource{

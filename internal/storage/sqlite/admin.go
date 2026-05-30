@@ -232,7 +232,7 @@ func (s *Store) DeleteGroup(ctx context.Context, id string) error {
 
 func (s *Store) ListResources(ctx context.Context) ([]domain.ResourceDetail, error) {
 	rows, err := s.db.QueryContext(ctx, `
-SELECT id, name, description, category, icon, internal_url, public_host, enabled, created_at, updated_at
+SELECT id, name, description, category, icon, internal_url, public_host, public_path, enabled, created_at, updated_at
 FROM resources
 ORDER BY name`)
 	if err != nil {
@@ -244,7 +244,7 @@ ORDER BY name`)
 	for rows.Next() {
 		var resource domain.ResourceDetail
 		var enabled int
-		if err := rows.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
+		if err := rows.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Category, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &resource.PublicPath, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan resource: %w", err)
 		}
 		resource.Enabled = intToBool(enabled)
@@ -263,7 +263,7 @@ ORDER BY name`)
 
 func (s *Store) FindResourceByID(ctx context.Context, id string) (*domain.ResourceDetail, error) {
 	row := s.db.QueryRowContext(ctx, `
-SELECT id, name, description, category, icon, internal_url, public_host, enabled, created_at, updated_at
+SELECT id, name, description, category, icon, internal_url, public_host, public_path, enabled, created_at, updated_at
 FROM resources
 WHERE id = ?`, id)
 	resource, err := scanResourceDetail(row)
@@ -286,9 +286,9 @@ func (s *Store) CreateResource(ctx context.Context, input domain.ResourceInput) 
 	id := storageID("res")
 	now := time.Now().UTC()
 	_, err = tx.ExecContext(ctx, `
-INSERT INTO resources(id, name, description, category, icon, internal_url, public_host, enabled, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, input.Name, input.Description, input.Category, input.Icon, input.InternalURL, input.PublicHost, boolToInt(input.Enabled), now, now)
+INSERT INTO resources(id, name, description, category, icon, internal_url, public_host, public_path, enabled, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, input.Name, input.Description, input.Category, input.Icon, input.InternalURL, input.PublicHost, input.PublicPath, boolToInt(input.Enabled), now, now)
 	if err != nil {
 		return nil, normalizeSQLiteError("create resource", err)
 	}
@@ -339,6 +339,11 @@ func (s *Store) UpdateResource(ctx context.Context, id string, update domain.Res
 	if update.PublicHost != nil {
 		if _, err := tx.ExecContext(ctx, `UPDATE resources SET public_host = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, *update.PublicHost, id); err != nil {
 			return nil, normalizeSQLiteError("update resource public host", err)
+		}
+	}
+	if update.PublicPath != nil {
+		if _, err := tx.ExecContext(ctx, `UPDATE resources SET public_path = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, *update.PublicPath, id); err != nil {
+			return nil, normalizeSQLiteError("update resource public path", err)
 		}
 	}
 	if update.Enabled != nil {
@@ -648,7 +653,7 @@ func scanPortalSettings(row scanner) (domain.PortalSettings, error) {
 func scanResourceDetail(row scanner) (domain.ResourceDetail, error) {
 	var detail domain.ResourceDetail
 	var enabled int
-	if err := row.Scan(&detail.ID, &detail.Name, &detail.Description, &detail.Category, &detail.Icon, &detail.InternalURL, &detail.PublicHost, &enabled, &detail.CreatedAt, &detail.UpdatedAt); err != nil {
+	if err := row.Scan(&detail.ID, &detail.Name, &detail.Description, &detail.Category, &detail.Icon, &detail.InternalURL, &detail.PublicHost, &detail.PublicPath, &enabled, &detail.CreatedAt, &detail.UpdatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.ResourceDetail{}, storage.ErrNotFound
 		}

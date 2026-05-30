@@ -570,6 +570,78 @@ func TestAuthRequestIgnoresUntrustedForwardedHost(t *testing.T) {
 	}
 }
 
+func TestAuthRequestRoutesByPublicHostAndPath(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(t.TempDir() + "/agp.db")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatalf("migrate sqlite: %v", err)
+	}
+
+	password := "enterprise-user-password"
+	passwordHash, err := auth.HashPassword(password, auth.DefaultArgon2idParams)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	group, err := store.CreateGroup(ctx, domain.GroupInput{Name: "Users"})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if _, err := store.CreateUser(ctx, domain.UserInput{Username: "user", PasswordHash: passwordHash, GroupIDs: []string{group.ID}}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if _, err := store.CreateResource(ctx, domain.ResourceInput{Name: "Allowed", InternalURL: "http://e1c.osrp.local/osrp-do", PublicHost: "enter.company.test", PublicPath: "/osrp-do", Enabled: true, GroupIDs: []string{group.ID}}); err != nil {
+		t.Fatalf("create allowed resource: %v", err)
+	}
+	if _, err := store.CreateResource(ctx, domain.ResourceInput{Name: "Denied", InternalURL: "http://e1c.osrp.local/secret", PublicHost: "enter.company.test", PublicPath: "/secret", Enabled: true}); err != nil {
+		t.Fatalf("create denied resource: %v", err)
+	}
+
+	server := httptest.NewServer(NewServer(config.Config{
+		SessionCookieName:  "agp_session",
+		CSRFCookieName:     "agp_csrf",
+		SessionTTL:         time.Hour,
+		LoginRateLimitMax:  5,
+		LoginRateLimitWind: time.Minute,
+	}, store, slog.New(slog.NewTextHandler(io.Discard, nil))).Handler())
+	t.Cleanup(server.Close)
+
+	client := clientWithJar(t, server.Client())
+	postJSON(t, client, server.URL+"/api/v1/auth/login", map[string]string{"username": "user", "password": password}, nil)
+
+	for _, tc := range []struct {
+		name       string
+		path       string
+		statusCode int
+	}{
+		{name: "allowed prefix", path: "/osrp-do", statusCode: http.StatusNoContent},
+		{name: "allowed subpath", path: "/osrp-do/report", statusCode: http.StatusNoContent},
+		{name: "denied resource", path: "/secret", statusCode: http.StatusForbidden},
+		{name: "unknown resource", path: "/not-found", statusCode: http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, server.URL+"/auth/request", nil)
+			if err != nil {
+				t.Fatalf("build auth request: %v", err)
+			}
+			req.Host = "enter.company.test"
+			req.Header.Set("X-Original-URI", tc.path)
+			attachJarCookies(t, client, server.URL, req)
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatalf("auth request: %v", err)
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode != tc.statusCode {
+				t.Fatalf("expected status %d, got %d", tc.statusCode, resp.StatusCode)
+			}
+		})
+	}
+}
+
 func TestAuthRequestRequiresTrustedProxyWhenProxyHeadersEnabled(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(t.TempDir() + "/agp.db")
