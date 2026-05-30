@@ -2,6 +2,9 @@
 
 Current branch: `main`.
 
+See [roadmap.md](roadmap.md) for the project check-up, readiness matrix and
+delivery roadmap.
+
 ## Реализовано
 
 | Area | Status |

@@ -57,7 +57,8 @@ printf '%s\n' "$AGP_ADMIN_PASSWORD" | go run ./cmd/agpctl create-admin
 ```
 
 See [docs/implementation-snapshot.md](docs/implementation-snapshot.md) for the
-current implementation status.
+current implementation status and [docs/roadmap.md](docs/roadmap.md) for the
+check-up and roadmap.
 
 ## Security Posture
 
