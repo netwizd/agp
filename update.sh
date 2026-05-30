@@ -23,6 +23,9 @@ ALLOW_DIRTY="no"
 BACKUP_DIR=""
 OLD_COMMIT="unknown"
 NEW_COMMIT="unknown"
+UPSTREAM_REF=""
+REMOTE_COMMIT="unknown"
+NO_UPDATE_REASON=""
 TMP_DIR=""
 
 log() {
@@ -178,13 +181,55 @@ update_source() {
     return
   fi
 
-  local branch
+  local branch local_full remote_full
   branch="$(git rev-parse --abbrev-ref HEAD)"
   [[ "$branch" != "HEAD" ]] || die "source tree is detached; checkout a branch or use --no-git-pull"
 
+  UPSTREAM_REF="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+  [[ -n "$UPSTREAM_REF" ]] || die "branch $branch has no upstream; set upstream or use --no-git-pull"
+
   git fetch --prune
+  local_full="$(git rev-parse HEAD)"
+  remote_full="$(git rev-parse "$UPSTREAM_REF")"
+  REMOTE_COMMIT="$(git rev-parse --short "$UPSTREAM_REF" 2>/dev/null || echo unknown)"
+
+  if [[ "$local_full" == "$remote_full" ]]; then
+    NEW_COMMIT="$OLD_COMMIT"
+    NO_UPDATE_REASON="local HEAD already matches upstream"
+    log "No update available. Local HEAD already matches $UPSTREAM_REF ($OLD_COMMIT)."
+    print_no_update_summary
+    exit 0
+  fi
+
+  if git merge-base --is-ancestor "$UPSTREAM_REF" HEAD; then
+    NEW_COMMIT="$OLD_COMMIT"
+    NO_UPDATE_REASON="local branch is ahead of upstream; no remote update to apply"
+    warn "$NO_UPDATE_REASON"
+    print_no_update_summary
+    exit 0
+  fi
+
+  if ! git merge-base --is-ancestor HEAD "$UPSTREAM_REF"; then
+    die "local branch and $UPSTREAM_REF have diverged; resolve manually before updating"
+  fi
+
   git pull --ff-only
   NEW_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+}
+
+print_no_update_summary() {
+  cat <<EOF
+
+AGP is already up to date.
+  source dir:       $SOURCE_DIR
+  service:          $SERVICE_NAME
+  current commit:   $OLD_COMMIT
+  upstream:         ${UPSTREAM_REF:-not checked}
+  upstream commit:  $REMOTE_COMMIT
+  reason:           ${NO_UPDATE_REASON:-no remote update available}
+
+No build, install, restart or migration was performed.
+EOF
 }
 
 build_release() {
