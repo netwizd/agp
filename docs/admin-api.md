@@ -3,8 +3,11 @@
 Admin endpoints require:
 
 1. a valid AGP session;
-2. `is_admin=true` on the current user;
+2. the permission required by the endpoint;
 3. `X-CSRF-Token` for state-changing methods.
+
+`is_admin=true` remains a compatibility superuser flag and grants all known
+permissions. See [rbac.md](rbac.md).
 
 ## Endpoints
 

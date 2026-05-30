@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/netwizd/agp/internal/authz"
 	"github.com/netwizd/agp/internal/domain"
 	"github.com/netwizd/agp/internal/storage"
 )
@@ -181,7 +182,12 @@ WHERE s.token_hash = $1
 	if err != nil {
 		return nil, err
 	}
+	permissions, err := s.listUserPermissions(ctx, session.User.ID, session.User.IsAdmin)
+	if err != nil {
+		return nil, err
+	}
 	session.Groups = groups
+	session.Permissions = permissions
 	return &session, nil
 }
 
@@ -411,25 +417,46 @@ func (s *Store) ListGroups(ctx context.Context) ([]domain.Group, error) {
 		if err := rows.Scan(&group.ID, &group.Name, &group.Description, &group.CreatedAt, &group.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan group: %w", err)
 		}
+		if err := s.populateGroupPermissions(ctx, &group); err != nil {
+			return nil, err
+		}
 		groups = append(groups, group)
 	}
 	return groups, rows.Err()
 }
 
 func (s *Store) CreateGroup(ctx context.Context, input domain.GroupInput) (*domain.Group, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin create group: %w", err)
+	}
+	defer rollback(ctx, tx)
+
 	id := storageID("grp")
 	now := time.Now().UTC()
-	_, err := s.pool.Exec(ctx, `
+	_, err = tx.Exec(ctx, `
 INSERT INTO groups(id, name, description, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5)`, id, input.Name, input.Description, now, now)
 	if err != nil {
 		return nil, normalizePostgresError("create group", err)
 	}
+	if err := replaceGroupPermissions(ctx, tx, id, input.PermissionIDs); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit create group: %w", err)
+	}
 	return s.findGroupByID(ctx, id)
 }
 
 func (s *Store) UpdateGroup(ctx context.Context, id string, input domain.GroupInput) (*domain.Group, error) {
-	tag, err := s.pool.Exec(ctx, `
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin update group: %w", err)
+	}
+	defer rollback(ctx, tx)
+
+	tag, err := tx.Exec(ctx, `
 UPDATE groups SET name = $1, description = $2, updated_at = now() WHERE id = $3`,
 		input.Name, input.Description, id)
 	if err != nil {
@@ -437,6 +464,12 @@ UPDATE groups SET name = $1, description = $2, updated_at = now() WHERE id = $3`
 	}
 	if err := ensureCommandAffected("update group", tag); err != nil {
 		return nil, err
+	}
+	if err := replaceGroupPermissions(ctx, tx, id, input.PermissionIDs); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit update group: %w", err)
 	}
 	return s.findGroupByID(ctx, id)
 }
@@ -652,6 +685,9 @@ func (s *Store) findGroupByID(ctx context.Context, id string) (*domain.Group, er
 		}
 		return nil, fmt.Errorf("find group: %w", err)
 	}
+	if err := s.populateGroupPermissions(ctx, &group); err != nil {
+		return nil, err
+	}
 	return &group, nil
 }
 
@@ -662,6 +698,18 @@ FROM groups g
 JOIN user_groups ug ON ug.group_id = g.id
 WHERE ug.user_id = $1
 ORDER BY g.name`, userID)
+}
+
+func (s *Store) listUserPermissions(ctx context.Context, userID string, isAdmin bool) ([]string, error) {
+	if isAdmin {
+		return authz.AllPermissions(), nil
+	}
+	return s.listStrings(ctx, `
+SELECT DISTINCT gp.permission_id
+FROM group_permissions gp
+JOIN user_groups ug ON ug.group_id = gp.group_id
+WHERE ug.user_id = $1
+ORDER BY gp.permission_id`, userID)
 }
 
 func (s *Store) listStrings(ctx context.Context, query string, args ...any) ([]string, error) {
@@ -731,6 +779,27 @@ func replaceUserGroups(ctx context.Context, tx pgx.Tx, userID string, groupIDs [
 			return normalizePostgresError("insert user group", err)
 		}
 	}
+	return nil
+}
+
+func replaceGroupPermissions(ctx context.Context, tx pgx.Tx, groupID string, permissionIDs []string) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM group_permissions WHERE group_id = $1`, groupID); err != nil {
+		return fmt.Errorf("delete group permissions: %w", err)
+	}
+	for _, permissionID := range uniqueTrimmed(permissionIDs) {
+		if _, err := tx.Exec(ctx, `INSERT INTO group_permissions(group_id, permission_id) VALUES ($1, $2)`, groupID, permissionID); err != nil {
+			return normalizePostgresError("insert group permission", err)
+		}
+	}
+	return nil
+}
+
+func (s *Store) populateGroupPermissions(ctx context.Context, group *domain.Group) error {
+	permissionIDs, err := s.listStrings(ctx, `SELECT permission_id FROM group_permissions WHERE group_id = $1 ORDER BY permission_id`, group.ID)
+	if err != nil {
+		return err
+	}
+	group.PermissionIDs = permissionIDs
 	return nil
 }
 

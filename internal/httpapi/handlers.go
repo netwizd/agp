@@ -111,8 +111,9 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request, session *domain.
 
 func (s *Server) me(w http.ResponseWriter, _ *http.Request, session *domain.SessionContext) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"user":   publicUser(session.User),
-		"groups": session.Groups,
+		"user":        publicUser(session.User),
+		"groups":      session.Groups,
+		"permissions": session.Permissions,
 	})
 }
 

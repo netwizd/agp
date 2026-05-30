@@ -16,6 +16,7 @@ delivery roadmap.
 | Frontend shell | embedded static login, portal and admin UI shell with resources/groups/users/sessions/audit tabs |
 | Nginx integration | `/auth/request` endpoint for `auth_request` |
 | Admin API | users, groups, resources, sessions, audit, dashboard |
+| RBAC | permission-based admin middleware with group permissions and `is_admin` superuser compatibility |
 | Nginx recommendations | generated per-resource server block snippets, no auto-apply |
 | Resource diagnostics | admin-triggered DNS, TCP and HTTP upstream checks |
 | PostgreSQL | production storage backend with embedded migrations |
@@ -61,7 +62,7 @@ Covered by tests:
 | --- | --- |
 | Frontend completeness | shell exists, but UX is not feature-complete |
 | PostgreSQL integration test | opt-in harness exists, not yet part of CI |
-| RBAC granularity | admin is currently boolean, not permission-based |
+| RBAC management UX | permission data model exists, UI is still basic |
 | Rate limiting | in-memory only, not Redis-backed |
 | MFA/SSO | LDAP/AD/TOTP/SSO not implemented |
 | Resource health checks | diagnostics exist, no scheduled checks/history yet |
@@ -72,5 +73,5 @@ Covered by tests:
 
 1. Wire PostgreSQL integration tests into CI/local release checklist.
 2. Expand portal/admin UI edit forms and polish error states.
-3. Replace boolean admin with permission-based RBAC.
+3. Improve RBAC management UX and add role templates.
 4. Add scheduled resource health checks and history.

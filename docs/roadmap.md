@@ -6,14 +6,14 @@ Date: 2026-05-30
 
 AGP сейчас находится на стадии backend foundation с первым встроенным UI shell.
 Уже есть рабочее ядро авторизации, PostgreSQL/SQLite storage, Admin API, audit
-model, Nginx `auth_request` контракт, генератор Nginx-рекомендаций и
-on-demand диагностика ресурсов.
+model, permission-based RBAC foundation, Nginx `auth_request` контракт,
+генератор Nginx-рекомендаций и on-demand диагностика ресурсов.
 
 Проект еще не является готовым продуктом для пользователей, потому что frontend
-пока является shell-реализацией, нет PostgreSQL integration test profile,
-granular RBAC и полноценного operational hardening. Однако архитектурный
-фундамент выбран правильно: AGP выступает control plane, Nginx остается data
-plane.
+пока является shell-реализацией, PostgreSQL integration test profile еще не
+подключен к CI/release flow, RBAC management UX остается базовым, и не завершен
+полноценный operational hardening. Однако архитектурный фундамент выбран
+правильно: AGP выступает control plane, Nginx остается data plane.
 
 ## Readiness Matrix
 
@@ -22,16 +22,16 @@ plane.
 | Backend runtime | Implemented | MVP-ready | HTTP server, graceful shutdown, structured logs |
 | Local auth | Implemented | MVP-ready | Argon2id, local users |
 | Sessions | Implemented | MVP-ready | server-side sessions, hashed tokens, CSRF |
-| PostgreSQL | Implemented | Needs integration test | production default, embedded migrations |
+| PostgreSQL | Implemented | Needs CI wiring | production default, embedded migrations, opt-in integration test |
 | SQLite fallback | Implemented | Dev-ready | useful for tests and local bootstrap |
 | User portal API | Implemented | MVP-ready | `/me`, user resource list |
-| Admin API | Implemented | Needs UI and RBAC refinement | CRUD users/groups/resources, sessions, audit |
+| Admin API | Implemented | Needs UI refinement | CRUD users/groups/resources, sessions, audit |
 | Nginx auth_request | Implemented | MVP-ready | fail-closed authorization endpoint |
 | Nginx recommendations | Implemented | MVP-ready | generated snippets, no auto-apply |
 | Audit | Implemented | Needs retention/export strategy | DB-backed events |
 | Frontend | Partial | Needs feature completion | embedded shell with resources/groups/users/sessions/audit tabs |
 | PostgreSQL runtime validation | Partial | Needs CI wiring | opt-in live DB integration test exists |
-| Permission model | Partial | Needs hardening | boolean admin only |
+| Permission model | Partial | Needs UX/templates | permission-based middleware and group permissions exist |
 | Rate limiting | Partial | Single-node only | in-memory limiter |
 | MFA/SSO | Not implemented | Enterprise phase | LDAP/AD/TOTP/SSO later |
 | Observability | Partial | Needs metrics/health expansion | logs exist, metrics absent |
@@ -106,13 +106,18 @@ but it is not yet wired into CI or a release checklist.
 
 ### Authorization Granularity
 
-Administration is controlled by `is_admin=true`. For enterprise use this should
-be replaced or extended with permission-based RBAC:
+Administration is now controlled by endpoint permissions. `is_admin=true`
+remains as a superuser compatibility flag and should be used sparingly.
+Current permissions:
 
+- `dashboard.read`
 - `users.read`
 - `users.manage`
+- `groups.read`
 - `groups.manage`
+- `resources.read`
 - `resources.manage`
+- `resources.diagnostics`
 - `sessions.revoke`
 - `audit.read`
 - `nginx.recommendations.read`
@@ -197,7 +202,7 @@ Goal: AGP is safe to run as a single-node production gateway.
 
 Tasks:
 
-- add permission-based RBAC;
+- improve permission-based RBAC management UX;
 - add metrics endpoint;
 - add scheduled resource diagnostics and history;
 - add audit retention settings;
@@ -265,7 +270,7 @@ the current maturity level.
 | --- | --- | --- |
 | Frontend is still basic | High | complete portal/admin CRUD workflows |
 | PostgreSQL integration test is not in CI | High | add release/CI profile with disposable DB |
-| Boolean admin only | Medium | introduce permission-based RBAC |
+| RBAC UX is still basic | Medium | add role templates and safer permission editing |
 | In-memory rate limiting | Medium | acceptable for single-node MVP, move to Redis later |
 | No metrics | Medium | add `/metrics` or structured health endpoint |
 | Manual Nginx apply | Low | acceptable and safer for MVP |
@@ -275,7 +280,7 @@ the current maturity level.
 1. Wire PostgreSQL integration tests into CI/local release checklist.
 2. Expand frontend inline edit workflows and polish error states.
 3. Add scheduled resource diagnostics and history.
-4. Start RBAC data model migration.
+4. Add RBAC role templates and safer permission editing.
 
 The most valuable immediate move is CI/release wiring for PostgreSQL integration
 tests plus frontend edit workflow completion. This turns AGP from a backend

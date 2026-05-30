@@ -18,11 +18,12 @@ type UserWithPassword struct {
 }
 
 type Group struct {
-	ID          string
-	Name        string
-	Description string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID            string
+	Name          string
+	Description   string
+	PermissionIDs []string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Resource struct {
@@ -57,8 +58,9 @@ type Session struct {
 
 type SessionContext struct {
 	Session
-	User   User
-	Groups []string
+	User        User
+	Groups      []string
+	Permissions []string
 }
 
 type ActiveSession struct {
@@ -111,8 +113,9 @@ type UserUpdate struct {
 }
 
 type GroupInput struct {
-	Name        string
-	Description string
+	Name          string
+	Description   string
+	PermissionIDs []string
 }
 
 type ResourceInput struct {

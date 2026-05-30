@@ -6,6 +6,7 @@ const storage = window.localStorage || {
 
 const state = {
   user: null,
+  permissions: [],
   csrfToken: storage.getItem("agp_csrf_token") || "",
   view: "portal",
   adminTab: "resources",
@@ -104,6 +105,7 @@ els.groupForm.addEventListener("submit", async (event) => {
       body: {
         name: form.get("name"),
         description: form.get("description"),
+        permission_ids: splitCSV(form.get("permission_ids")),
       },
     });
     els.groupForm.reset();
@@ -141,9 +143,10 @@ async function bootstrap() {
   try {
     const me = await api("/api/v1/me");
     state.user = me.user;
+    state.permissions = me.permissions || [];
     renderSession(me);
     els.logoutButton.classList.remove("hidden");
-    if (location.pathname.startsWith("/admin") && state.user.is_admin) {
+    if (location.pathname.startsWith("/admin") && canUseAdmin()) {
       await setView("admin");
     } else {
       await setView("portal");
@@ -170,6 +173,10 @@ async function setView(view) {
     els.pageTitle.textContent = "Админка";
     els.pageSubtitle.textContent = "Пользователи, ресурсы, аудит и Nginx";
     history.replaceState(null, "", "/admin");
+    syncAdminTabs();
+    if (!canOpenAdminTab(state.adminTab)) {
+      state.adminTab = firstAvailableAdminTab();
+    }
     await loadAdmin();
     return;
   }
@@ -181,14 +188,24 @@ async function setView(view) {
 }
 
 async function setAdminTab(tab) {
+  if (!canOpenAdminTab(tab)) {
+    els.operationOutput.textContent = "Нет доступа к выбранному разделу";
+    return;
+  }
   state.adminTab = tab;
+  syncAdminTabs();
+  await loadAdmin();
+}
+
+function syncAdminTabs() {
   els.adminTabs.querySelectorAll("button").forEach((button) => {
-    button.classList.toggle("active", button.dataset.adminTab === tab);
+    const visible = canOpenAdminTab(button.dataset.adminTab);
+    button.classList.toggle("hidden", !visible);
+    button.classList.toggle("active", button.dataset.adminTab === state.adminTab);
   });
   document.querySelectorAll(".admin-tab-panel").forEach((panel) => {
-    panel.classList.toggle("hidden", panel.id !== `${tab}Panel`);
+    panel.classList.toggle("hidden", panel.id !== `${state.adminTab}Panel`);
   });
-  await loadAdmin();
 }
 
 async function loadPortal() {
@@ -213,12 +230,16 @@ async function loadPortal() {
 }
 
 async function loadAdmin() {
-  if (!state.user?.is_admin) {
+  if (!canUseAdmin()) {
     els.operationOutput.textContent = "Нет административного доступа";
     return;
   }
-  const dashboard = await api("/api/v1/admin/dashboard");
-  renderMetrics(dashboard);
+  if (can("dashboard.read")) {
+    const dashboard = await api("/api/v1/admin/dashboard");
+    renderMetrics(dashboard);
+  } else {
+    els.metrics.innerHTML = "";
+  }
   if (state.adminTab === "resources") await loadResources();
   if (state.adminTab === "groups") await loadGroups();
   if (state.adminTab === "users") await loadUsers();
@@ -240,6 +261,7 @@ function metric(label, value) {
 }
 
 async function loadResources() {
+  els.resourceForm.classList.toggle("hidden", !can("resources.manage"));
   const data = await api("/api/v1/admin/resources");
   renderAdminResources(data.resources || []);
 }
@@ -259,9 +281,9 @@ function renderAdminResources(resources) {
           <div class="muted">groups: ${escapeHTML((resource.GroupIDs || []).join(", ") || "none")}</div>
         </div>
         <div class="row-actions">
-          <button class="secondary" data-action="nginx" data-id="${escapeHTML(resource.ID)}">Nginx</button>
-          <button class="secondary" data-action="diag" data-id="${escapeHTML(resource.ID)}">Диагностика</button>
-          <button class="danger" data-action="delete-resource" data-id="${escapeHTML(resource.ID)}">Удалить</button>
+          ${can("nginx.recommendations.read") ? `<button class="secondary" data-action="nginx" data-id="${escapeHTML(resource.ID)}">Nginx</button>` : ""}
+          ${can("resources.diagnostics") ? `<button class="secondary" data-action="diag" data-id="${escapeHTML(resource.ID)}">Диагностика</button>` : ""}
+          ${can("resources.manage") ? `<button class="danger" data-action="delete-resource" data-id="${escapeHTML(resource.ID)}">Удалить</button>` : ""}
         </div>
       </div>
     `
@@ -273,6 +295,7 @@ function renderAdminResources(resources) {
 }
 
 async function loadGroups() {
+  els.groupForm.classList.toggle("hidden", !can("groups.manage"));
   const data = await api("/api/v1/admin/groups");
   const groups = data.groups || [];
   if (groups.length === 0) {
@@ -287,9 +310,10 @@ async function loadGroups() {
           <strong>${escapeHTML(group.Name)}</strong>
           <div class="muted">${escapeHTML(group.Description || "Без описания")}</div>
           <div class="muted">id: ${escapeHTML(group.ID)}</div>
+          <div class="muted">permissions: ${escapeHTML((group.PermissionIDs || []).join(", ") || "none")}</div>
         </div>
         <div class="row-actions">
-          <button class="danger" data-action="delete-group" data-id="${escapeHTML(group.ID)}">Удалить</button>
+          ${can("groups.manage") ? `<button class="danger" data-action="delete-group" data-id="${escapeHTML(group.ID)}">Удалить</button>` : ""}
         </div>
       </div>
     `
@@ -301,6 +325,7 @@ async function loadGroups() {
 }
 
 async function loadUsers() {
+  els.userForm.classList.toggle("hidden", !can("users.manage"));
   const data = await api("/api/v1/admin/users");
   const users = data.users || [];
   if (users.length === 0) {
@@ -317,8 +342,8 @@ async function loadUsers() {
           <div class="${user.BlockedAt ? "status-bad" : "status-ok"}">${user.BlockedAt ? "blocked" : "active"}</div>
         </div>
         <div class="row-actions">
-          <button class="secondary" data-action="block-user" data-id="${escapeHTML(user.ID)}" data-blocked="${user.BlockedAt ? "false" : "true"}">${user.BlockedAt ? "Разблокировать" : "Блокировать"}</button>
-          <button class="danger" data-action="delete-user" data-id="${escapeHTML(user.ID)}">Удалить</button>
+          ${can("users.manage") ? `<button class="secondary" data-action="block-user" data-id="${escapeHTML(user.ID)}" data-blocked="${user.BlockedAt ? "false" : "true"}">${user.BlockedAt ? "Разблокировать" : "Блокировать"}</button>` : ""}
+          ${can("users.manage") ? `<button class="danger" data-action="delete-user" data-id="${escapeHTML(user.ID)}">Удалить</button>` : ""}
         </div>
       </div>
     `
@@ -346,7 +371,7 @@ async function loadSessions() {
           <div class="muted">${escapeHTML(session.UserAgent)}</div>
         </div>
         <div class="row-actions">
-          <button class="danger" data-id="${escapeHTML(session.ID)}">Отозвать</button>
+          ${can("sessions.revoke") ? `<button class="danger" data-id="${escapeHTML(session.ID)}">Отозвать</button>` : ""}
         </div>
       </div>
     `
@@ -439,7 +464,7 @@ async function showDiagnostics(id) {
 function renderSession(me) {
   els.sessionPanel.innerHTML = `
     <div><strong>${escapeHTML(me.user.username)}</strong></div>
-    <div>${me.user.is_admin ? "Администратор" : "Пользователь"}</div>
+    <div>${canUseAdmin() ? "Администратор" : "Пользователь"}</div>
   `;
 }
 
@@ -510,6 +535,35 @@ function escapeHTML(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function canUseAdmin() {
+  return Boolean(state.user?.is_admin || state.permissions?.length);
+}
+
+function can(permission) {
+  if (state.user?.is_admin || state.permissions?.includes(permission)) {
+    return true;
+  }
+  if (permission.endsWith(".read")) {
+    return state.permissions?.includes(`${permission.slice(0, -".read".length)}.manage`);
+  }
+  return false;
+}
+
+function canOpenAdminTab(tab) {
+  const permissions = {
+    resources: ["resources.read", "resources.manage"],
+    groups: ["groups.read", "groups.manage"],
+    users: ["users.read", "users.manage"],
+    sessions: ["sessions.read", "sessions.revoke"],
+    audit: ["audit.read"],
+  };
+  return (permissions[tab] || []).some((permission) => can(permission));
+}
+
+function firstAvailableAdminTab() {
+  return ["resources", "groups", "users", "sessions", "audit"].find((tab) => canOpenAdminTab(tab)) || "resources";
 }
 
 bootstrap();

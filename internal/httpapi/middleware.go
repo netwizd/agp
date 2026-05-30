@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/netwizd/agp/internal/auth"
+	"github.com/netwizd/agp/internal/authz"
 	"github.com/netwizd/agp/internal/domain"
 	"github.com/netwizd/agp/internal/storage"
 )
@@ -46,11 +47,11 @@ func (s *Server) withSession(next func(http.ResponseWriter, *http.Request, *doma
 	}
 }
 
-func (s *Server) withAdmin(next func(http.ResponseWriter, *http.Request, *domain.SessionContext)) http.HandlerFunc {
+func (s *Server) withPermission(permission string, next func(http.ResponseWriter, *http.Request, *domain.SessionContext)) http.HandlerFunc {
 	return s.withSession(func(w http.ResponseWriter, r *http.Request, session *domain.SessionContext) {
-		if !session.User.IsAdmin {
-			s.audit(r, "admin.access", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "failure", "admin_required")
-			writeError(w, http.StatusForbidden, "admin_required")
+		if !authz.HasPermission(session.Permissions, permission) {
+			s.audit(r, "admin.access", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "failure", "permission_required:"+permission)
+			writeError(w, http.StatusForbidden, "permission_required")
 			return
 		}
 		next(w, r, session)

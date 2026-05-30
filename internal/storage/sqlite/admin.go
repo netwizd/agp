@@ -154,23 +154,49 @@ func (s *Store) ListGroups(ctx context.Context) ([]domain.Group, error) {
 		}
 		groups = append(groups, group)
 	}
-	return groups, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range groups {
+		if err := s.populateGroupPermissions(ctx, &groups[i]); err != nil {
+			return nil, err
+		}
+	}
+	return groups, nil
 }
 
 func (s *Store) CreateGroup(ctx context.Context, input domain.GroupInput) (*domain.Group, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin create group: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+
 	id := storageID("grp")
 	now := time.Now().UTC()
-	_, err := s.db.ExecContext(ctx, `
+	_, err = tx.ExecContext(ctx, `
 INSERT INTO groups(id, name, description, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?)`, id, input.Name, input.Description, now, now)
 	if err != nil {
 		return nil, normalizeSQLiteError("create group", err)
 	}
+	if err := replaceGroupPermissions(ctx, tx, id, input.PermissionIDs); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit create group: %w", err)
+	}
 	return s.findGroupByID(ctx, id)
 }
 
 func (s *Store) UpdateGroup(ctx context.Context, id string, input domain.GroupInput) (*domain.Group, error) {
-	res, err := s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin update group: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+
+	res, err := tx.ExecContext(ctx, `
 UPDATE groups SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
 		input.Name, input.Description, id)
 	if err != nil {
@@ -178,6 +204,12 @@ UPDATE groups SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHER
 	}
 	if err := ensureRowsAffected("update group", res); err != nil {
 		return nil, err
+	}
+	if err := replaceGroupPermissions(ctx, tx, id, input.PermissionIDs); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit update group: %w", err)
 	}
 	return s.findGroupByID(ctx, id)
 }
@@ -408,6 +440,9 @@ func (s *Store) findGroupByID(ctx context.Context, id string) (*domain.Group, er
 		}
 		return nil, fmt.Errorf("find group: %w", err)
 	}
+	if err := s.populateGroupPermissions(ctx, &group); err != nil {
+		return nil, err
+	}
 	return &group, nil
 }
 
@@ -490,6 +525,27 @@ func replaceUserGroups(ctx context.Context, tx *sql.Tx, userID string, groupIDs 
 			return normalizeSQLiteError("insert user group", err)
 		}
 	}
+	return nil
+}
+
+func replaceGroupPermissions(ctx context.Context, tx *sql.Tx, groupID string, permissionIDs []string) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM group_permissions WHERE group_id = ?`, groupID); err != nil {
+		return fmt.Errorf("delete group permissions: %w", err)
+	}
+	for _, permissionID := range uniqueTrimmed(permissionIDs) {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO group_permissions(group_id, permission_id) VALUES (?, ?)`, groupID, permissionID); err != nil {
+			return normalizeSQLiteError("insert group permission", err)
+		}
+	}
+	return nil
+}
+
+func (s *Store) populateGroupPermissions(ctx context.Context, group *domain.Group) error {
+	permissionIDs, err := listStrings(ctx, s.db, `SELECT permission_id FROM group_permissions WHERE group_id = ? ORDER BY permission_id`, group.ID)
+	if err != nil {
+		return err
+	}
+	group.PermissionIDs = permissionIDs
 	return nil
 }
 

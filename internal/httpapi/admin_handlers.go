@@ -33,8 +33,9 @@ type adminUpdateUserRequest struct {
 }
 
 type adminGroupRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Name          string   `json:"name"`
+	Description   string   `json:"description"`
+	PermissionIDs []string `json:"permission_ids"`
 }
 
 type adminCreateResourceRequest struct {
@@ -386,7 +387,11 @@ func groupInputFromRequest(req adminGroupRequest) (domain.GroupInput, bool) {
 	if name == "" {
 		return domain.GroupInput{}, false
 	}
-	return domain.GroupInput{Name: name, Description: strings.TrimSpace(req.Description)}, true
+	return domain.GroupInput{
+		Name:          name,
+		Description:   strings.TrimSpace(req.Description),
+		PermissionIDs: normalizeIDs(req.PermissionIDs),
+	}, true
 }
 
 func resourceInputFromCreate(req adminCreateResourceRequest) (domain.ResourceInput, bool) {

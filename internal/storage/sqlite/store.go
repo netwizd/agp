@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/netwizd/agp/internal/authz"
 	"github.com/netwizd/agp/internal/domain"
 	"github.com/netwizd/agp/internal/storage"
 	_ "modernc.org/sqlite"
@@ -174,7 +175,12 @@ WHERE s.token_hash = ?
 	if err != nil {
 		return nil, err
 	}
+	permissions, err := s.listUserPermissions(ctx, session.User.ID, session.User.IsAdmin)
+	if err != nil {
+		return nil, err
+	}
 	session.Groups = groups
+	session.Permissions = permissions
 	return &session, nil
 }
 
@@ -311,6 +317,35 @@ ORDER BY g.name`, userID)
 		return nil, fmt.Errorf("iterate groups: %w", err)
 	}
 	return groups, nil
+}
+
+func (s *Store) listUserPermissions(ctx context.Context, userID string, isAdmin bool) ([]string, error) {
+	if isAdmin {
+		return authz.AllPermissions(), nil
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT DISTINCT gp.permission_id
+FROM group_permissions gp
+JOIN user_groups ug ON ug.group_id = gp.group_id
+WHERE ug.user_id = ?
+ORDER BY gp.permission_id`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list user permissions: %w", err)
+	}
+	defer rows.Close()
+
+	var permissions []string
+	for rows.Next() {
+		var permission string
+		if err := rows.Scan(&permission); err != nil {
+			return nil, fmt.Errorf("scan permission: %w", err)
+		}
+		permissions = append(permissions, permission)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate permissions: %w", err)
+	}
+	return permissions, nil
 }
 
 func intToBool(value int) bool {

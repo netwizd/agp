@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/netwizd/agp/internal/auth"
+	"github.com/netwizd/agp/internal/authz"
 	"github.com/netwizd/agp/internal/config"
 	"github.com/netwizd/agp/internal/domain"
 	"github.com/netwizd/agp/internal/runtime"
@@ -130,8 +131,9 @@ func ensureGroup(ctx context.Context, store storage.Store, name string) (string,
 		}
 	}
 	group, err := store.CreateGroup(ctx, domain.GroupInput{
-		Name:        name,
-		Description: "Bootstrap administrators group",
+		Name:          name,
+		Description:   "Bootstrap administrators group",
+		PermissionIDs: authz.AllPermissions(),
 	})
 	if err != nil {
 		return "", fmt.Errorf("create administrators group: %w", err)

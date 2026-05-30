@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/netwizd/agp/internal/auth"
+	"github.com/netwizd/agp/internal/authz"
 	"github.com/netwizd/agp/internal/config"
 	"github.com/netwizd/agp/internal/domain"
 	"github.com/netwizd/agp/internal/storage/sqlite"
@@ -68,12 +69,7 @@ func TestAdminAPIResourceAndNginxFlow(t *testing.T) {
 	server := httptest.NewServer(api.Handler())
 	t.Cleanup(server.Close)
 
-	client := server.Client()
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		t.Fatalf("create cookie jar: %v", err)
-	}
-	client.Jar = jar
+	client := clientWithJar(t, server.Client())
 	loginBody := postJSON(t, client, server.URL+"/api/v1/auth/login", map[string]string{
 		"username": "admin",
 		"password": password,
@@ -131,6 +127,87 @@ func TestAdminAPIResourceAndNginxFlow(t *testing.T) {
 	httpPayload, ok := diagnosticsPayload["http"].(map[string]any)
 	if !ok || httpPayload["ok"] != true {
 		t.Fatalf("diagnostics response does not contain successful http check: %#v", diagnosticsPayload)
+	}
+}
+
+func TestAdminAPIPermissions(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(t.TempDir() + "/agp.db")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatalf("migrate sqlite: %v", err)
+	}
+
+	password := "enterprise-user-password"
+	passwordHash, err := auth.HashPassword(password, auth.DefaultArgon2idParams)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	noPermGroup, err := store.CreateGroup(ctx, domain.GroupInput{Name: "No Permissions"})
+	if err != nil {
+		t.Fatalf("create no-perm group: %v", err)
+	}
+	readGroup, err := store.CreateGroup(ctx, domain.GroupInput{
+		Name:          "Dashboard Readers",
+		PermissionIDs: []string{authz.PermDashboardRead},
+	})
+	if err != nil {
+		t.Fatalf("create read group: %v", err)
+	}
+	if _, err := store.CreateUser(ctx, domain.UserInput{
+		Username:     "noperm",
+		PasswordHash: passwordHash,
+		GroupIDs:     []string{noPermGroup.ID},
+	}); err != nil {
+		t.Fatalf("create no-perm user: %v", err)
+	}
+	if _, err := store.CreateUser(ctx, domain.UserInput{
+		Username:     "reader",
+		PasswordHash: passwordHash,
+		GroupIDs:     []string{readGroup.ID},
+	}); err != nil {
+		t.Fatalf("create reader user: %v", err)
+	}
+
+	server := httptest.NewServer(NewServer(config.Config{
+		SessionCookieName:  "agp_session",
+		CSRFCookieName:     "agp_csrf",
+		CookieSecure:       false,
+		SessionTTL:         time.Hour,
+		LoginRateLimitMax:  5,
+		LoginRateLimitWind: time.Minute,
+	}, store, slog.New(slog.NewTextHandler(io.Discard, nil))).Handler())
+	t.Cleanup(server.Close)
+
+	noPermClient := clientWithJar(t, server.Client())
+	postJSON(t, noPermClient, server.URL+"/api/v1/auth/login", map[string]string{
+		"username": "noperm",
+		"password": password,
+	}, nil)
+	resp, err := noPermClient.Get(server.URL + "/api/v1/admin/dashboard")
+	if err != nil {
+		t.Fatalf("get dashboard without permission: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected forbidden for no-perm user, got %d", resp.StatusCode)
+	}
+
+	readerClient := clientWithJar(t, server.Client())
+	postJSON(t, readerClient, server.URL+"/api/v1/auth/login", map[string]string{
+		"username": "reader",
+		"password": password,
+	}, nil)
+	resp, err = readerClient.Get(server.URL + "/api/v1/admin/dashboard")
+	if err != nil {
+		t.Fatalf("get dashboard with permission: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected ok for dashboard reader, got %d", resp.StatusCode)
 	}
 }
 
@@ -196,4 +273,14 @@ func postJSON(t *testing.T, client *http.Client, url string, payload any, header
 		t.Fatalf("decode response: %v", err)
 	}
 	return result
+}
+
+func clientWithJar(t *testing.T, client *http.Client) *http.Client {
+	t.Helper()
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatalf("create cookie jar: %v", err)
+	}
+	client.Jar = jar
+	return client
 }
