@@ -22,6 +22,7 @@ delivery roadmap.
 | Public downloads | unauthenticated enabled file list/downloads, admin upload/hide/delete |
 | Portal customization | DB-backed brand name, logo text, page titles, support link and footer |
 | Access denied UX | generic `/access-denied` page for missing or unauthorized proxied resources |
+| Observability | `/healthz`, `/readyz`, Prometheus-style `/metrics`, structured logs |
 | PostgreSQL | production storage backend with embedded migrations |
 | SQLite | development/small-install fallback with same storage contract |
 | Audit | login/logout, proxy auth decisions and admin actions persisted |
@@ -48,6 +49,7 @@ go test ./...
 go vet ./...
 go build -trimpath -o bin/agp ./cmd/agp
 go build -trimpath -o bin/agpctl ./cmd/agpctl
+node --check internal/frontend/static/app.js
 git diff --check
 ```
 
@@ -67,17 +69,16 @@ Covered by tests:
 | Area | Gap |
 | --- | --- |
 | Frontend completeness | shell exists, resource edit UX exists, other edit/update UX is not feature-complete |
-| PostgreSQL integration test | opt-in harness exists, not yet part of CI |
+| PostgreSQL integration test | opt-in harness exists and is wired into release-check when `AGP_TEST_POSTGRES_DSN` is set |
 | RBAC management UX | permission data model exists, UI is still basic |
 | Rate limiting | in-memory only, not Redis-backed |
-| MFA/SSO | LDAP/AD/TOTP/SSO not implemented |
+| MFA/SSO | MFA/invite links planned for v1.1; LDAP/AD/OIDC/SAML later |
 | Resource health checks | diagnostics exist, no scheduled checks/history yet |
 | SIEM/export | audit is stored in DB, no external export yet |
 | Config apply | Nginx recommendations are manual-review only |
 
 ## Next Recommended Increment
 
-1. Wire PostgreSQL integration tests into CI/local release checklist.
-2. Expand portal/admin UI edit forms and polish error states.
-3. Improve RBAC management UX and add role templates.
-4. Add scheduled resource health checks and history.
+1. Execute [production-v1.0.md](production-v1.0.md) on the target host.
+2. Tag v1.0 after release-check and manual production checks pass.
+3. Start v1.1 MFA/invite/notification work from [v1.1-plan.md](v1.1-plan.md).

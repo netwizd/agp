@@ -33,6 +33,8 @@ func NewServer(cfg config.Config, store storage.Store, logger *slog.Logger) *Ser
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
+	mux.HandleFunc("GET /readyz", s.ready)
+	mux.HandleFunc("GET /metrics", s.metrics)
 	mux.HandleFunc("POST /api/v1/auth/login", s.login)
 	mux.HandleFunc("POST /api/v1/auth/logout", s.withSession(s.requireCSRF(s.logout)))
 	mux.HandleFunc("GET /api/v1/me", s.withSession(s.me))

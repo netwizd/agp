@@ -61,6 +61,10 @@ See [docs/implementation-snapshot.md](docs/implementation-snapshot.md) for the
 current implementation status and [docs/roadmap.md](docs/roadmap.md) for the
 check-up and roadmap.
 
+For production v1.0 deployment, use
+[docs/production-v1.0.md](docs/production-v1.0.md). v1.1 identity and
+notification work is tracked in [docs/v1.1-plan.md](docs/v1.1-plan.md).
+
 ## Security Posture
 
 AGP is a security boundary. Production deployments must keep the backend bound

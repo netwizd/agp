@@ -349,6 +349,57 @@ func TestFrontendFallbackServesSPA(t *testing.T) {
 	}
 }
 
+func TestReadinessAndMetrics(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(t.TempDir() + "/agp.db")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatalf("migrate sqlite: %v", err)
+	}
+
+	server := httptest.NewServer(NewServer(config.Config{
+		SessionCookieName:  "agp_session",
+		CSRFCookieName:     "agp_csrf",
+		SessionTTL:         time.Hour,
+		LoginRateLimitMax:  5,
+		LoginRateLimitWind: time.Minute,
+	}, store, slog.New(slog.NewTextHandler(io.Discard, nil))).Handler())
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/readyz")
+	if err != nil {
+		t.Fatalf("get readiness: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected readiness status: %d", resp.StatusCode)
+	}
+
+	resp, err = server.Client().Get(server.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("get metrics: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected metrics status: %d", resp.StatusCode)
+	}
+	for _, marker := range [][]byte{
+		[]byte("agp_up 1"),
+		[]byte("agp_db_up 1"),
+		[]byte("agp_users_total"),
+		[]byte("agp_resources_total"),
+		[]byte("agp_audit_events_total"),
+	} {
+		if !bytes.Contains(body, marker) {
+			t.Fatalf("metrics body does not contain %q: %s", marker, body)
+		}
+	}
+}
+
 func postJSON(t *testing.T, client *http.Client, url string, payload any, headers map[string]string) map[string]any {
 	t.Helper()
 	return doJSON(t, client, http.MethodPost, url, payload, headers)

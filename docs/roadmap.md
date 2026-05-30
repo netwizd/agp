@@ -10,11 +10,10 @@ model, permission-based RBAC foundation, Nginx `auth_request` контракт,
 генератор Nginx-рекомендаций, public downloads, базовая кастомизация портала
 и on-demand диагностика ресурсов.
 
-Проект еще не является готовым продуктом для пользователей, потому что frontend
-пока является shell-реализацией, PostgreSQL integration test profile еще не
-подключен к CI/release flow, RBAC management UX остается базовым, и не завершен
-полноценный operational hardening. Однако архитектурный фундамент выбран
-правильно: AGP выступает control plane, Nginx остается data plane.
+Проект переведен в v1.0 production-readiness track для single-node deployment:
+PostgreSQL, systemd, Nginx, ручное применение Nginx configs, health/readiness
+и базовые metrics. RBAC management UX остается базовым, а MFA, invite links и
+notifications вынесены в v1.1.
 
 ## Readiness Matrix
 
@@ -23,7 +22,7 @@ model, permission-based RBAC foundation, Nginx `auth_request` контракт,
 | Backend runtime | Implemented | MVP-ready | HTTP server, graceful shutdown, structured logs |
 | Local auth | Implemented | MVP-ready | Argon2id, local users |
 | Sessions | Implemented | MVP-ready | server-side sessions, hashed tokens, CSRF |
-| PostgreSQL | Implemented | Needs CI wiring | production default, embedded migrations, opt-in integration test |
+| PostgreSQL | Implemented | v1.0-ready | production default, embedded migrations, opt-in integration test |
 | SQLite fallback | Implemented | Dev-ready | useful for tests and local bootstrap |
 | User portal API | Implemented | MVP-ready | `/me`, user resource list, public settings/downloads |
 | Admin API | Implemented | Needs UI refinement | CRUD users/groups/resources/downloads/settings, sessions, audit |
@@ -31,12 +30,12 @@ model, permission-based RBAC foundation, Nginx `auth_request` контракт,
 | Nginx recommendations | Implemented | MVP-ready | generated snippets, no auto-apply |
 | Audit | Implemented | Needs retention/export strategy | DB-backed events |
 | Frontend | Partial | Needs feature completion | searchable/grouped portal catalog with resources/downloads/settings/groups/users/sessions/audit tabs |
-| PostgreSQL runtime validation | Partial | Needs CI wiring | opt-in live DB integration test exists |
+| PostgreSQL runtime validation | Implemented | Release-check ready | opt-in live DB integration test exists |
 | Permission model | Partial | Needs UX/templates | permission-based middleware and group permissions exist |
 | Rate limiting | Partial | Single-node only | in-memory limiter |
 | MFA/SSO | Not implemented | Enterprise phase | LDAP/AD/TOTP/SSO later |
-| Observability | Partial | Needs metrics/health expansion | logs exist, metrics absent |
-| Deployment automation | Partial | Needs packaging | systemd/nginx/logrotate docs exist |
+| Observability | Implemented | v1.0-ready | logs, `/healthz`, `/readyz`, `/metrics` |
+| Deployment automation | Partial | v1.0-ready | systemd/nginx/logrotate docs and production runbook exist |
 
 ## What Is Ready
 
@@ -130,15 +129,13 @@ Current permissions:
 
 ### Operational Hardening
 
-Missing or incomplete:
+Missing or incomplete after v1.0 baseline:
 
-- metrics endpoint;
-- DB health details;
 - scheduled resource upstream health checks and history;
 - audit retention policy enforcement;
 - SIEM/export path;
 - Redis-backed distributed rate limits;
-- backup/restore runbooks with tested commands.
+- automated backup execution.
 
 ### Enterprise Identity
 
@@ -181,6 +178,10 @@ AGP MVP should be considered ready when the following are complete:
    - backup.
 5. Basic metrics and health diagnostics.
 
+v1.0 status: criteria are satisfied for a single-node deployment when
+`./scripts/release-check.sh` passes and the manual checks from
+`production-v1.0.md` are completed on the target host.
+
 ## Roadmap
 
 ### Phase 1: Usable MVP
@@ -214,10 +215,10 @@ Goal: AGP is safe to run as a single-node production gateway.
 Tasks:
 
 - improve permission-based RBAC management UX;
-- add metrics endpoint;
+- extend metrics and dashboards;
 - add scheduled resource diagnostics and history;
 - add audit retention settings;
-- add backup/restore runbook;
+- automate backup jobs;
 - add brute-force lockout policy;
 - add password policy config;
 - add admin action metadata in audit events;
@@ -231,18 +232,21 @@ Exit criteria:
 - backups and restores are documented and testable;
 - access decisions remain fail-closed.
 
-### Phase 3: Enterprise Integrations
+### Phase 3: v1.1 Identity And Notifications
 
 Goal: AGP integrates with corporate identity and monitoring.
 
 Tasks:
 
+- TOTP MFA;
+- invite/password setup email links;
+- encrypted sensitive user profile fields;
+- notification integrations;
+- user activity timeline for administrators;
+- SIEM/audit export preparation;
 - LDAP/AD authentication;
 - group sync from LDAP/AD;
-- TOTP MFA;
 - OIDC/SAML evaluation;
-- SIEM/audit export;
-- notification integrations;
 - Redis-backed distributed rate limiting;
 - PostgreSQL HA deployment notes.
 
