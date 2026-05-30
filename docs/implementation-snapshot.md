@@ -66,7 +66,7 @@ Covered by tests:
 
 | Area | Gap |
 | --- | --- |
-| Frontend completeness | shell exists, edit/update UX is not feature-complete |
+| Frontend completeness | shell exists, resource edit UX exists, other edit/update UX is not feature-complete |
 | PostgreSQL integration test | opt-in harness exists, not yet part of CI |
 | RBAC management UX | permission data model exists, UI is still basic |
 | Rate limiting | in-memory only, not Redis-backed |

@@ -73,7 +73,7 @@ model, permission-based RBAC foundation, Nginx `auth_request` контракт,
 - Public downloads on login and portal screens.
 - Admin dashboard counters.
 - Admin resources/downloads/settings/groups/users/sessions/audit tabs.
-- Admin resource/group/user creation and selected destructive actions.
+- Admin resource creation/editing and selected group/user actions.
 - Nginx recommendation view.
 - Resource diagnostics action.
 

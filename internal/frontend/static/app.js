@@ -15,6 +15,7 @@ const state = {
   resources: [],
   resourceQuery: "",
   resourceCategory: "all",
+  editingResourceID: "",
 };
 
 const els = {
@@ -518,12 +519,15 @@ function renderAdminResources(resources) {
           <div class="muted">category: ${escapeHTML(resource.Category || "Общее")}</div>
           <div class="muted">${escapeHTML(resource.PublicHost)} -> ${escapeHTML(resource.InternalURL)}</div>
           <div class="muted">groups: ${escapeHTML((resource.GroupIDs || []).join(", ") || "none")}</div>
+          <div class="muted">cidrs: ${escapeHTML((resource.AllowCIDRs || []).join(", ") || "any")}</div>
         </div>
         <div class="row-actions">
+          ${can("resources.manage") ? `<button class="secondary" data-action="edit-resource" data-id="${escapeHTML(resource.ID)}">Редактировать</button>` : ""}
           ${can("nginx.recommendations.read") ? `<button class="secondary" data-action="nginx" data-id="${escapeHTML(resource.ID)}">Nginx</button>` : ""}
           ${can("resources.diagnostics") ? `<button class="secondary" data-action="diag" data-id="${escapeHTML(resource.ID)}">Диагностика</button>` : ""}
           ${can("resources.manage") ? `<button class="danger" data-action="delete-resource" data-id="${escapeHTML(resource.ID)}">Удалить</button>` : ""}
         </div>
+        ${state.editingResourceID === resource.ID ? renderResourceEditForm(resource) : ""}
       </div>
     `
     )
@@ -531,6 +535,31 @@ function renderAdminResources(resources) {
   els.adminResources.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", () => handleResourceAction(button.dataset.action, button.dataset.id));
   });
+  els.adminResources.querySelectorAll("form[data-resource-edit]").forEach((form) => {
+    form.addEventListener("submit", (event) => submitResourceEdit(event, form));
+  });
+}
+
+function renderResourceEditForm(resource) {
+  return `
+    <form class="inline-edit-form" data-resource-edit data-id="${escapeHTML(resource.ID)}">
+      <input name="name" placeholder="Название" value="${escapeHTML(resource.Name)}" required />
+      <input name="category" placeholder="Группа в каталоге" value="${escapeHTML(resource.Category || "")}" />
+      <input name="public_host" placeholder="public host" value="${escapeHTML(resource.PublicHost)}" required />
+      <input name="internal_url" placeholder="http://internal.local" value="${escapeHTML(resource.InternalURL)}" required />
+      <input name="description" placeholder="Описание" value="${escapeHTML(resource.Description || "")}" />
+      <input name="group_ids" placeholder="group ids через запятую" value="${escapeHTML((resource.GroupIDs || []).join(", "))}" />
+      <input name="allow_cidrs" placeholder="CIDR через запятую" value="${escapeHTML((resource.AllowCIDRs || []).join(", "))}" />
+      <label class="checkbox-line">
+        <input name="enabled" type="checkbox" ${resource.Enabled ? "checked" : ""} />
+        Включен
+      </label>
+      <div class="form-actions">
+        <button type="submit">Сохранить</button>
+        <button class="secondary" type="button" data-action="cancel-resource-edit" data-id="${escapeHTML(resource.ID)}">Отмена</button>
+      </div>
+    </form>
+  `;
 }
 
 async function loadGroups() {
@@ -644,6 +673,16 @@ async function loadAudit() {
 }
 
 async function handleResourceAction(action, id) {
+  if (action === "edit-resource") {
+    state.editingResourceID = id;
+    await loadResources();
+    return;
+  }
+  if (action === "cancel-resource-edit") {
+    state.editingResourceID = "";
+    await loadResources();
+    return;
+  }
   if (action === "nginx") {
     await showNginx(id);
     return;
@@ -654,6 +693,36 @@ async function handleResourceAction(action, id) {
   }
   if (action === "delete-resource") {
     await deleteEntity(`/api/v1/admin/resources/${encodeURIComponent(id)}`, "Ресурс удален");
+  }
+}
+
+async function submitResourceEdit(event, form) {
+  event.preventDefault();
+  const id = form.dataset.id;
+  const data = new FormData(form);
+  try {
+    await api(`/api/v1/admin/resources/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      csrf: true,
+      body: {
+        name: data.get("name"),
+        category: data.get("category"),
+        description: data.get("description"),
+        public_host: data.get("public_host"),
+        internal_url: data.get("internal_url"),
+        enabled: data.get("enabled") === "on",
+        group_ids: splitCSV(data.get("group_ids")),
+        allow_cidrs: splitCSV(data.get("allow_cidrs")),
+      },
+    });
+    state.editingResourceID = "";
+    els.operationOutput.textContent = "Ресурс обновлен";
+    await loadResources();
+    if (state.view === "portal") {
+      await loadPortal();
+    }
+  } catch (error) {
+    showOperationError("Не удалось обновить ресурс", error);
   }
 }
 
