@@ -35,6 +35,7 @@ Generated snippets redirect `403` responses to
 surface for missing resources and unauthorized resources so users cannot infer
 whether a guessed entry point exists.
 
-The portal server snippet includes CSP and HSTS headers. Legacy resource server
-snippets include HSTS and baseline hardening headers, but do not inject a CSP
-because proxied applications may have their own content policy requirements.
+The AGP backend sends CSP for its own portal pages. Nginx snippets intentionally
+do not add CSP at the shared server level because proxied legacy applications
+may rely on inline scripts or styles. Legacy resource server snippets include
+HSTS and baseline hardening headers, but also avoid injecting CSP.

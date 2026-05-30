@@ -130,6 +130,27 @@ func TestGenerateBundleUsesNeutralTLSPlaceholders(t *testing.T) {
 	}
 }
 
+func TestGenerateBundleDoesNotApplyCSPToProxiedResources(t *testing.T) {
+	bundle, err := GenerateBundle([]domain.ResourceDetail{
+		{
+			Resource: domain.Resource{
+				ID:          "res_legacy",
+				InternalURL: "http://app.internal.local/anything-needed",
+				PublicHost:  "enter.company.ru",
+				PublicPath:  "/anything-needed",
+				Enabled:     true,
+			},
+			GroupIDs: []string{"grp_users"},
+		},
+	}, "enter.company.ru")
+	if err != nil {
+		t.Fatalf("GenerateBundle returned error: %v", err)
+	}
+	if strings.Contains(bundle.Snippet, "Content-Security-Policy") {
+		t.Fatalf("bundle must not add CSP at nginx server level because proxied apps may rely on inline assets: %s", bundle.Snippet)
+	}
+}
+
 func TestGenerateResourceServerRejectsUnsafeHost(t *testing.T) {
 	resource := domain.ResourceDetail{
 		Resource: domain.Resource{
