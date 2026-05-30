@@ -4,14 +4,16 @@ Date: 2026-05-30
 
 ## Executive Summary
 
-AGP сейчас находится на стадии backend foundation. Уже есть рабочее ядро
-авторизации, PostgreSQL/SQLite storage, Admin API, audit model, Nginx
-`auth_request` контракт и генератор Nginx-рекомендаций.
+AGP сейчас находится на стадии backend foundation с первым встроенным UI shell.
+Уже есть рабочее ядро авторизации, PostgreSQL/SQLite storage, Admin API, audit
+model, Nginx `auth_request` контракт, генератор Nginx-рекомендаций и
+on-demand диагностика ресурсов.
 
-Проект еще не является готовым продуктом для пользователей, потому что нет
-frontend UI, PostgreSQL integration test profile, granular RBAC и полноценного
-operational hardening. Однако архитектурный фундамент выбран правильно:
-AGP выступает control plane, Nginx остается data plane.
+Проект еще не является готовым продуктом для пользователей, потому что frontend
+пока является shell-реализацией, нет PostgreSQL integration test profile,
+granular RBAC и полноценного operational hardening. Однако архитектурный
+фундамент выбран правильно: AGP выступает control plane, Nginx остается data
+plane.
 
 ## Readiness Matrix
 
@@ -27,7 +29,7 @@ AGP выступает control plane, Nginx остается data plane.
 | Nginx auth_request | Implemented | MVP-ready | fail-closed authorization endpoint |
 | Nginx recommendations | Implemented | MVP-ready | generated snippets, no auto-apply |
 | Audit | Implemented | Needs retention/export strategy | DB-backed events |
-| Frontend | Not implemented | Blocker for usable MVP | portal and admin UI missing |
+| Frontend | Partial | Needs feature completion | embedded shell for login, portal and admin basics |
 | PostgreSQL runtime validation | Not implemented | Blocker for production confidence | needs live DB integration tests |
 | Permission model | Partial | Needs hardening | boolean admin only |
 | Rate limiting | Partial | Single-node only | in-memory limiter |
@@ -57,6 +59,16 @@ AGP выступает control plane, Nginx остается data plane.
 - Active session listing and revocation.
 - Audit event listing.
 - Nginx recommendation generation per resource.
+- On-demand resource diagnostics.
+
+### Frontend Shell
+
+- Login screen.
+- User portal resource list.
+- Admin dashboard counters.
+- Admin resource creation.
+- Nginx recommendation view.
+- Resource diagnostics action.
 
 ### Storage
 
@@ -80,8 +92,9 @@ AGP выступает control plane, Nginx остается data plane.
 
 ### Product UX
 
-There is no portal UI and no admin UI yet. The backend can be used through API
-clients, but it is not yet convenient for administrators or end users.
+The embedded frontend shell exists, but it is not yet a complete product UI.
+User/resource workflows are present at a basic level, while full CRUD editing,
+audit browsing, session management and polished error handling still need work.
 
 ### Production Validation
 
@@ -108,7 +121,7 @@ Missing or incomplete:
 
 - metrics endpoint;
 - DB health details;
-- resource upstream health checks;
+- scheduled resource upstream health checks and history;
 - audit retention policy enforcement;
 - SIEM/export path;
 - Redis-backed distributed rate limits;
@@ -158,7 +171,7 @@ Goal: AGP can be used by administrators and users without raw API calls.
 
 Tasks:
 
-- build static frontend shell;
+- expand static frontend shell;
 - implement login/logout flow;
 - implement user resource portal;
 - implement admin dashboard;
@@ -184,7 +197,7 @@ Tasks:
 
 - add permission-based RBAC;
 - add metrics endpoint;
-- add resource diagnostics;
+- add scheduled resource diagnostics and history;
 - add audit retention settings;
 - add backup/restore runbook;
 - add brute-force lockout policy;
@@ -248,7 +261,7 @@ the current maturity level.
 
 | Risk | Severity | Mitigation |
 | --- | --- | --- |
-| No frontend | High | build portal/admin UI next |
+| Frontend is still basic | High | complete portal/admin CRUD workflows |
 | No live PostgreSQL integration test | High | add test profile with disposable DB |
 | Boolean admin only | Medium | introduce permission-based RBAC |
 | In-memory rate limiting | Medium | acceptable for single-node MVP, move to Redis later |
@@ -257,11 +270,11 @@ the current maturity level.
 
 ## Recommended Next Sprint
 
-1. Build the static portal/admin UI shell.
-2. Add PostgreSQL integration tests.
-3. Add resource diagnostics API.
+1. Add PostgreSQL integration tests.
+2. Expand frontend CRUD workflows.
+3. Add scheduled resource diagnostics and history.
 4. Start RBAC data model migration.
 
-The most valuable immediate move is frontend shell plus PostgreSQL integration
-tests. This turns AGP from a backend foundation into a demonstrable MVP while
-raising confidence in the preferred production database.
+The most valuable immediate move is PostgreSQL integration tests plus frontend
+CRUD completion. This turns AGP from a backend foundation into a demonstrable
+MVP while raising confidence in the preferred production database.

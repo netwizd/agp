@@ -25,6 +25,7 @@ Admin endpoints require:
 | `PATCH` | `/api/v1/admin/resources/{id}` | update resource, groups or IP allowlist |
 | `DELETE` | `/api/v1/admin/resources/{id}` | delete resource |
 | `GET` | `/api/v1/admin/resources/{id}/nginx` | generate Nginx recommendation |
+| `POST` | `/api/v1/admin/resources/{id}/diagnostics` | run upstream DNS/TCP/HTTP diagnostics |
 | `GET` | `/api/v1/admin/sessions` | list active sessions |
 | `DELETE` | `/api/v1/admin/sessions/{id}` | revoke session |
 | `GET` | `/api/v1/admin/audit?limit=100` | list audit events |

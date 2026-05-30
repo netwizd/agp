@@ -138,3 +138,19 @@ type ResourceUpdate struct {
 	AllowCIDRs       []string
 	UpdateAllowCIDRs bool
 }
+
+type ResourceDiagnostics struct {
+	ResourceID    string        `json:"resource_id"`
+	InternalURL   string        `json:"internal_url"`
+	DNS           CheckResult   `json:"dns"`
+	TCP           CheckResult   `json:"tcp"`
+	HTTP          CheckResult   `json:"http"`
+	TotalDuration time.Duration `json:"total_duration"`
+}
+
+type CheckResult struct {
+	OK       bool          `json:"ok"`
+	Target   string        `json:"target"`
+	Detail   string        `json:"detail"`
+	Duration time.Duration `json:"duration"`
+}

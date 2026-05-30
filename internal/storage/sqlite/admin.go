@@ -202,13 +202,23 @@ ORDER BY name`)
 
 	var resources []domain.ResourceDetail
 	for rows.Next() {
-		resource, err := scanResourceDetail(ctx, s.db, rows)
-		if err != nil {
-			return nil, err
+		var resource domain.ResourceDetail
+		var enabled int
+		if err := rows.Scan(&resource.ID, &resource.Name, &resource.Description, &resource.Icon, &resource.InternalURL, &resource.PublicHost, &enabled, &resource.CreatedAt, &resource.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan resource: %w", err)
 		}
+		resource.Enabled = intToBool(enabled)
 		resources = append(resources, resource)
 	}
-	return resources, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range resources {
+		if err := s.populateResourceDetail(ctx, &resources[i]); err != nil {
+			return nil, err
+		}
+	}
+	return resources, nil
 }
 
 func (s *Store) FindResourceByID(ctx context.Context, id string) (*domain.ResourceDetail, error) {
@@ -216,8 +226,11 @@ func (s *Store) FindResourceByID(ctx context.Context, id string) (*domain.Resour
 SELECT id, name, description, icon, internal_url, public_host, enabled, created_at, updated_at
 FROM resources
 WHERE id = ?`, id)
-	resource, err := scanResourceDetail(ctx, s.db, row)
+	resource, err := scanResourceDetail(row)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.populateResourceDetail(ctx, &resource); err != nil {
 		return nil, err
 	}
 	return &resource, nil
@@ -402,10 +415,6 @@ type scanner interface {
 	Scan(dest ...any) error
 }
 
-type queryer interface {
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-}
-
 func scanUser(row scanner) (domain.User, error) {
 	var user domain.User
 	var blockedAt sql.NullTime
@@ -423,7 +432,7 @@ func scanUser(row scanner) (domain.User, error) {
 	return user, nil
 }
 
-func scanResourceDetail(ctx context.Context, q queryer, row scanner) (domain.ResourceDetail, error) {
+func scanResourceDetail(row scanner) (domain.ResourceDetail, error) {
 	var detail domain.ResourceDetail
 	var enabled int
 	if err := row.Scan(&detail.ID, &detail.Name, &detail.Description, &detail.Icon, &detail.InternalURL, &detail.PublicHost, &enabled, &detail.CreatedAt, &detail.UpdatedAt); err != nil {
@@ -433,18 +442,25 @@ func scanResourceDetail(ctx context.Context, q queryer, row scanner) (domain.Res
 		return domain.ResourceDetail{}, fmt.Errorf("scan resource: %w", err)
 	}
 	detail.Enabled = intToBool(enabled)
+	return detail, nil
+}
 
-	groupIDs, err := listStrings(ctx, q, `SELECT group_id FROM resource_groups WHERE resource_id = ? ORDER BY group_id`, detail.ID)
+func (s *Store) populateResourceDetail(ctx context.Context, detail *domain.ResourceDetail) error {
+	groupIDs, err := listStrings(ctx, s.db, `SELECT group_id FROM resource_groups WHERE resource_id = ? ORDER BY group_id`, detail.ID)
 	if err != nil {
-		return domain.ResourceDetail{}, err
+		return err
 	}
-	cidrs, err := listStrings(ctx, q, `SELECT cidr FROM resource_ip_allowlists WHERE resource_id = ? ORDER BY cidr`, detail.ID)
+	cidrs, err := listStrings(ctx, s.db, `SELECT cidr FROM resource_ip_allowlists WHERE resource_id = ? ORDER BY cidr`, detail.ID)
 	if err != nil {
-		return domain.ResourceDetail{}, err
+		return err
 	}
 	detail.GroupIDs = groupIDs
 	detail.AllowCIDRs = cidrs
-	return detail, nil
+	return nil
+}
+
+type queryer interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 func listStrings(ctx context.Context, q queryer, query string, args ...any) ([]string, error) {

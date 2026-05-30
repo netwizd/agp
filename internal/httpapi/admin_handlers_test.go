@@ -20,6 +20,11 @@ import (
 
 func TestAdminAPIResourceAndNginxFlow(t *testing.T) {
 	ctx := context.Background()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+
 	store, err := sqlite.Open(t.TempDir() + "/agp.db")
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -81,7 +86,7 @@ func TestAdminAPIResourceAndNginxFlow(t *testing.T) {
 	createResourceBody := postJSON(t, client, server.URL+"/api/v1/admin/resources", map[string]any{
 		"name":         "1C Enterprise",
 		"description":  "Internal 1C service",
-		"internal_url": "http://e1c.osrp.local",
+		"internal_url": upstream.URL,
 		"public_host":  "e1c.company.ru",
 		"enabled":      true,
 		"group_ids":    []string{group.ID},
@@ -116,6 +121,44 @@ func TestAdminAPIResourceAndNginxFlow(t *testing.T) {
 	snippet, ok := nginxBody["nginx"]["snippet"].(string)
 	if !ok || !bytes.Contains([]byte(snippet), []byte("server_name e1c.company.ru;")) {
 		t.Fatalf("unexpected nginx snippet: %#v", nginxBody)
+	}
+
+	diagBody := postJSON(t, client, server.URL+"/api/v1/admin/resources/"+resourceID+"/diagnostics", nil, map[string]string{"X-CSRF-Token": csrfToken})
+	diagnosticsPayload, ok := diagBody["diagnostics"].(map[string]any)
+	if !ok {
+		t.Fatalf("diagnostics response does not contain diagnostics: %#v", diagBody)
+	}
+	httpPayload, ok := diagnosticsPayload["http"].(map[string]any)
+	if !ok || httpPayload["ok"] != true {
+		t.Fatalf("diagnostics response does not contain successful http check: %#v", diagnosticsPayload)
+	}
+}
+
+func TestFrontendFallbackServesSPA(t *testing.T) {
+	api := NewServer(config.Config{
+		SessionCookieName:  "agp_session",
+		CSRFCookieName:     "agp_csrf",
+		SessionTTL:         time.Hour,
+		LoginRateLimitMax:  5,
+		LoginRateLimitWind: time.Minute,
+	}, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	server := httptest.NewServer(api.Handler())
+	t.Cleanup(server.Close)
+
+	resp, err := server.Client().Get(server.URL + "/admin")
+	if err != nil {
+		t.Fatalf("get frontend: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected frontend status: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read frontend body: %v", err)
+	}
+	if !bytes.Contains(body, []byte("Auth Gateway Portal")) {
+		t.Fatalf("frontend body does not look like AGP index: %s", body)
 	}
 }
 

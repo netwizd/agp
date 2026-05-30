@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/netwizd/agp/internal/auth"
+	"github.com/netwizd/agp/internal/diagnostics"
 	"github.com/netwizd/agp/internal/domain"
 	nginxgen "github.com/netwizd/agp/internal/reverseproxy/nginx"
 	"github.com/netwizd/agp/internal/storage"
@@ -291,6 +292,25 @@ func (s *Server) adminResourceNginx(w http.ResponseWriter, r *http.Request, sess
 	}
 	s.audit(r, "admin.nginx.generated", session.User.ID, session.User.Username, resource.ID, s.clientIP(r), r.UserAgent(), "success", "")
 	writeJSON(w, http.StatusOK, map[string]any{"nginx": recommendation})
+}
+
+func (s *Server) adminResourceDiagnostics(w http.ResponseWriter, r *http.Request, session *domain.SessionContext) {
+	resource, err := s.store.FindResourceByID(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeStorageError(w, err, "resource_get_failed")
+		return
+	}
+	result, err := diagnostics.Prober{}.ProbeResource(r.Context(), *resource)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "diagnostics_failed")
+		return
+	}
+	outcome := "failure"
+	if result.DNS.OK && result.TCP.OK && result.HTTP.OK {
+		outcome = "success"
+	}
+	s.audit(r, "admin.resource.diagnostics", session.User.ID, session.User.Username, resource.ID, s.clientIP(r), r.UserAgent(), outcome, "")
+	writeJSON(w, http.StatusOK, map[string]any{"diagnostics": result})
 }
 
 func (s *Server) adminListSessions(w http.ResponseWriter, r *http.Request, _ *domain.SessionContext) {

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AGP</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">A</div>
+          <div>
+            <div class="brand-title">AGP</div>
+            <div class="brand-subtitle">Auth Gateway Portal</div>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-link active" data-view="portal">Портал</button>
+          <button class="nav-link" data-view="admin">Админка</button>
+        </nav>
+        <div class="session-panel" id="sessionPanel"></div>
+      </aside>
+
+      <main class="workspace">
+        <section class="topbar">
+          <div>
+            <h1 id="pageTitle">Портал</h1>
+            <p id="pageSubtitle">Доступные внутренние ресурсы</p>
+          </div>
+          <button class="secondary hidden" id="logoutButton">Выйти</button>
+        </section>
+
+        <section class="login-view" id="loginView">
+          <form class="login-form" id="loginForm">
+            <h2>Вход</h2>
+            <label>
+              Логин
+              <input name="username" autocomplete="username" required />
+            </label>
+            <label>
+              Пароль
+              <input name="password" type="password" autocomplete="current-password" required />
+            </label>
+            <button type="submit">Войти</button>
+            <div class="form-error" id="loginError"></div>
+          </form>
+        </section>
+
+        <section class="content hidden" id="portalView">
+          <div class="section-header">
+            <h2>Доступные сервисы</h2>
+          </div>
+          <div class="resource-grid" id="resourceGrid"></div>
+        </section>
+
+        <section class="content hidden" id="adminView">
+          <div class="metrics" id="metrics"></div>
+          <div class="admin-layout">
+            <section class="panel">
+              <div class="section-header">
+                <h2>Ресурсы</h2>
+              </div>
+              <form class="resource-form" id="resourceForm">
+                <input name="name" placeholder="Название" required />
+                <input name="public_host" placeholder="public host" required />
+                <input name="internal_url" placeholder="http://internal.local" required />
+                <input name="group_ids" placeholder="group ids через запятую" />
+                <input name="allow_cidrs" placeholder="CIDR через запятую" />
+                <button type="submit">Создать ресурс</button>
+              </form>
+              <div class="table-list" id="adminResources"></div>
+            </section>
+
+            <section class="panel">
+              <div class="section-header">
+                <h2>Операции</h2>
+              </div>
+              <pre class="snippet" id="operationOutput">Выберите ресурс для генерации Nginx или диагностики.</pre>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>

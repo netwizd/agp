@@ -9,7 +9,7 @@ The first implementation target is a single-node deployment:
 - SQLite as an optional development/small-install fallback.
 - Nginx as the public TLS reverse proxy using `auth_request`.
 - Admin API for users, groups, resources, sessions, audit and Nginx recommendations.
-- Static frontend/admin assets served by Nginx or by a later build pipeline.
+- Embedded static frontend shell for login, portal and admin basics.
 - Audit-first access model for authentication, resource access and denied requests.
 
 ## Repository Layout

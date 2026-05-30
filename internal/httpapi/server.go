@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/netwizd/agp/internal/config"
+	"github.com/netwizd/agp/internal/frontend"
 	"github.com/netwizd/agp/internal/storage"
 )
 
@@ -50,10 +51,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /api/v1/admin/resources/{id}", s.withAdmin(s.requireCSRF(s.adminUpdateResource)))
 	mux.HandleFunc("DELETE /api/v1/admin/resources/{id}", s.withAdmin(s.requireCSRF(s.adminDeleteResource)))
 	mux.HandleFunc("GET /api/v1/admin/resources/{id}/nginx", s.withAdmin(s.adminResourceNginx))
+	mux.HandleFunc("POST /api/v1/admin/resources/{id}/diagnostics", s.withAdmin(s.requireCSRF(s.adminResourceDiagnostics)))
 	mux.HandleFunc("GET /api/v1/admin/sessions", s.withAdmin(s.adminListSessions))
 	mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", s.withAdmin(s.requireCSRF(s.adminRevokeSession)))
 	mux.HandleFunc("GET /api/v1/admin/audit", s.withAdmin(s.adminListAudit))
 	mux.HandleFunc("GET /auth/request", s.authRequest)
+	mux.Handle("GET /", frontend.Handler())
 	return s.securityHeaders(s.recoverPanic(mux))
 }
 
