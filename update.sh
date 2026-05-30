@@ -26,9 +26,11 @@ ALLOW_DIRTY="no"
 BACKUP_DIR=""
 OLD_COMMIT="unknown"
 NEW_COMMIT="unknown"
+INSTALLED_COMMIT="missing"
 UPSTREAM_REF=""
 REMOTE_COMMIT="unknown"
 NO_UPDATE_REASON=""
+SOURCE_CHANGED="unknown"
 TMP_DIR=""
 
 log() {
@@ -170,6 +172,7 @@ preflight() {
 
   cd "$SOURCE_DIR"
   OLD_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  INSTALLED_COMMIT="$(installed_commit)"
 
   if [[ "$ALLOW_DIRTY" != "yes" ]] && [[ -n "$(git status --porcelain)" ]]; then
     git status --short >&2
@@ -177,11 +180,47 @@ preflight() {
   fi
 }
 
+installed_commit() {
+  local version_output commit
+  if [[ ! -x "$BIN_DIR/agp" ]]; then
+    printf 'missing'
+    return
+  fi
+  version_output="$("$BIN_DIR/agp" --version 2>/dev/null || true)"
+  commit="$(sed -n 's/.*commit=\([^ ]*\).*/\1/p' <<<"$version_output" | head -n 1)"
+  printf '%s' "${commit:-unknown}"
+}
+
+commit_matches() {
+  local installed="$1"
+  local full_commit="$2"
+  [[ -n "$installed" && "$installed" != "unknown" && "$installed" != "missing" && "$full_commit" == "$installed"* ]]
+}
+
+exit_if_installed_current() {
+  local target_full="$1"
+  local reason="$2"
+  local target_short
+  target_short="$(git rev-parse --short "$target_full" 2>/dev/null || echo unknown)"
+  if commit_matches "$INSTALLED_COMMIT" "$target_full"; then
+    NEW_COMMIT="$target_short"
+    NO_UPDATE_REASON="$reason; installed binary already matches source"
+    log "No update available. Installed AGP already matches source commit $target_short."
+    print_no_update_summary
+    exit 0
+  fi
+
+  NEW_COMMIT="$target_short"
+  log "Source is already at $target_short, but installed AGP is $INSTALLED_COMMIT. Reinstalling from source."
+}
+
 update_source() {
   cd "$SOURCE_DIR"
   if [[ "$GIT_PULL" != "yes" ]]; then
     warn "Skipping git pull by request."
-    NEW_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    local current_full
+    current_full="$(git rev-parse HEAD)"
+    exit_if_installed_current "$current_full" "--no-git-pull source check"
     return
   fi
 
@@ -198,19 +237,16 @@ update_source() {
   REMOTE_COMMIT="$(git rev-parse --short "$UPSTREAM_REF" 2>/dev/null || echo unknown)"
 
   if [[ "$local_full" == "$remote_full" ]]; then
-    NEW_COMMIT="$OLD_COMMIT"
-    NO_UPDATE_REASON="local HEAD already matches upstream"
-    log "No update available. Local HEAD already matches $UPSTREAM_REF ($OLD_COMMIT)."
-    print_no_update_summary
-    exit 0
+    SOURCE_CHANGED="no"
+    exit_if_installed_current "$local_full" "local HEAD already matches upstream"
+    return
   fi
 
   if git merge-base --is-ancestor "$UPSTREAM_REF" HEAD; then
-    NEW_COMMIT="$OLD_COMMIT"
-    NO_UPDATE_REASON="local branch is ahead of upstream; no remote update to apply"
-    warn "$NO_UPDATE_REASON"
-    print_no_update_summary
-    exit 0
+    SOURCE_CHANGED="no"
+    warn "local branch is ahead of upstream; no remote update to apply"
+    exit_if_installed_current "$local_full" "local branch is ahead of upstream"
+    return
   fi
 
   if ! git merge-base --is-ancestor HEAD "$UPSTREAM_REF"; then
@@ -219,6 +255,7 @@ update_source() {
 
   git pull --ff-only
   NEW_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  SOURCE_CHANGED="yes"
 }
 
 print_no_update_summary() {
@@ -228,6 +265,7 @@ AGP is already up to date.
   source dir:       $SOURCE_DIR
   service:          $SERVICE_NAME
   current commit:   $OLD_COMMIT
+  installed commit: $INSTALLED_COMMIT
   upstream:         ${UPSTREAM_REF:-not checked}
   upstream commit:  $REMOTE_COMMIT
   reason:           ${NO_UPDATE_REASON:-no remote update available}
@@ -361,6 +399,8 @@ AGP update complete.
   service:          $SERVICE_NAME
   old commit:       $OLD_COMMIT
   new commit:       $NEW_COMMIT
+  installed before: $INSTALLED_COMMIT
+  source changed:   $SOURCE_CHANGED
   backup dir:       $BACKUP_DIR
   env file:         $ENV_FILE
   health URL:       $HEALTH_URL

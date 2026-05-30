@@ -95,12 +95,14 @@ cd /opt/agp-src
 sudo ./update.sh --auto
 ```
 
-The updater checks the upstream branch first. If the server is already on the
-latest commit, it exits without build, install, restart or migrations. When an
-update is available, it runs `git pull --ff-only`, builds `agp` and `agpctl`,
-runs Go checks by default, backs up the current binaries and systemd unit,
-restarts AGP and verifies `/readyz`. If readiness fails after replacement, it
-attempts to restore the previous binaries.
+The updater checks both the upstream branch and the commit embedded in the
+currently installed `/usr/local/bin/agp`. If source and installed binary already
+match, it exits without build, install, restart or migrations. If the source was
+already pulled but the installed binary is older, it still rebuilds and installs.
+When an update is available, it runs `git pull --ff-only`, builds `agp` and
+`agpctl`, runs Go checks by default, backs up the current binaries and systemd
+unit, restarts AGP and verifies `/readyz`. If readiness fails after replacement,
+it attempts to restore the previous binaries.
 
 The detailed manual runbook is in
 [docs/production-v1.0.md](docs/production-v1.0.md). v1.1 identity and
