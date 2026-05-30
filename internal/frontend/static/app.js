@@ -1431,6 +1431,9 @@ async function responseErrorMessage(response) {
   if (response.status === 413) {
     return "HTTP 413: файл больше лимита Nginx/client_max_body_size или AGP_DOWNLOAD_MAX_BYTES";
   }
+  if (detail === "download_extension_denied") {
+    return "HTTP 400: расширение файла запрещено политикой AGP_DOWNLOAD_ALLOWED_EXTENSIONS";
+  }
   return `HTTP ${response.status}${detail ? `: ${detail}` : ""}`;
 }
 

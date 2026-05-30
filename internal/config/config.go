@@ -67,7 +67,7 @@ func Load() (Config, error) {
 		ShutdownTimeout:          envDuration("AGP_SHUTDOWN_TIMEOUT", 10*time.Second),
 		LoginRateLimitMax:        envInt("AGP_LOGIN_RATE_LIMIT_MAX", 5),
 		LoginRateLimitWind:       envDuration("AGP_LOGIN_RATE_LIMIT_WINDOW", time.Minute),
-		DownloadAllowedExt:       envCSV("AGP_DOWNLOAD_ALLOWED_EXTENSIONS", ".zip,.msi,.exe,.pkg,.dmg,.pdf,.txt,.rdp,.ovpn,.conf"),
+		DownloadAllowedExt:       envCSV("AGP_DOWNLOAD_ALLOWED_EXTENSIONS", ".zip,.rar,.7z,.msi,.exe,.pkg,.dmg,.pdf,.txt,.rdp,.ovpn,.conf"),
 		DownloadScanCmd:          envString("AGP_DOWNLOAD_SCAN_COMMAND", ""),
 		DownloadScanTimeout:      envDuration("AGP_DOWNLOAD_SCAN_TIMEOUT", 30*time.Second),
 		DiagnosticsAllowCIDRs:    envCSV("AGP_DIAGNOSTICS_ALLOW_CIDRS", ""),

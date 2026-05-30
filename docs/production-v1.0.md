@@ -88,7 +88,7 @@ AGP_TRUST_PROXY_HEADERS=true
 AGP_TRUSTED_PROXY_CIDRS=127.0.0.1/32,10.0.0.0/8
 AGP_AUDIT_RETENTION=8760h
 AGP_SESSION_RETENTION=720h
-AGP_DOWNLOAD_ALLOWED_EXTENSIONS=.zip,.msi,.exe,.pkg,.dmg,.pdf,.txt,.rdp,.ovpn,.conf
+AGP_DOWNLOAD_ALLOWED_EXTENSIONS=.zip,.rar,.7z,.msi,.exe,.pkg,.dmg,.pdf,.txt,.rdp,.ovpn,.conf
 # optional external scanner; {path} is replaced with the temporary upload path
 AGP_DOWNLOAD_SCAN_COMMAND=clamscan --no-summary {path}
 # optional diagnostics allowlist; if set, every resolved target IP must match it
