@@ -13,7 +13,7 @@ delivery roadmap.
 | Auth | local username/password login, Argon2id password hashes |
 | Sessions | server-side sessions, hashed session tokens, CSRF token for mutating API |
 | User portal API | `/api/v1/me`, `/api/v1/resources` |
-| Frontend shell | embedded static login, portal and admin UI shell |
+| Frontend shell | embedded static login, portal and admin UI shell with resources/groups/users/sessions/audit tabs |
 | Nginx integration | `/auth/request` endpoint for `auth_request` |
 | Admin API | users, groups, resources, sessions, audit, dashboard |
 | Nginx recommendations | generated per-resource server block snippets, no auto-apply |
@@ -53,13 +53,14 @@ Covered by tests:
 - admin login/session/CSRF/resource creation/Nginx recommendation flow via
   `httptest` and SQLite.
 - embedded SPA fallback route.
+- PostgreSQL integration profile when `AGP_TEST_POSTGRES_DSN` is set.
 
 ## Not Implemented Yet
 
 | Area | Gap |
 | --- | --- |
 | Frontend completeness | shell exists, but UX is not feature-complete |
-| PostgreSQL integration test | no live PostgreSQL test harness yet |
+| PostgreSQL integration test | opt-in harness exists, not yet part of CI |
 | RBAC granularity | admin is currently boolean, not permission-based |
 | Rate limiting | in-memory only, not Redis-backed |
 | MFA/SSO | LDAP/AD/TOTP/SSO not implemented |
@@ -69,7 +70,7 @@ Covered by tests:
 
 ## Next Recommended Increment
 
-1. Add PostgreSQL integration test profile for local/CI environments.
-2. Expand portal/admin UI to full CRUD workflows.
+1. Wire PostgreSQL integration tests into CI/local release checklist.
+2. Expand portal/admin UI edit forms and polish error states.
 3. Replace boolean admin with permission-based RBAC.
 4. Add scheduled resource health checks and history.

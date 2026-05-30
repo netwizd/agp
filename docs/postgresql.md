@@ -38,3 +38,17 @@ Minimum production baseline:
 - WAL archiving for point-in-time recovery;
 - encrypted off-host backup storage;
 - monthly restore drill.
+
+## Integration Tests
+
+PostgreSQL integration tests are opt-in and require a disposable database user
+with permission to create/drop schemas:
+
+```bash
+AGP_TEST_POSTGRES_DSN='postgres://agp:change-me@127.0.0.1:5432/agp?sslmode=disable' \
+  go test ./internal/storage/postgres
+```
+
+The test creates a temporary schema, applies embedded migrations inside that
+schema, validates core CRUD/access/audit operations and drops the schema during
+cleanup.

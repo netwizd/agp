@@ -29,8 +29,8 @@ plane.
 | Nginx auth_request | Implemented | MVP-ready | fail-closed authorization endpoint |
 | Nginx recommendations | Implemented | MVP-ready | generated snippets, no auto-apply |
 | Audit | Implemented | Needs retention/export strategy | DB-backed events |
-| Frontend | Partial | Needs feature completion | embedded shell for login, portal and admin basics |
-| PostgreSQL runtime validation | Not implemented | Blocker for production confidence | needs live DB integration tests |
+| Frontend | Partial | Needs feature completion | embedded shell with resources/groups/users/sessions/audit tabs |
+| PostgreSQL runtime validation | Partial | Needs CI wiring | opt-in live DB integration test exists |
 | Permission model | Partial | Needs hardening | boolean admin only |
 | Rate limiting | Partial | Single-node only | in-memory limiter |
 | MFA/SSO | Not implemented | Enterprise phase | LDAP/AD/TOTP/SSO later |
@@ -66,7 +66,8 @@ plane.
 - Login screen.
 - User portal resource list.
 - Admin dashboard counters.
-- Admin resource creation.
+- Admin resources/groups/users/sessions/audit tabs.
+- Admin resource/group/user creation and selected destructive actions.
 - Nginx recommendation view.
 - Resource diagnostics action.
 
@@ -93,14 +94,15 @@ plane.
 ### Product UX
 
 The embedded frontend shell exists, but it is not yet a complete product UI.
-User/resource workflows are present at a basic level, while full CRUD editing,
-audit browsing, session management and polished error handling still need work.
+User/resource workflows are present at a basic level. List/create/delete/revoke
+flows are available for key entities, while inline editing, stronger validation
+UX and polished error handling still need work.
 
 ### Production Validation
 
 PostgreSQL code compiles and is structurally implemented, but there is no
-repeatable live PostgreSQL integration test. This is a production confidence
-gap.
+repeatable live PostgreSQL integration test. An opt-in test profile now exists,
+but it is not yet wired into CI or a release checklist.
 
 ### Authorization Granularity
 
@@ -152,7 +154,7 @@ AGP MVP should be considered ready when the following are complete:
    - session revocation;
    - audit view;
    - Nginx recommendation view.
-3. PostgreSQL integration test profile.
+3. PostgreSQL integration test profile wired into release checks.
 4. First production install guide:
    - PostgreSQL;
    - AGP binary;
@@ -178,7 +180,7 @@ Tasks:
 - implement users/groups/resources UI;
 - implement Nginx recommendation view with copy/download;
 - add 401/403 pages;
-- add PostgreSQL integration test profile;
+- wire PostgreSQL integration test profile into release checks;
 - document first VM deployment.
 
 Exit criteria:
@@ -262,7 +264,7 @@ the current maturity level.
 | Risk | Severity | Mitigation |
 | --- | --- | --- |
 | Frontend is still basic | High | complete portal/admin CRUD workflows |
-| No live PostgreSQL integration test | High | add test profile with disposable DB |
+| PostgreSQL integration test is not in CI | High | add release/CI profile with disposable DB |
 | Boolean admin only | Medium | introduce permission-based RBAC |
 | In-memory rate limiting | Medium | acceptable for single-node MVP, move to Redis later |
 | No metrics | Medium | add `/metrics` or structured health endpoint |
@@ -270,11 +272,12 @@ the current maturity level.
 
 ## Recommended Next Sprint
 
-1. Add PostgreSQL integration tests.
-2. Expand frontend CRUD workflows.
+1. Wire PostgreSQL integration tests into CI/local release checklist.
+2. Expand frontend inline edit workflows and polish error states.
 3. Add scheduled resource diagnostics and history.
 4. Start RBAC data model migration.
 
-The most valuable immediate move is PostgreSQL integration tests plus frontend
-CRUD completion. This turns AGP from a backend foundation into a demonstrable
-MVP while raising confidence in the preferred production database.
+The most valuable immediate move is CI/release wiring for PostgreSQL integration
+tests plus frontend edit workflow completion. This turns AGP from a backend
+foundation into a demonstrable MVP while raising confidence in the preferred
+production database.

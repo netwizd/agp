@@ -160,6 +160,11 @@ func TestFrontendFallbackServesSPA(t *testing.T) {
 	if !bytes.Contains(body, []byte("Auth Gateway Portal")) {
 		t.Fatalf("frontend body does not look like AGP index: %s", body)
 	}
+	for _, label := range [][]byte{[]byte("Группы"), []byte("Пользователи"), []byte("Сессии"), []byte("Аудит")} {
+		if !bytes.Contains(body, label) {
+			t.Fatalf("frontend body does not contain %q: %s", label, body)
+		}
+	}
 }
 
 func postJSON(t *testing.T, client *http.Client, url string, payload any, headers map[string]string) map[string]any {

@@ -57,8 +57,15 @@
 
         <section class="content hidden" id="adminView">
           <div class="metrics" id="metrics"></div>
+          <div class="tabs" id="adminTabs">
+            <button class="tab active" data-admin-tab="resources">Ресурсы</button>
+            <button class="tab" data-admin-tab="groups">Группы</button>
+            <button class="tab" data-admin-tab="users">Пользователи</button>
+            <button class="tab" data-admin-tab="sessions">Сессии</button>
+            <button class="tab" data-admin-tab="audit">Аудит</button>
+          </div>
           <div class="admin-layout">
-            <section class="panel">
+            <section class="panel admin-tab-panel" id="resourcesPanel">
               <div class="section-header">
                 <h2>Ресурсы</h2>
               </div>
@@ -71,6 +78,51 @@
                 <button type="submit">Создать ресурс</button>
               </form>
               <div class="table-list" id="adminResources"></div>
+            </section>
+
+            <section class="panel admin-tab-panel hidden" id="groupsPanel">
+              <div class="section-header">
+                <h2>Группы</h2>
+              </div>
+              <form class="compact-form" id="groupForm">
+                <input name="name" placeholder="Название группы" required />
+                <input name="description" placeholder="Описание" />
+                <button type="submit">Создать группу</button>
+              </form>
+              <div class="table-list" id="adminGroups"></div>
+            </section>
+
+            <section class="panel admin-tab-panel hidden" id="usersPanel">
+              <div class="section-header">
+                <h2>Пользователи</h2>
+              </div>
+              <form class="compact-form" id="userForm">
+                <input name="username" placeholder="Логин" required />
+                <input name="display_name" placeholder="Отображаемое имя" />
+                <input name="password" type="password" placeholder="Пароль" required />
+                <input name="group_ids" placeholder="group ids через запятую" />
+                <label class="checkbox-line">
+                  <input name="is_admin" type="checkbox" />
+                  Администратор
+                </label>
+                <button type="submit">Создать пользователя</button>
+              </form>
+              <div class="table-list" id="adminUsers"></div>
+            </section>
+
+            <section class="panel admin-tab-panel hidden" id="sessionsPanel">
+              <div class="section-header">
+                <h2>Сессии</h2>
+              </div>
+              <div class="table-list" id="adminSessions"></div>
+            </section>
+
+            <section class="panel admin-tab-panel hidden" id="auditPanel">
+              <div class="section-header">
+                <h2>Аудит</h2>
+                <button class="secondary" id="refreshAuditButton">Обновить</button>
+              </div>
+              <div class="table-list" id="adminAudit"></div>
             </section>
 
             <section class="panel">
