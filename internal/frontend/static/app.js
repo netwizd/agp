@@ -44,6 +44,27 @@ const permissionLabels = {
   "audit.export": "Аудит: экспорт",
 };
 
+const permissionDescriptions = {
+  "dashboard.read": "Просмотр счетчиков и краткой сводки в админке.",
+  "users.read": "Просмотр списка пользователей и их групп.",
+  "users.manage": "Создание, редактирование, блокировка и удаление пользователей.",
+  "users.superadmin.manage": "Выдача и отзыв глобального статуса администратора.",
+  "groups.read": "Просмотр групп и назначенных им прав.",
+  "groups.manage": "Создание, редактирование и удаление групп.",
+  "resources.read": "Просмотр ресурсов, групп доступа, CIDR и Nginx-рекомендаций.",
+  "resources.manage": "Создание, редактирование и удаление ресурсов портала.",
+  "resources.diagnostics": "Запуск диагностики DNS/TCP/HTTP для upstream ресурсов.",
+  "nginx.recommendations.read": "Генерация Nginx snippets и полного bundle.",
+  "downloads.read": "Просмотр публичных файлов в админке.",
+  "downloads.manage": "Загрузка, публикация, скрытие и удаление публичных файлов.",
+  "portal.settings.read": "Просмотр настроек оформления портала.",
+  "portal.settings.manage": "Изменение логотипа, заголовков, help/support и footer.",
+  "sessions.read": "Просмотр активных пользовательских сессий.",
+  "sessions.revoke": "Принудительное завершение пользовательских сессий.",
+  "audit.read": "Просмотр журнала аудита.",
+  "audit.export": "Экспорт журнала аудита в CSV или JSON.",
+};
+
 const els = {
   brandMark: document.getElementById("brandMark"),
   brandTitle: document.getElementById("brandTitle"),
@@ -98,6 +119,7 @@ const els = {
   exportAuditJSONButton: document.getElementById("exportAuditJSONButton"),
   operationOutput: document.getElementById("operationOutput"),
   copyOperationButton: document.getElementById("copyOperationButton"),
+  permissionReference: document.getElementById("permissionReference"),
 };
 
 document.querySelectorAll(".nav-link").forEach((button) => {
@@ -380,6 +402,7 @@ function syncAdminTabs() {
   const canExportAudit = can("audit.export");
   els.exportAuditCSVButton.classList.toggle("hidden", !canExportAudit);
   els.exportAuditJSONButton.classList.toggle("hidden", !canExportAudit);
+  renderPermissionReference();
 }
 
 async function loadPortal() {
@@ -764,6 +787,30 @@ function renderGroupSelector(selectedGroupIDs, emptyMessage) {
 function labelPermissions(permissionIDs) {
   if (!permissionIDs.length) return "none";
   return permissionIDs.map((id) => permissionLabels[id] || id).join(", ");
+}
+
+function renderPermissionReference() {
+  if (!els.permissionReference) return;
+  const visible = state.view === "admin" && state.adminTab === "groups" && can("groups.read");
+  els.permissionReference.classList.toggle("hidden", !visible);
+  if (!visible) return;
+  els.permissionReference.innerHTML = `
+    <h3>Permissions</h3>
+    <p class="muted">Эти права управляют только административными возможностями. Доступ к самим сервисам задается привязкой ресурса к группе.</p>
+    <div class="permission-list">
+      ${Object.keys(permissionLabels)
+        .map(
+          (id) => `
+          <div class="permission-item">
+            <code>${escapeHTML(id)}</code>
+            <strong>${escapeHTML(permissionLabels[id])}</strong>
+            <span class="muted">${escapeHTML(permissionDescriptions[id] || "")}</span>
+          </div>
+        `
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function renderGroupEditForm(group) {

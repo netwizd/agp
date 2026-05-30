@@ -403,6 +403,36 @@ p {
   gap: 8px;
 }
 
+.permission-reference {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.permission-reference h3 {
+  margin: 0 0 8px;
+}
+
+.permission-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.permission-item {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-muted);
+}
+
+.permission-item code {
+  overflow-wrap: anywhere;
+  color: var(--accent-dark);
+}
+
 .portal-footer {
   margin-top: 24px;
   color: var(--muted);

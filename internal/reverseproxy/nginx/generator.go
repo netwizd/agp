@@ -198,8 +198,9 @@ server {
     http2 on;
     server_name {{ .PortalHost }};
 
-    ssl_certificate /etc/letsencrypt/live/{{ .PortalHost }}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/{{ .PortalHost }}/privkey.pem;
+    # Replace these paths with your real TLS certificate files.
+    ssl_certificate /etc/nginx/ssl/portal/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/portal/private.key;
 
     access_log /var/log/nginx/agp.portal.access.log;
     error_log /var/log/nginx/agp.portal.error.log warn;
@@ -266,8 +267,9 @@ server {
     http2 on;
     server_name {{ .PublicHost }};
 
-    ssl_certificate /etc/letsencrypt/live/{{ .PublicHost }}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/{{ .PublicHost }}/privkey.pem;
+    # Replace these paths with your real TLS certificate files.
+    ssl_certificate /etc/nginx/ssl/resource/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/resource/private.key;
 
     access_log /var/log/nginx/agp.resources.access.log;
     error_log /var/log/nginx/agp.resources.error.log warn;

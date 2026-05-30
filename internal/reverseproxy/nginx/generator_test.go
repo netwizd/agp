@@ -106,6 +106,25 @@ func TestGenerateBundleContainsProtectedPathLocation(t *testing.T) {
 	}
 }
 
+func TestGenerateBundleUsesNeutralTLSPlaceholders(t *testing.T) {
+	bundle, err := GenerateBundle(nil, "enter.company.ru")
+	if err != nil {
+		t.Fatalf("GenerateBundle returned error: %v", err)
+	}
+	if strings.Contains(bundle.Snippet, "/etc/letsencrypt/live/") {
+		t.Fatalf("bundle must not assume Let's Encrypt paths: %s", bundle.Snippet)
+	}
+	for _, expected := range []string{
+		"ssl_certificate /etc/nginx/ssl/portal/cert.pem;",
+		"ssl_certificate_key /etc/nginx/ssl/portal/private.key;",
+		"Replace these paths with your real TLS certificate files.",
+	} {
+		if !strings.Contains(bundle.Snippet, expected) {
+			t.Fatalf("bundle does not contain %q: %s", expected, bundle.Snippet)
+		}
+	}
+}
+
 func TestGenerateResourceServerRejectsUnsafeHost(t *testing.T) {
 	resource := domain.ResourceDetail{
 		Resource: domain.Resource{
