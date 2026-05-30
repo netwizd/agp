@@ -87,6 +87,7 @@ const els = {
   nginxBundleButton: document.getElementById("nginxBundleButton"),
   groupForm: document.getElementById("groupForm"),
   userForm: document.getElementById("userForm"),
+  userGroupSelector: document.getElementById("userGroupSelector"),
   createUserAdminFlag: document.getElementById("createUserAdminFlag"),
   downloadForm: document.getElementById("downloadForm"),
   portalSettingsForm: document.getElementById("portalSettingsForm"),
@@ -214,7 +215,7 @@ els.userForm.addEventListener("submit", async (event) => {
         display_name: form.get("display_name"),
         password: form.get("password"),
         is_admin: form.get("is_admin") === "on",
-        group_ids: splitCSV(form.get("group_ids")),
+        group_ids: selectedValues(els.userForm, "group_ids"),
       },
     });
     els.userForm.reset();
@@ -615,7 +616,7 @@ async function loadResources() {
   els.nginxBundleButton.classList.toggle("hidden", !can("nginx.recommendations.read"));
   await ensureGroupLookup();
   if (els.resourceGroupSelector) {
-    els.resourceGroupSelector.innerHTML = renderGroupSelector([]);
+    els.resourceGroupSelector.innerHTML = renderGroupSelector([], "Группы не созданы. Без группы доступ к ресурсу будет запрещен.");
   }
   const data = await api("/api/v1/admin/resources");
   renderAdminResources(data.resources || []);
@@ -666,7 +667,7 @@ function renderResourceEditForm(resource) {
       <input name="public_path" placeholder="/osrp-do" value="${escapeHTML(resource.PublicPath || "")}" required />
       <input name="internal_url" placeholder="http://internal.local" value="${escapeHTML(resource.InternalURL)}" required />
       <input name="description" placeholder="Описание" value="${escapeHTML(resource.Description || "")}" />
-      <div class="form-field-full">${renderGroupSelector(resource.GroupIDs || [])}</div>
+      <div class="form-field-full">${renderGroupSelector(resource.GroupIDs || [], "Группы не созданы. Без группы доступ к ресурсу будет запрещен.")}</div>
       <input name="allow_cidrs" placeholder="CIDR через запятую" value="${escapeHTML((resource.AllowCIDRs || []).join(", "))}" />
       <label class="checkbox-line">
         <input name="enabled" type="checkbox" ${resource.Enabled ? "checked" : ""} />
@@ -728,12 +729,6 @@ async function ensureGroupLookup() {
   }
 }
 
-function labelGroupIDs(groupIDs) {
-  if (!groupIDs.length) return "none";
-  const byID = new Map(state.adminGroups.map((group) => [group.ID, group.Name]));
-  return groupIDs.map((id) => byID.get(id) || id).join(", ");
-}
-
 function groupChips(groupIDs) {
   if (!groupIDs.length) return `<span class="muted">groups: none</span>`;
   const byID = new Map(state.adminGroups.map((group) => [group.ID, group.Name]));
@@ -742,9 +737,9 @@ function groupChips(groupIDs) {
     .join("");
 }
 
-function renderGroupSelector(selectedGroupIDs) {
+function renderGroupSelector(selectedGroupIDs, emptyMessage) {
   if (!state.adminGroups.length) {
-    return `<div class="muted">Группы не созданы. Без группы доступ к ресурсу будет запрещен.</div>`;
+    return `<div class="muted">${escapeHTML(emptyMessage || "Группы не созданы.")}</div>`;
   }
   const selected = new Set(selectedGroupIDs || []);
   return `
@@ -787,6 +782,9 @@ async function loadUsers() {
   els.userForm.classList.toggle("hidden", !can("users.manage"));
   els.createUserAdminFlag.classList.toggle("hidden", !can("users.superadmin.manage"));
   await ensureGroupLookup();
+  if (els.userGroupSelector) {
+    els.userGroupSelector.innerHTML = renderGroupSelector([], "Группы не созданы. Пользователя можно создать без групп и назначить их позже.");
+  }
   const data = await api("/api/v1/admin/users");
   const users = data.users || [];
   if (users.length === 0) {
@@ -800,7 +798,7 @@ async function loadUsers() {
         <div>
           <strong>${escapeHTML(user.Username)}</strong>
           <div class="muted">${escapeHTML(user.DisplayName || "Без имени")} · ${user.IsAdmin ? "admin" : "user"}</div>
-          <div class="muted">groups: ${escapeHTML(labelGroupIDs(user.GroupIDs || []))}</div>
+          <div class="chip-row">${groupChips(user.GroupIDs || [])}</div>
           <div class="${user.BlockedAt ? "status-bad" : "status-ok"}">${user.BlockedAt ? "blocked" : "active"}</div>
         </div>
         <div class="row-actions">
@@ -825,7 +823,7 @@ function renderUserEditForm(user) {
   return `
     <form class="inline-edit-form" data-user-edit data-id="${escapeHTML(user.ID)}">
       <input name="display_name" placeholder="Отображаемое имя" value="${escapeHTML(user.DisplayName || "")}" />
-      <input name="group_ids" placeholder="group ids через запятую" value="${escapeHTML((user.GroupIDs || []).join(", "))}" />
+      <div class="form-field-full">${renderGroupSelector(user.GroupIDs || [], "Группы не созданы. Пользователя можно оставить без групп.")}</div>
       <input name="password" type="password" placeholder="Новый пароль, если нужно" />
       ${
         can("users.superadmin.manage")
@@ -1189,7 +1187,7 @@ async function submitUserEdit(event, form) {
   const data = new FormData(form);
   const body = {
     display_name: data.get("display_name"),
-    group_ids: splitCSV(data.get("group_ids")),
+    group_ids: selectedValues(form, "group_ids"),
     blocked: data.get("blocked") === "on",
   };
   if (can("users.superadmin.manage")) {
