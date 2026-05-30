@@ -4,11 +4,14 @@ set -Eeuo pipefail
 INSTALL_ROOT="${INSTALL_ROOT:-/opt/agp-src}"
 SERVICE_NAME="${SERVICE_NAME:-agp}"
 BIN_DIR="${BIN_DIR:-/usr/local/bin}"
+GO_BIN_DIR="${GO_BIN_DIR:-/usr/local/go/bin}"
 ENV_FILE="${ENV_FILE:-/etc/agp/agp.env}"
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/agp/updates}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8080/healthz}"
 READY_URL="${READY_URL:-http://127.0.0.1:8080/readyz}"
 ORIGINAL_ARGS=("$@")
+
+export PATH="$GO_BIN_DIR:$PATH"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DIR="$SCRIPT_DIR"
@@ -59,6 +62,7 @@ Environment overrides:
   INSTALL_ROOT=/opt/agp-src
   SERVICE_NAME=agp
   BIN_DIR=/usr/local/bin
+  GO_BIN_DIR=/usr/local/go/bin
   ENV_FILE=/etc/agp/agp.env
   BACKUP_ROOT=/var/backups/agp/updates
   HEALTH_URL=http://127.0.0.1:8080/healthz
