@@ -33,6 +33,21 @@ HTTP probes:
 - Nginx reload failed;
 - истечение TLS certificate.
 
+## Диагностика Новых Точек Входа
+
+Если новый ресурс после клика возвращает пользователя обратно в портал, сначала
+проверьте, применен ли актуальный Nginx bundle. AGP хранит ресурс в БД, но Nginx
+не узнает о новом `public_path`, пока администратор не обновит config.
+
+```bash
+sudo nginx -T 2>/dev/null | grep -n "location \\^~ /anything-needed"
+```
+
+Если location отсутствует, скопируйте новый bundle из админки, проверьте
+`nginx -t` и выполните reload. Если location есть, смотрите audit events и
+Nginx logs: причина может быть в группах, CIDR allowlist, disabled resource или
+недоступном upstream.
+
 ## Backup
 
 Production backup включает PostgreSQL и downloads directory:

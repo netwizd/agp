@@ -552,6 +552,21 @@ p {
   margin-bottom: 16px;
 }
 
+.admin-hint {
+  margin: -4px 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.admin-hint code {
+  color: var(--text);
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
 .resource-form button,
 .compact-form button,
 .settings-form button,

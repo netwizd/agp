@@ -162,6 +162,10 @@
                 <h2>Ресурсы</h2>
                 <button class="secondary" id="nginxBundleButton" type="button">Nginx bundle</button>
               </div>
+              <p class="admin-hint">
+                После создания или изменения точки входа обновите Nginx bundle на сервере и выполните
+                <code>nginx -t</code> + reload. Иначе новый путь попадет в fallback портала и откроет AGP вместо ресурса.
+              </p>
               <form class="resource-form" id="resourceForm">
                 <input name="name" placeholder="Название" required />
                 <input name="category" placeholder="Группа в каталоге, например Финансы" />

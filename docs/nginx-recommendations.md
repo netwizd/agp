@@ -111,3 +111,56 @@ ssl_certificate_key /etc/nginx/ssl/portal/private.key;
 ```
 
 Перед применением их нужно заменить на реальные файлы сертификата.
+
+## Troubleshooting
+
+### Новый Ресурс Возвращает В Портал
+
+Если старые точки входа работают, а новая при клике открывает портал, чаще всего
+в активном Nginx config нет `location` для нового `public_path`. Запрос
+попадает в fallback:
+
+```nginx
+location / {
+    proxy_pass http://agp_backend;
+}
+```
+
+Проверка на сервере:
+
+```bash
+sudo nginx -T 2>/dev/null | grep -n "location \\^~ /anything-needed"
+```
+
+Замените `/anything-needed` на реальный `public_path`. Если строки нет:
+
+1. откройте AGP admin;
+2. нажмите `Nginx bundle`;
+3. скопируйте новый bundle в `/etc/nginx/conf.d/agp-portal.conf`;
+4. сохраните реальные `ssl_certificate` paths;
+5. примените:
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Как Отличить Причины
+
+| Симптом | Вероятная причина | Проверка |
+| --- | --- | --- |
+| Открывается портал вместо ресурса | нет `location` для `public_path` в Nginx | `sudo nginx -T \| grep "location \\^~ /path"` |
+| Открывается `/access-denied` | AGP отказал по группе, CIDR, disabled resource или session | audit tab, `journalctl -u agp` |
+| Ошибка DNS/upstream | Nginx не резолвит или не достигает `internal_url` | `curl -I http://internal.host/path` с Nginx/AGP host |
+| CSP errors в консоли | CSP остался в Nginx server или его ставит upstream | `curl -k -I https://portal/path \| grep -i content-security-policy` |
+
+### Минимальный Debug Набор
+
+```bash
+sudo nginx -t
+sudo nginx -T 2>/dev/null | grep -n "location \\^~ /anything-needed"
+curl -k -I https://portal.company.ru/anything-needed/
+journalctl -u agp -n 100 --no-pager
+sudo tail -n 100 /var/log/nginx/agp.portal.access.log
+sudo tail -n 100 /var/log/nginx/agp.portal.error.log
+```
