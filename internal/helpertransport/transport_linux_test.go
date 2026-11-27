@@ -391,9 +391,22 @@ func TestUnixServerRejectsLiveOrNonSocketAndReclaimsStale(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stale socket not reclaimed: %v", err)
 	}
-	after, _ = os.Stat(path)
-	if os.SameFile(before, after) {
-		t.Fatal("stale inode reused")
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = s.Close(ctx)
+	})
+	// Unlink releases the stale inode, so a filesystem may legitimately reuse
+	// its number. Reclamation must produce a protected, listening endpoint.
+	if _, err := socketInfo(path, uint32(os.Geteuid())); err != nil {
+		t.Fatalf("reclaimed socket is not protected: %v", err)
+	}
+	conn, err := net.DialTimeout("unix", path, time.Second)
+	if err != nil {
+		t.Fatalf("reclaimed socket is not listening: %v", err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()

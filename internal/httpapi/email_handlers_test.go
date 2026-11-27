@@ -14,6 +14,8 @@ import (
 	"github.com/netwizd/agp/internal/domain"
 	"github.com/netwizd/agp/internal/identity"
 	"github.com/netwizd/agp/internal/mailtransport"
+	"github.com/netwizd/agp/internal/securityjournal"
+	"github.com/netwizd/agp/internal/securitystate"
 	"github.com/netwizd/agp/internal/storage"
 )
 
@@ -75,6 +77,29 @@ func TestEmailContactsHTTPOriginCSRFCASAndFreshPrimary(t *testing.T) {
 			h := s.Handler()
 			host := strings.TrimPrefix(headers["Origin"], "https://")
 			path := "/api/v2/me/contacts"
+			if !login {
+				if w := identityHTTPRequest(t, h, "GET", host, path, nil, cookies, nil); w.Code != http.StatusUnauthorized {
+					t.Fatal("management session without a role admitted", w.Code, w.Body.String())
+				}
+				user, err := s.store.FindUserByUsername(context.Background(), "email_owner")
+				if err != nil || user.IsAdmin {
+					t.Fatalf("ordinary contact owner: user=%+v err=%v", user, err)
+				}
+				// Trusted fixture setup supplies a passive management role; the
+				// email HTTP contract does not test the role approval workflow.
+				if err := s.identity.Coordinator.Current(context.Background(), func(tx storage.IdentityTx, head securityjournal.Head) error {
+					if err := securitystate.EnsureBuiltinRolesTx(context.Background(), tx); err != nil {
+						return err
+					}
+					role, err := securitystate.ReadRoleDefinitionTx(context.Background(), tx, "role_dashboard_read")
+					if err != nil {
+						return err
+					}
+					return securitystate.PublishRoleBindingTx(context.Background(), tx, head, securitystate.RoleBinding{ID: "rbinding_email_http_reader", PrincipalID: user.ID, RoleID: role.ID, RoleVersion: role.Version, RoleDigest: role.Digest, ScopeType: "global", AuthorityEpoch: head.Epoch, Revision: 1, CreatedAt: head.RecordedAt})
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if w := identityHTTPRequest(t, h, "GET", host, path, nil, cookies, nil); w.Code != 200 || w.Body.String() != "{\"items\":[]}\n" {
 				t.Fatal("own list", w.Code, w.Body.String())
 			}
