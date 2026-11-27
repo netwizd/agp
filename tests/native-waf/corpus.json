@@ -1,0 +1,15 @@
+{
+  "format": "agp.waf-native-corpus/v1",
+  "requestAttack": "<script>alert(1)</script>",
+  "paranoiaInput": "<h1>welcome</h1>",
+  "responseLeak": "You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version",
+  "cases": [
+    "nginx_config_valid", "benign_allow", "detection_logs_attack",
+    "blocking_query", "blocking_urlencoded", "blocking_json", "blocking_multipart",
+    "response_body", "neighbour_isolation", "invalid_config_rejected",
+    "raw_directive_rejected", "expired_exception_rejected", "threshold_effect", "paranoia_effect",
+    "off_mode", "blocking_sql_query", "malformed_json_rejected", "request_body_limit",
+    "paranoia_level_3", "paranoia_level_4", "outbound_threshold_effect", "detection_response_body",
+    "upstream_not_reached", "body_bytes_not_forwarded", "wrong_module_abi"
+  ]
+}

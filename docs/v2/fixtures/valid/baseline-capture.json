@@ -1,0 +1,39 @@
+{
+  "apiVersion": "agp.helper-baseline-capture/v1alpha1",
+  "purpose": "verified_baseline_capture",
+  "query": {
+    "apiVersion": "agp.helper-baseline-challenge/v1alpha1",
+    "id": "baseline_fixture",
+    "challenge": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "nodeId": "node_fixture",
+    "anchorDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "authorityId": "journal_fixture",
+    "authorityEpoch": "1",
+    "issuedAt": "2026-11-26T00:00:00Z",
+    "expiresAt": "2026-11-26T00:02:00Z"
+  },
+  "active": {
+    "baseline": {
+      "revisionId": "revision_fixture",
+      "bundleDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "nodeDeploymentSequence": "9"
+    },
+    "generationId": "generation_fixture",
+    "treeDigest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "highWater": "9",
+  "receiptSequence": "0",
+  "authorityEpoch": "1",
+  "writerEpoch": "3",
+  "minimumDenySequence": "2",
+  "head": {
+    "authorityId": "journal_fixture",
+    "authorityEpoch": "1",
+    "sequence": "2",
+    "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "bootDigest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+  "recordedAt": "2026-11-26T00:00:30Z",
+  "keyId": "helper_fixture",
+  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+}

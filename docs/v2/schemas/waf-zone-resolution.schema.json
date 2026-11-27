@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP frozen WAF zone resolution v1alpha1",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.waf-zone-resolution/v1alpha1"
+    },
+    "kind": {
+      "const": "WafZoneResolution"
+    },
+    "id": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "siteId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "zoneRevisionId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "baseConfigRevisionId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "action": {
+      "enum": [
+        "reconcile",
+        "retire"
+      ]
+    },
+    "inventoryDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "capacityProfile": {
+      "enum": [
+        "pilot-500",
+        "fleet-10k"
+      ]
+    },
+    "createdAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "expiresAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "resolutionDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Member"
+      },
+      "minItems": 0,
+      "maxItems": 10000
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Conflict"
+      },
+      "minItems": 0,
+      "maxItems": 10000
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "id",
+    "siteId",
+    "zoneRevisionId",
+    "baseConfigRevisionId",
+    "action",
+    "inventoryDigest",
+    "capacityProfile",
+    "createdAt",
+    "expiresAt",
+    "resolutionDigest",
+    "members",
+    "conflicts"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Member": {
+      "type": "object",
+      "properties": {
+        "gatewayId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "routeIds": {
+          "type": "array",
+          "items": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "minItems": 1,
+          "maxItems": 1000,
+          "uniqueItems": true
+        },
+        "nodeIds": {
+          "type": "array",
+          "items": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "minItems": 0,
+          "maxItems": 500,
+          "uniqueItems": true
+        },
+        "sourceZoneRevisionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "targetZoneRevisionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "sourcePolicyRevisionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "targetPolicyRevisionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "baseBindingDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "targetBindingDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "disposition": {
+          "enum": [
+            "inherited",
+            "derived",
+            "conflict"
+          ]
+        }
+      },
+      "required": [
+        "gatewayId",
+        "routeIds",
+        "nodeIds",
+        "sourcePolicyRevisionId",
+        "baseBindingDigest",
+        "disposition"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "const": "conflict"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "targetZoneRevisionId"
+                  ]
+                },
+                {
+                  "required": [
+                    "targetPolicyRevisionId"
+                  ]
+                },
+                {
+                  "required": [
+                    "targetBindingDigest"
+                  ]
+                }
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "targetZoneRevisionId",
+              "targetPolicyRevisionId",
+              "targetBindingDigest"
+            ],
+            "properties": {
+              "nodeIds": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Conflict": {
+      "type": "object",
+      "properties": {
+        "gatewayId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "code": {
+          "enum": [
+            "waf_zone_ambiguous",
+            "waf_zone_unassigned",
+            "waf_zone_replacement_required",
+            "waf_zone_site_mismatch",
+            "waf_zone_policy_not_published",
+            "waf_zone_base_exceptions",
+            "waf_zone_lineage_conflict",
+            "waf_zone_exception_expired",
+            "waf_zone_security_minimum",
+            "waf_zone_node_unresolved",
+            "waf_zone_capacity_exceeded"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 512
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "candidateZoneRevisionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "gatewayId",
+        "code",
+        "path",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "rbind_one",
+  "principalId": "usr_target",
+  "roleId": "role_viewer",
+  "scopeType": "global",
+  "revision": "1",
+  "roleVersion": "1",
+  "roleDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "createdAt": "2026-11-25T12:00:00Z",
+  "expiresAt": null,
+  "revokedAt": null
+}

@@ -1,0 +1,67 @@
+{
+  "apiVersion": "agp.config/v1alpha1",
+  "kind": "Gateway",
+  "metadata": {
+    "id": "gw_portal",
+    "name": "Портал филиала",
+    "siteId": "site_msk",
+    "labels": {
+      "environment": "pilot"
+    }
+  },
+  "spec": {
+    "ownership": "adopted",
+    "nodeSelector": {
+      "nodeIds": [
+        "node_msk01"
+      ]
+    },
+    "componentProfileRef": {
+      "id": "profile_nginx_waf_001",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "tls": {
+      "certificateVersionId": "cert_portal_v1"
+    },
+    "authorization": {
+      "mode": "central",
+      "failureMode": "closed"
+    },
+    "waf": {
+      "engine": "modsecurity",
+      "policyRevisionId": "waf_balanced_v1",
+      "mode": "detection"
+    },
+    "routes": [
+      {
+        "id": "route_portal",
+        "name": "Внутренний портал",
+        "hostname": "app.example.net",
+        "path": "/",
+        "upstream": {
+          "url": "https://backend.example.net:8443",
+          "connectTimeoutSeconds": 5,
+          "readTimeoutSeconds": 60,
+          "tls": {
+            "verify": true,
+            "serverName": "backend.example.net"
+          }
+        },
+        "access": {
+          "groupIds": [
+            "grp_AbCdEf123"
+          ],
+          "allowCidrs": [
+            "10.20.0.0/16"
+          ]
+        },
+        "wafExceptionIds": []
+      }
+    ],
+    "monitoring": {
+      "metrics": true,
+      "logs": true
+    },
+    "command": "arbitrary command"
+  }
+}

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -22,7 +23,10 @@ import (
 )
 
 type Store struct {
-	pool *pgxpool.Pool
+	pool              *pgxpool.Pool
+	identityMu        sync.Mutex
+	identityConn      *pgxpool.Conn
+	identityLeaseUsed bool
 }
 
 func Open(ctx context.Context, dsn string) (*Store, error) {
@@ -146,10 +150,15 @@ WHERE username = $1`, username)
 }
 
 func (s *Store) CreateSession(ctx context.Context, session domain.Session) error {
-	_, err := s.pool.Exec(ctx, `
-INSERT INTO sessions(id, user_id, token_hash, csrf_hash, ip, user_agent, expires_at, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		session.ID, session.UserID, session.TokenHash, session.CSRFHash, session.IP, session.UserAgent, session.ExpiresAt, session.CreatedAt)
+	var err error
+	session, err = storage.NormalizeSessionAudience(session)
+	if err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx, `
+INSERT INTO sessions(id, user_id, token_hash, csrf_hash, ip, user_agent, expires_at, created_at, audience, audience_origin)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		session.ID, session.UserID, session.TokenHash, session.CSRFHash, session.IP, session.UserAgent, session.ExpiresAt, session.CreatedAt, session.Audience, session.AudienceOrigin)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
@@ -159,7 +168,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 func (s *Store) FindSessionByTokenHash(ctx context.Context, tokenHash string) (*domain.SessionContext, error) {
 	row := s.pool.QueryRow(ctx, `
 SELECT
-    s.id, s.user_id, s.token_hash, s.csrf_hash, s.ip, s.user_agent, s.expires_at, s.created_at,
+    s.id, s.user_id, s.token_hash, s.csrf_hash, s.ip, s.user_agent, s.expires_at, s.created_at, s.audience, s.audience_origin,
     u.id, u.username, u.display_name, u.is_admin, u.blocked_at, u.created_at, u.updated_at
 FROM sessions s
 JOIN users u ON u.id = s.user_id
@@ -178,6 +187,8 @@ WHERE s.token_hash = $1
 		&session.UserAgent,
 		&session.ExpiresAt,
 		&session.CreatedAt,
+		&session.Audience,
+		&session.AudienceOrigin,
 		&session.User.ID,
 		&session.User.Username,
 		&session.User.DisplayName,
@@ -439,7 +450,7 @@ ORDER BY username`)
 }
 
 func (s *Store) CreateUser(ctx context.Context, input domain.UserInput) (*domain.User, error) {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginIdentityMutation(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin create user: %w", err)
 	}
@@ -464,7 +475,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 }
 
 func (s *Store) UpdateUser(ctx context.Context, id string, update domain.UserUpdate) (*domain.User, error) {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginIdentityMutation(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin update user: %w", err)
 	}
@@ -498,6 +509,15 @@ func (s *Store) UpdateUser(ctx context.Context, id string, update domain.UserUpd
 	if update.UpdateGroups {
 		if err := replaceUserGroups(ctx, tx, id, update.GroupIDs); err != nil {
 			return nil, err
+		}
+	}
+	if update.PasswordHash != nil || update.IsAdmin != nil || update.Blocked != nil || update.UpdateGroups {
+		now := time.Now().UTC()
+		if _, err := tx.Exec(ctx, `UPDATE users SET updated_at = $1 WHERE id = $2`, now, id); err != nil {
+			return nil, fmt.Errorf("update user security timestamp: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `UPDATE sessions SET revoked_at = $1 WHERE user_id = $2 AND revoked_at IS NULL`, now, id); err != nil {
+			return nil, fmt.Errorf("revoke user sessions: %w", err)
 		}
 	}
 	if err := ensureExists(ctx, tx, `SELECT id FROM users WHERE id = $1`, id); err != nil {
@@ -539,7 +559,7 @@ func (s *Store) ListGroups(ctx context.Context) ([]domain.Group, error) {
 }
 
 func (s *Store) CreateGroup(ctx context.Context, input domain.GroupInput) (*domain.Group, error) {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginIdentityMutation(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin create group: %w", err)
 	}
@@ -563,7 +583,7 @@ VALUES ($1, $2, $3, $4, $5)`, id, input.Name, input.Description, now, now)
 }
 
 func (s *Store) UpdateGroup(ctx context.Context, id string, input domain.GroupInput) (*domain.Group, error) {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginIdentityMutation(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin update group: %w", err)
 	}
@@ -578,6 +598,9 @@ UPDATE groups SET name = $1, description = $2, updated_at = now() WHERE id = $3`
 	if err := ensureCommandAffected("update group", tag); err != nil {
 		return nil, err
 	}
+	if err := invalidateGroupSessions(ctx, tx, id); err != nil {
+		return nil, err
+	}
 	if err := replaceGroupPermissions(ctx, tx, id, input.PermissionIDs); err != nil {
 		return nil, err
 	}
@@ -588,11 +611,22 @@ UPDATE groups SET name = $1, description = $2, updated_at = now() WHERE id = $3`
 }
 
 func (s *Store) DeleteGroup(ctx context.Context, id string) error {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM groups WHERE id = $1`, id)
+	tx, err := s.beginIdentityMutation(ctx)
+	if err != nil {
+		return fmt.Errorf("begin delete group: %w", err)
+	}
+	defer rollback(ctx, tx)
+	if err := invalidateGroupSessions(ctx, tx, id); err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `DELETE FROM groups WHERE id = $1`, id)
 	if err != nil {
 		return normalizePostgresError("delete group", err)
 	}
-	return ensureCommandAffected("delete group", tag)
+	if err := ensureCommandAffected("delete group", tag); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (s *Store) ListResources(ctx context.Context) ([]domain.ResourceDetail, error) {
@@ -629,11 +663,14 @@ WHERE id = $1`, id)
 }
 
 func (s *Store) CreateResource(ctx context.Context, input domain.ResourceInput) (*domain.ResourceDetail, error) {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginIdentityMutation(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin create resource: %w", err)
 	}
 	defer rollback(ctx, tx)
+	if err := storage.CheckResourceProfile(ctx, identityTx{tx}, input.PublicHost); err != nil {
+		return nil, err
+	}
 
 	id := storageID("res")
 	now := time.Now().UTC()
@@ -657,11 +694,14 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 }
 
 func (s *Store) UpdateResource(ctx context.Context, id string, update domain.ResourceUpdate) (*domain.ResourceDetail, error) {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.beginIdentityMutation(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin update resource: %w", err)
 	}
 	defer rollback(ctx, tx)
+	if err := storage.CheckResourceUpdateProfile(ctx, identityTx{tx}, id, update.PublicHost); err != nil {
+		return nil, err
+	}
 
 	if update.Name != nil {
 		if _, err := tx.Exec(ctx, `UPDATE resources SET name = $1, updated_at = now() WHERE id = $2`, *update.Name, id); err != nil {
@@ -1186,6 +1226,9 @@ func storageID(prefix string) string {
 func normalizePostgresError(operation string, err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
+		if pgErr.Code == "55000" && pgErr.Message == "configuration_revision_required" {
+			return fmt.Errorf("%s: %w", operation, storage.ErrConfigurationReadOnly)
+		}
 		switch pgErr.Code {
 		case "23505", "23503":
 			return fmt.Errorf("%s: %w", operation, storage.ErrConflict)
@@ -1209,4 +1252,16 @@ func uniqueTrimmed(values []string) []string {
 		result = append(result, value)
 	}
 	return result
+}
+
+// invalidateGroupSessions runs before changing or deleting the membership graph.
+func invalidateGroupSessions(ctx context.Context, tx pgx.Tx, id string) error {
+	now := time.Now().UTC()
+	if _, err := tx.Exec(ctx, `UPDATE sessions SET revoked_at = $1 WHERE revoked_at IS NULL AND user_id IN (SELECT user_id FROM user_groups WHERE group_id = $2)`, now, id); err != nil {
+		return fmt.Errorf("revoke group member sessions: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE users SET updated_at = $1 WHERE id IN (SELECT user_id FROM user_groups WHERE group_id = $2)`, now, id); err != nil {
+		return fmt.Errorf("update group member security timestamps: %w", err)
+	}
+	return nil
 }

@@ -1,0 +1,10 @@
+{
+  "apiVersion": "agp.waf-zone-change/v1alpha1",
+  "kind": "WafZoneChange",
+  "baseRevisionId": "cfg_0001042",
+  "zoneRevisionId": "wzrev_api_000007",
+  "resolutionId": "wzr_api_000008",
+  "resolutionDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "reason": "Применить проверенный состав и новую базовую политику зоны",
+  "applyImmediately": true
+}

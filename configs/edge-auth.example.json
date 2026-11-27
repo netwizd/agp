@@ -1,0 +1,16 @@
+{
+  "nodeId": "node_local_1",
+  "gatewayId": "gw_example",
+  "origin": "https://app.example.com",
+  "loginOrigin": "https://login.example.com",
+  "centralOrigin": "https://auth-internal.example.com:8444",
+  "deploymentGeneration": "dep_000017",
+  "routes": [
+    {"id": "route_example", "pathPrefix": "/", "upstream": "http://127.0.0.1:9000", "applicationCookies": ["app_sid"]}
+  ],
+  "socketPath": "/run/agp-edge-example/edge.sock",
+  "statePath": "/var/lib/agp-edge/example/pending.db",
+  "clientCertificateFile": "/etc/agp-edge/example/client.pem",
+  "clientKeyFile": "/etc/agp-edge/example/client.key",
+  "serverCaFile": "/etc/agp-edge/example/central-ca.pem"
+}

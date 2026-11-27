@@ -1,0 +1,11 @@
+{
+  "bindingId": "rbind_one",
+  "principalId": "usr_target",
+  "expectedRevision": "1",
+  "roleDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "expectedAuthorityEpoch": "2",
+  "reason": "Revoke exact approved binding",
+  "permissions": [
+    "config.read"
+  ]
+}

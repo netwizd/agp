@@ -1,0 +1,167 @@
+<article class="auth-card" [attr.aria-busy]="store.busy()">
+  <header class="auth-heading">
+    <span class="auth-eyebrow">{{ store.runtime()?.audience === 'management' ? 'Управление · защищённый вход' : 'Защищённый вход' }}</span>
+    <h1 id="authStageTitle" tabindex="-1">{{ title }}</h1>
+    @if (store.purpose() === 'step_up') {
+      <p>Повторно подтвердите пароль и второй фактор для текущей сессии. Разрешение на конкретное действие проверяется отдельно.</p>
+    } @else if (store.purpose() === 'recover' && store.flow()?.state !== 'completed') {
+      <p>Пароль и резервный код разрешают замену второго фактора. После восстановления потребуется новый вход.</p>
+    } @else if (store.flow()?.state !== 'completed') {
+      <p>Используйте локальную или корпоративную учётную запись. Доступ откроется после всех обязательных проверок.</p>
+    }
+  </header>
+
+  @if (store.error()) {
+    <div class="auth-error" id="authError" role="alert" tabindex="-1">{{ store.error() }}</div>
+  }
+  @if (!store.runtime()) {
+    @if (store.busy()) { <p class="auth-status" role="status">Проверяем доступность защищённого входа…</p> }
+    @else { <button type="button" (click)="restart()" id="authBootstrapRetry">Повторить загрузку</button> }
+  } @else {
+    @if (store.flow(); as flow) {
+      @if (!terminal) {
+        <p class="auth-expiry">Запрос действует до <time [attr.datetime]="flow.expiresAt">{{ flow.expiresAt | date:'HH:mm:ss' }}</time>. Срок и разрешения проверяет сервер.</p>
+      }
+      @if (store.restored() && !terminal) { <p class="auth-note">Продолжен запрос этого браузера. Пароли, коды и ключ настройки не сохранялись.</p> }
+    }
+    @if (store.flow()?.state === 'completed') {
+      <div class="auth-success" role="status">
+        @if (store.purpose() === 'recover') { <p>Новый второй фактор подтверждён. Восстановление не создаёт сессию и не разрешает управление.</p> }
+        @else { <p>Все обязательные проверки успешно завершены сервером.</p> }
+      </div>
+      @if (store.purpose() === 'recover') {
+        <a class="auth-button" routerLink="/login" [queryParams]="returnQuery" id="authFreshLogin">Войти с новым фактором</a>
+      } @else if (continuation) {
+        <a class="auth-button" [href]="continuation" id="authContinue">Продолжить</a>
+      } @else { <p class="auth-note">Вход выполнен. Для доступа к сервису откройте его корпоративный адрес.</p> }
+    } @else if (store.flow()?.state === 'expired' || store.flow()?.state === 'cancelled') {
+      <p class="auth-note">Запрос завершён. Начните новый вход, чтобы продолжить.</p>
+      <button type="button" (click)="restart()" [disabled]="store.busy()" id="authRestart">Начать заново</button>
+    } @else {
+      @if (!store.blocked() && !store.uncertain()) {
+        @switch (store.stage()) {
+          @case ('primary') {
+            @if(store.purpose()!=='recover'){@defer(on immediate){<agp-oidc-methods [returnPath]="returnPath" (starting)="clearInputs()"/>}}
+            <form [formGroup]="primaryForm" (ngSubmit)="primary()" id="authPrimaryForm">
+              <fieldset [disabled]="store.busy()">
+                <legend class="sr-only">Учётная запись</legend>
+                <label for="authMethod">Способ входа</label>
+                <select id="authMethod" formControlName="method"><option value="local_password">Локальная учётная запись</option><option value="directory_password">Корпоративный каталог AD</option></select>
+                @if (primaryForm.controls.method.value === 'directory_password') {
+                  <label for="authProviderId">ID корпоративного каталога</label>
+                  <input id="authProviderId" formControlName="providerId" maxlength="128" required [attr.aria-invalid]="primaryInvalid('providerId')" aria-describedby="authProviderIdError" autocomplete="off" />
+                  <span id="authProviderIdError" class="auth-field-error">{{ primaryInvalid('providerId') ? 'Укажите ID каталога, полученный у администратора.' : 'ID подключения выдаёт администратор. Список корпоративных каталогов не публикуется.' }}</span>
+                }
+                <label for="authUsername">Логин</label>
+                <input id="authUsername" formControlName="username" autocomplete="username" maxlength="128" required [attr.aria-invalid]="primaryInvalid('username')" aria-describedby="authUsernameError" />
+                <span id="authUsernameError" class="auth-field-error">{{ primaryInvalid('username') ? 'Укажите логин, не более 128 символов.' : '' }}</span>
+                <label for="authPassword">Пароль</label>
+                <input id="authPassword" type="password" formControlName="password" autocomplete="current-password" maxlength="1024" required [attr.aria-invalid]="primaryInvalid('password')" aria-describedby="authPasswordError" />
+                <span id="authPasswordError" class="auth-field-error">{{ primaryInvalid('password') ? 'Введите пароль.' : '' }}</span>
+                <button type="submit">{{ store.busy() ? 'Проверяем…' : 'Продолжить' }}</button>
+              </fieldset>
+            </form>
+          }
+          @case ('totp') {
+            <section aria-labelledby="authTotpTitle">
+              <h2 id="authTotpTitle">Второй фактор</h2>
+              <p>Введите текущий шестизначный код из приложения-аутентификатора.</p>
+              <form [formGroup]="totpForm" (ngSubmit)="totp()" id="authTotpForm">
+                <fieldset [disabled]="store.busy()">
+                  <legend class="sr-only">Подтверждение второго фактора</legend>
+                  <label for="authTotp">Код из приложения</label>
+                  <input id="authTotp" class="auth-otp" formControlName="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required [attr.aria-invalid]="invalid(totpForm, 'code')" aria-describedby="authTotpError" />
+                  <span id="authTotpError" class="auth-field-error">{{ invalid(totpForm, 'code') ? 'Введите 6 цифр.' : '' }}</span>
+                  <button type="submit">Проверить код</button>
+                </fieldset>
+              </form>
+            </section>
+          }
+          @case ('recovery') {
+            <section aria-labelledby="authRecoveryTitle">
+              <h2 id="authRecoveryTitle">Резервный код</h2>
+              <p>Используйте один из сохранённых резервных кодов. Успешно принятый код нельзя использовать повторно.</p>
+              <form [formGroup]="recoveryForm" (ngSubmit)="recovery()" id="authRecoveryForm">
+                <fieldset [disabled]="store.busy()">
+                  <legend class="sr-only">Подтверждение восстановления</legend>
+                  <label for="authRecovery">Резервный код</label>
+                  <input id="authRecovery" type="password" formControlName="code" autocomplete="off" minlength="16" maxlength="64" required [attr.aria-invalid]="invalid(recoveryForm, 'code')" aria-describedby="authRecoveryError" />
+                  <span id="authRecoveryError" class="auth-field-error">{{ invalid(recoveryForm, 'code') ? 'Введите полный резервный код, от 16 до 64 символов.' : '' }}</span>
+                  <button type="submit">Проверить резервный код</button>
+                </fieldset>
+              </form>
+            </section>
+          }
+          @case ('totp_enrollment') {
+            <section aria-labelledby="authEnrollmentTitle">
+              <h2 id="authEnrollmentTitle">Настройте приложение-аутентификатор</h2>
+              <p>Добавьте TOTP: 6 цифр, обновление каждые 30 секунд. Сохраните ключ только в доверенном приложении.</p>
+              @if (store.enrollment(); as enrollment) {
+                <label for="authManualSeed">Ключ для ручной настройки</label>
+                <input id="authManualSeed" class="auth-secret" readonly [value]="store.seed()" autocomplete="off" spellcheck="false" />
+                <button class="auth-secondary" type="button" (click)="copy(store.seed())">Копировать ключ</button>
+                <details class="auth-help">
+                  <summary>URI настройки для доверенного приложения</summary>
+                  <p>URI содержит секрет. Не отправляйте его сторонним сервисам создания QR-кодов.</p>
+                  <label for="authProvisioningUri">URI настройки</label>
+                  <textarea id="authProvisioningUri" readonly [value]="enrollment.provisioningUri" spellcheck="false"></textarea>
+                </details>
+                <form [formGroup]="totpForm" (ngSubmit)="totp()" id="authEnrollmentForm">
+                  <fieldset [disabled]="store.busy()">
+                    <legend class="sr-only">Подтверждение настройки</legend>
+                    <label for="authEnrollmentCode">Первый код из приложения</label>
+                    <input id="authEnrollmentCode" class="auth-otp" formControlName="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required [attr.aria-invalid]="invalid(totpForm, 'code')" aria-describedby="authEnrollmentError" />
+                    <span id="authEnrollmentError" class="auth-field-error">{{ invalid(totpForm, 'code') ? 'Введите 6 цифр.' : '' }}</span>
+                    <button type="submit">Подтвердить новый фактор</button>
+                  </fieldset>
+                </form>
+                <button class="auth-secondary" type="button" (click)="startEnrollment()" [disabled]="store.busy()">Создать новый ключ настройки</button>
+                <p class="auth-note">Новый ключ отменит предыдущую неподтверждённую настройку.</p>
+              } @else {
+                <button type="button" (click)="startEnrollment()" [disabled]="store.busy()" id="authStartEnrollment">Создать ключ настройки</button>
+              }
+              <p class="auth-copy-status" role="status">{{ copyNotice }}</p>
+            </section>
+          }
+          @case ('complete') {
+            @if (store.codesIssued()) {
+              <section class="auth-recovery-codes" aria-labelledby="authCodesTitle">
+                <h2 id="authCodesTitle">Сохраните резервные коды</h2>
+                @if (store.recoveryCodes().length) {
+                  <p>Каждый код действует один раз. Эти значения показываются однократно и не сохраняются в браузере.</p>
+                  <ul id="authRecoveryCodes">@for (code of store.recoveryCodes(); track code) { <li><code>{{ code }}</code></li> }</ul>
+                  <button class="auth-secondary" type="button" (click)="copy(store.recoveryCodes().join('\n'))">Копировать резервные коды</button>
+                } @else {
+                  <p>Коды были выданы ранее и не восстанавливаются после обновления страницы. Если они не сохранены, обратитесь к администратору для безопасной повторной выдачи.</p>
+                }
+                <label class="auth-check"><input type="checkbox" id="authCodesSaved" [checked]="store.codesSaved()" (change)="codesSaved($event)" />Я сохранил резервные коды в защищённом месте</label>
+                <p class="auth-copy-status" role="status">{{ copyNotice }}</p>
+              </section>
+            }
+            <p class="auth-note">{{ store.purpose() === 'recover' ? 'Завершите замену фактора. После этого войдите заново.' : 'Проверки пройдены. Завершите вход для создания защищённой сессии.' }}</p>
+            <button type="button" (click)="complete()" [disabled]="store.busy() || store.mustSaveCodes()" id="authComplete">{{ store.purpose() === 'recover' ? 'Завершить восстановление' : store.purpose() === 'step_up' ? 'Завершить подтверждение' : 'Завершить вход' }}</button>
+          }
+        }
+      }
+      @if (store.uncertain() || store.blocked()) {
+        <div class="auth-actions">
+          @if (store.flow()) { <button class="auth-secondary" type="button" (click)="refresh()" [disabled]="store.busy()" id="authRefresh">Проверить состояние</button> }
+          <button type="button" (click)="restart()" [disabled]="store.busy()" id="authRestart">Начать заново</button>
+        </div>
+      }
+      @if (store.flow() && !store.mustSaveCodes()) { <button class="auth-text-button" type="button" (click)="cancel()" [disabled]="store.busy()" id="authCancel">Отменить вход</button> }
+    }
+    @if (store.busy()) { <p class="auth-status" role="status">Проверяем запрос…</p> }
+    @if (!terminal && !store.mustSaveCodes()) {
+      <nav class="auth-alternatives" aria-label="Другой сценарий входа">
+        @if (store.purpose() === 'login') { <a routerLink="/reset-password">Забыли пароль</a><a routerLink="/recover" [queryParams]="returnQuery" [attr.aria-disabled]="store.busy()" id="authRecoveryLink">Утрачен второй фактор</a> }
+        @else { <a routerLink="/login" [queryParams]="returnQuery" [attr.aria-disabled]="store.busy()">Вернуться ко входу</a> }
+      </nav>
+    }
+  }
+  <details class="auth-help">
+    <summary>Как защищён вход</summary>
+    <p>Пароль и второй фактор проверяет сервер. До завершения обязательных проверок доступ к управлению и сервисам закрыт. Не передавайте пароль, ключ настройки и резервные коды другим людям.</p>
+    <p>Управление и корпоративный вход используют отдельные адреса и cookies. Восстановление заменяет фактор, после него нужен новый вход. Если резервных кодов нет, обратитесь к администратору по принятой в организации процедуре.</p>
+  </details>
+</article>

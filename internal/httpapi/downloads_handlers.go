@@ -128,15 +128,20 @@ func (s *Server) adminCreateDownload(w http.ResponseWriter, r *http.Request, ses
 		writeError(w, http.StatusBadRequest, "file_store_failed")
 		return
 	}
-	download, err := s.store.CreatePublicDownload(r.Context(), domain.PublicDownloadInput{
-		Title:       title,
-		Description: description,
-		FileName:    fileName,
-		StoredName:  storedName,
-		ContentType: contentType,
-		SHA256:      checksum,
-		SizeBytes:   size,
-		Enabled:     enabled,
+	var download *domain.PublicDownload
+	err = s.currentManagementWrite(r.Context(), session, func(ctx context.Context) error {
+		var e error
+		download, e = s.store.CreatePublicDownload(ctx, domain.PublicDownloadInput{
+			Title:       title,
+			Description: description,
+			FileName:    fileName,
+			StoredName:  storedName,
+			ContentType: contentType,
+			SHA256:      checksum,
+			SizeBytes:   size,
+			Enabled:     enabled,
+		})
+		return e
 	})
 	if err != nil {
 		_ = s.removeDownloadFile(storedName)

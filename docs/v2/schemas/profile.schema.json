@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP typed policy profile v1alpha1",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.profile/v1alpha1"
+    },
+    "kind": {
+      "const": "PolicyProfile"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "siteId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "spec": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "global",
+            "site",
+            "node_group",
+            "node",
+            "route"
+          ]
+        },
+        "overrides": {
+          "type": "object",
+          "properties": {
+            "wafMode": {
+              "type": "string",
+              "enum": [
+                "off",
+                "detection",
+                "blocking"
+              ]
+            },
+            "allowedGroupIds": {
+              "type": "array",
+              "items": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              },
+              "minItems": 1,
+              "maxItems": 100,
+              "uniqueItems": true
+            },
+            "allowCidrs": {
+              "type": "array",
+              "items": {
+                "$ref": "shared.schema.json#/$defs/Cidr"
+              },
+              "minItems": 0,
+              "maxItems": 100,
+              "uniqueItems": true
+            },
+            "requireMfa": {
+              "type": "boolean"
+            },
+            "connectTimeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60
+            },
+            "readTimeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3600
+            }
+          },
+          "required": [],
+          "additionalProperties": false,
+          "minProperties": 1
+        },
+        "lockedFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "wafMode",
+              "allowedGroupIds",
+              "allowCidrs",
+              "requireMfa",
+              "connectTimeoutSeconds",
+              "readTimeoutSeconds"
+            ]
+          },
+          "minItems": 0,
+          "maxItems": 6,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "level",
+        "overrides",
+        "lockedFields"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "spec": {
+            "properties": {
+              "level": {
+                "const": "global"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "metadata": {
+            "not": {
+              "required": [
+                "siteId"
+              ]
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "metadata": {
+            "required": [
+              "siteId"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

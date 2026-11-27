@@ -1,0 +1,48 @@
+{
+  "apiVersion": "agp.component-profile/v1alpha1",
+  "id": "profile_contract_only",
+  "platform": {
+    "os": "ubuntu",
+    "osVersion": "24.04",
+    "arch": "amd64"
+  },
+  "tuple": {
+    "nginx": "1.30.7",
+    "connector": "1.0.4",
+    "libmodsecurity": "3.0.17",
+    "crs": "4.30.0",
+    "buildFlags": [
+      "--with-compat",
+      "--with-http_ssl_module"
+    ],
+    "abiDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "rulesetVersionId": "crs_4_30_0",
+  "files": [
+    {
+      "path": "/lib/loader",
+      "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "path": "bin/nginx",
+      "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    {
+      "path": "modules/ngx_http_modsecurity_module.so",
+      "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    {
+      "path": "share/modsecurity/unicode.mapping",
+      "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+    },
+    {
+      "path": "share/crs/rules/REQUEST-901-INITIALIZATION.conf",
+      "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+    }
+  ],
+  "loaderPath": "lib/ld-linux-x86-64.so.2",
+  "nginxPath": "bin/nginx",
+  "modulePath": "modules/ngx_http_modsecurity_module.so",
+  "unicodePath": "share/modsecurity/unicode.mapping",
+  "rulesPath": "share/crs/rules"
+}

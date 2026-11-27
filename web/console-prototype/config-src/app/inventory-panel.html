@@ -1,0 +1,15 @@
+<section aria-labelledby="inventoryTitle">
+  <div class="section-heading"><div><h2 id="inventoryTitle">Инвентаризация агентов</h2><p class="muted">Узлы из реестра установки и последние аутентифицированные наблюдения.</p></div><button id="inventoryRefresh" type="button" class="secondary" [disabled]="busy()" (click)="refresh()">Обновить</button></div>
+  <p class="boundary">Наблюдение агента описывает доступные компоненты. Состояние WAF и применённая конфигурация пока неизвестны.</p>
+  <agp-node-identity-panel/>
+  @if(error()){<p id="inventoryError" class="alert error" role="alert">{{error()}}. @if(loaded()){Показаны данные предыдущего успешного запроса; актуальность не подтверждена.}</p>}
+  @if(busy()){<p role="status">Запрашиваем инвентаризацию…</p>}
+  @if(loaded()&&!items().length){<p id="inventoryEmpty" class="report-card">В реестре нет доступных узлов.</p>}
+  @for(item of items();track item.id){
+    <article class="report-card inventory-node" [attr.aria-label]="item.name">
+      <div class="section-heading"><h3>{{item.name}}</h3><span class="badge">{{item.connectivity}} · {{item.identityState}}</span></div>
+      <dl class="pins"><dt>Node / Site</dt><dd>{{item.id}} / {{item.siteId}}</dd><dt>Последнее наблюдение</dt><dd>{{item.lastSeenAt||'Ещё не получено'}}</dd><dt>Capability digest</dt><dd>{{item.capabilityDigest||'Нет подтверждённого наблюдения'}}</dd><dt>Группы</dt><dd>{{item.groupIds.join(', ')||'Нет'}}</dd><dt>Применённая ревизия</dt><dd>Неизвестна</dd><dt>WAF health</dt><dd>Неизвестно</dd></dl>
+      <details class="diff"><summary>Метки узла</summary><pre>{{item.labels|json}}</pre></details>
+    </article>
+  }
+</section>

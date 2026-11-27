@@ -1,13 +1,17 @@
-const storage = window.localStorage || {
-  getItem: () => "",
-  setItem: () => {},
-  removeItem: () => {},
-};
+// CSRF tokens are scoped to the current origin and never persisted in web storage.
+try {
+  window.localStorage.removeItem("agp_csrf_token");
+} catch {
+  // Storage may be unavailable in a restricted browser context.
+}
 
 const state = {
   user: null,
   permissions: [],
-  csrfToken: storage.getItem("agp_csrf_token") || "",
+  csrfToken: "",
+  csrfCookieName: "",
+  runtime: null,
+  bootstrapID: 0,
   view: "portal",
   adminTab: "resources",
   settings: null,
@@ -71,9 +75,18 @@ const els = {
   brandSubtitle: document.getElementById("brandSubtitle"),
   pageTitle: document.getElementById("pageTitle"),
   pageSubtitle: document.getElementById("pageSubtitle"),
+  runtimeStatusView: document.getElementById("runtimeStatusView"),
+  runtimeStatusTitle: document.getElementById("runtimeStatusTitle"),
+  runtimeStatusMessage: document.getElementById("runtimeStatusMessage"),
+  retryBootstrapButton: document.getElementById("retryBootstrapButton"),
+  managementLink: document.getElementById("managementLink"),
+  configurationLink: document.getElementById("configurationLink"),
+  directoryLink: document.getElementById("directoryLink"),
+  loginTitle: document.getElementById("loginTitle"),
   loginView: document.getElementById("loginView"),
   portalView: document.getElementById("portalView"),
   accessDeniedView: document.getElementById("accessDeniedView"),
+  accessDeniedMessage: document.getElementById("accessDeniedMessage"),
   helpView: document.getElementById("helpView"),
   adminView: document.getElementById("adminView"),
   sessionPanel: document.getElementById("sessionPanel"),
@@ -126,12 +139,16 @@ const els = {
   permissionReference: document.getElementById("permissionReference"),
 };
 
-document.querySelectorAll(".nav-link").forEach((button) => {
-  button.addEventListener("click", () => setView(button.dataset.view));
+document.querySelectorAll(".nav-link[data-view]").forEach((button) => {
+  button.addEventListener("click", () => openView(button.dataset.view));
 });
 
 els.adminTabs.querySelectorAll("button").forEach((button) => {
-  button.addEventListener("click", () => setAdminTab(button.dataset.adminTab));
+  button.addEventListener("click", () => {
+    setAdminTab(button.dataset.adminTab).catch((error) => {
+      if (error.status !== 401) showOperationError("Не удалось загрузить раздел", error);
+    });
+  });
 });
 
 els.resourceSearch.addEventListener("input", () => {
@@ -139,9 +156,11 @@ els.resourceSearch.addEventListener("input", () => {
   renderResources();
 });
 
-els.backToPortalButton.addEventListener("click", () => setView("portal"));
+els.retryBootstrapButton.addEventListener("click", () => bootstrap());
+els.backToPortalButton.addEventListener("click", () => openView("portal"));
 
 els.showDownloadsButton.addEventListener("click", () => {
+  if (!state.runtime || ["management", "login"].includes(state.runtime.mode)) return;
   const panel = state.user ? els.downloadsPortalPanel : els.downloadsLoginPanel;
   if (!panel) return;
   panel.open = true;
@@ -150,17 +169,21 @@ els.showDownloadsButton.addEventListener("click", () => {
 
 els.helpButton.addEventListener("click", (event) => {
   event.preventDefault();
+  if (!state.runtime || ["management", "login"].includes(state.runtime.mode)) return;
   const settings = effectiveSettings();
   if (settings.support_url) {
     window.open(settings.support_url, "_blank", "noopener,noreferrer");
     return;
   }
-  setView("help");
+  openView("help");
 });
 
 els.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!state.runtime) return;
   els.loginError.textContent = "";
+  const submitButton = els.loginForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
   const form = new FormData(els.loginForm);
   try {
     const response = await api("/api/v1/auth/login", {
@@ -171,18 +194,31 @@ els.loginForm.addEventListener("submit", async (event) => {
       },
     });
     state.csrfToken = response.csrf_token || "";
-    storage.setItem("agp_csrf_token", state.csrfToken);
+    state.csrfCookieName = state.runtime.csrf_cookie_name;
+    els.loginForm.reset();
     await bootstrap();
-  } catch {
-    els.loginError.textContent = "Ошибка авторизации";
+  } catch (error) {
+    els.loginError.textContent = error.status === 401 || error.status === 403
+      ? "Ошибка авторизации или нет доступа к этому порталу"
+      : "Не удалось выполнить вход. Повторите попытку.";
+  } finally {
+    submitButton.disabled = false;
   }
 });
 
 els.logoutButton.addEventListener("click", async () => {
-  await api("/api/v1/auth/logout", { method: "POST", csrf: true }).catch(() => {});
-  storage.removeItem("agp_csrf_token");
-  state.user = null;
-  renderLoggedOut();
+  els.logoutButton.disabled = true;
+  try {
+    await api("/api/v1/auth/logout", { method: "POST", csrf: true });
+    clearSession();
+    renderLoggedOut();
+  } catch (error) {
+    if (error.status !== 401) {
+      els.sessionPanel.textContent = "Не удалось завершить сессию. Нажмите «Выйти» ещё раз.";
+    }
+  } finally {
+    els.logoutButton.disabled = false;
+  }
 });
 
 els.resourceForm.addEventListener("submit", async (event) => {
@@ -323,40 +359,142 @@ els.exportAuditCSVButton.addEventListener("click", () => exportAudit("csv"));
 els.exportAuditJSONButton.addEventListener("click", () => exportAudit("json"));
 
 async function bootstrap() {
-  await refreshPublicData();
+  const bootstrapID = ++state.bootstrapID;
+  state.runtime = null;
+  state.user = null;
+  state.permissions = [];
+  renderRuntimeStatus("Загрузка", "Проверяем режим портала и активную сессию…", false);
   try {
-    const me = await api("/api/v1/me");
+    const runtime = validateRuntime(await api("/api/v1/public/runtime"));
+    if (bootstrapID !== state.bootstrapID) return;
+    state.runtime = runtime;
+    if (state.csrfCookieName !== runtime.csrf_cookie_name) state.csrfToken = "";
+    document.body.dataset.runtimeMode = runtime.mode;
+    els.loginTitle.textContent = runtime.mode === "management" ? "Вход в управление" : "Вход";
+    await refreshPublicData();
+    if (bootstrapID !== state.bootstrapID) return;
+
+    let me;
+    try {
+      me = await api("/api/v1/me");
+    } catch (error) {
+      if (bootstrapID !== state.bootstrapID) return;
+      if (error.status !== 401) throw error;
+      clearSession();
+      if (runtime.secure_profile) {
+        renderLoggedOut();
+        return;
+      }
+      if (runtime.mode !== "management" && location.pathname.startsWith("/access-denied")) {
+        await setView("accessDenied");
+      } else if (runtime.mode !== "management" && location.pathname.startsWith("/help")) {
+        await setView("help");
+      } else {
+        renderLoggedOut();
+      }
+      return;
+    }
+    if (bootstrapID !== state.bootstrapID) return;
     state.user = me.user;
     state.permissions = me.permissions || [];
     renderSession(me);
     els.logoutButton.classList.remove("hidden");
-    if (location.pathname.startsWith("/access-denied")) {
+    if (runtime.mode === "management") {
+      await setView(canUseAdmin() ? "admin" : "accessDenied");
+    } else if (location.pathname.startsWith("/access-denied")) {
       await setView("accessDenied");
     } else if (location.pathname.startsWith("/help")) {
       await setView("help");
-    } else if (location.pathname.startsWith("/admin") && canUseAdmin()) {
+    } else if (runtime.mode === "legacy" && location.pathname.startsWith("/admin") && canUseAdmin()) {
       await setView("admin");
     } else {
       await setView("portal");
     }
-  } catch {
-    if (location.pathname.startsWith("/access-denied")) {
-      renderAccessDenied();
-      return;
+  } catch (error) {
+    if (bootstrapID !== state.bootstrapID || (error.status === 401 && state.runtime && !state.user)) return;
+    renderRuntimeStatus("Портал недоступен", "Не удалось загрузить настройки режима или активную сессию. Повторите попытку.", true);
+  }
+}
+
+function validateRuntime(runtime) {
+  if (!runtime || !["legacy", "portal", "management", "login"].includes(runtime.mode)) {
+    throw new Error("Некорректный режим портала");
+  }
+  const secureProfile = runtime.secure_profile === true;
+  if (runtime.mode === "login" && !secureProfile) throw new Error("Некорректный режим входа");
+  const csrfCookieName = runtime.csrf_cookie_name;
+  const validCookieName = typeof csrfCookieName === "string" && /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/.test(csrfCookieName);
+  const managementCookieNames = ["__Host-agp_management", "__Host-agp_management_csrf"];
+  if (!validCookieName || (runtime.mode === "management"
+    ? csrfCookieName !== "__Host-agp_management_csrf"
+    : managementCookieNames.includes(csrfCookieName))) {
+    throw new Error("Некорректные настройки сессии");
+  }
+  let managementURL = "";
+  if (runtime.mode === "portal") {
+    const url = new URL(runtime.management_url);
+    if (url.protocol !== "https:" || url.username || url.password || url.origin === location.origin) {
+      throw new Error("Некорректный адрес управления");
     }
-    renderLoggedOut();
+    managementURL = new URL("/admin", url.origin).href;
+  }
+  let authURL = "";
+  if (secureProfile) {
+    const expectedOrigin = runtime.mode === "portal" ? new URL(runtime.login_url).origin : location.origin;
+    const url = new URL(runtime.auth_ui_url, location.origin);
+    if (url.protocol !== "https:" || url.username || url.password || url.origin !== expectedOrigin || url.pathname !== "/auth-ui/login" || url.search || url.hash) {
+      throw new Error("Некорректный адрес входа");
+    }
+    authURL = url.href;
+  }
+  return { mode: runtime.mode, management_url: managementURL, csrf_cookie_name: csrfCookieName, secure_profile: secureProfile, auth_ui_url: authURL };
+}
+
+function renderRuntimeStatus(title, message, canRetry) {
+  state.runtime = null;
+  state.user = null;
+  state.permissions = [];
+  els.pageTitle.textContent = title;
+  els.pageSubtitle.textContent = "Auth Gateway Portal";
+  els.runtimeStatusTitle.textContent = title;
+  els.runtimeStatusMessage.textContent = message;
+  els.retryBootstrapButton.classList.toggle("hidden", !canRetry);
+  els.runtimeStatusView.classList.remove("hidden");
+  [els.loginView, els.portalView, els.accessDeniedView, els.helpView, els.adminView,
+    els.logoutButton, els.identityBadge, els.showDownloadsButton, els.helpButton].forEach((element) => element.classList.add("hidden"));
+  els.sessionPanel.textContent = "";
+  syncNavigation();
+}
+
+async function openView(view) {
+  try {
+    await setView(view);
+  } catch (error) {
+    if (error.status === 401) return;
+    if (state.view === "admin") {
+      showOperationError("Не удалось загрузить раздел", error);
+    } else {
+      renderRuntimeStatus("Портал недоступен", "Не удалось загрузить данные. Повторите попытку.", true);
+    }
   }
 }
 
 async function setView(view) {
+  if (!state.runtime) return;
+  if (state.runtime.mode === "management" && view !== "accessDenied") {
+    view = canUseAdmin() ? "admin" : "accessDenied";
+  } else if ((state.runtime.mode === "login" && view !== "portal") || (view === "admin" && (state.runtime.mode === "portal" || !canUseAdmin()))) {
+    view = "portal";
+  }
   state.view = view;
+  els.runtimeStatusView.classList.add("hidden");
   syncNavigation();
   if (!state.user) {
-    if (view === "accessDenied") {
+    if (state.runtime.mode !== "management" && view === "accessDenied") {
       renderAccessDenied();
       return;
     }
-    if (view === "help") {
+    if (state.runtime.mode !== "management" && view === "help") {
       renderHelp();
       return;
     }
@@ -378,10 +516,10 @@ async function setView(view) {
     els.pageTitle.textContent = "Админка";
     els.pageSubtitle.textContent = "Пользователи, ресурсы, аудит и Nginx";
     history.replaceState(null, "", "/admin");
-    syncAdminTabs();
     if (!canOpenAdminTab(state.adminTab)) {
       state.adminTab = firstAvailableAdminTab();
     }
+    syncAdminTabs();
     await loadAdmin();
     return;
   }
@@ -397,6 +535,7 @@ async function setView(view) {
 }
 
 async function setAdminTab(tab) {
+  if (!state.runtime || ["portal", "login"].includes(state.runtime.mode)) return;
   if (!canOpenAdminTab(tab)) {
     els.operationOutput.textContent = "Нет доступа к выбранному разделу";
     return;
@@ -422,6 +561,7 @@ function syncAdminTabs() {
 }
 
 async function loadPortal() {
+  if (!state.runtime || state.runtime.mode === "management") return;
   renderPublicDownloads();
   const data = await api("/api/v1/resources");
   state.resources = data.resources || [];
@@ -495,17 +635,25 @@ function renderCategoryFilter() {
 }
 
 function renderAccessDenied() {
+  const management = state.runtime?.mode === "management";
+  els.runtimeStatusView.classList.add("hidden");
+  els.backToPortalButton.classList.toggle("hidden", management);
+  els.accessDeniedMessage.textContent = management
+    ? "У вашей учетной записи нет доступа к управлению. Обратитесь к администратору."
+    : "Ресурс не найден или у вашей учетной записи нет разрешения на вход. Для безопасности портал не раскрывает, существует ли запрошенная точка входа.";
   els.pageTitle.textContent = "Доступ запрещен";
-  els.pageSubtitle.textContent = "Ресурс не найден или не разрешен для вашей учетной записи";
+  els.pageSubtitle.textContent = management ? "Требуются права управления" : "Ресурс не найден или не разрешен для вашей учетной записи";
   els.loginView.classList.add("hidden");
   els.portalView.classList.add("hidden");
   els.adminView.classList.add("hidden");
   els.helpView.classList.add("hidden");
   els.accessDeniedView.classList.remove("hidden");
-  history.replaceState(null, "", "/access-denied");
+  history.replaceState(null, "", management ? "/admin" : "/access-denied");
 }
 
 function renderHelp() {
+  if (!state.runtime || state.runtime.mode === "management") return;
+  els.runtimeStatusView.classList.add("hidden");
   els.pageTitle.textContent = "Помощь";
   els.pageSubtitle.textContent = "Информация для работы с порталом";
   els.loginView.classList.add("hidden");
@@ -517,6 +665,7 @@ function renderHelp() {
 }
 
 async function loadAdmin() {
+  if (!state.runtime || ["portal", "login"].includes(state.runtime.mode)) return;
   if (!canUseAdmin()) {
     els.operationOutput.textContent = "Нет административного доступа";
     return;
@@ -551,7 +700,9 @@ function metric(label, value) {
 }
 
 async function refreshPublicData() {
-  await Promise.all([loadPublicSettings(), loadPublicDownloads()]);
+  if (!state.runtime) return;
+  await Promise.all([loadPublicSettings(), ...(["management", "login"].includes(state.runtime.mode) ? [] : [loadPublicDownloads()])]);
+  if (["management", "login"].includes(state.runtime?.mode)) state.publicDownloads = [];
   applyPortalChrome();
   renderPublicDownloads();
 }
@@ -566,6 +717,7 @@ async function loadPublicSettings() {
 }
 
 async function loadPublicDownloads() {
+  if (!state.runtime || ["management", "login"].includes(state.runtime.mode)) return;
   try {
     const data = await api("/api/v1/public/downloads");
     state.publicDownloads = data.downloads || [];
@@ -576,7 +728,18 @@ async function loadPublicDownloads() {
 
 function applyPortalChrome() {
   const settings = effectiveSettings();
-  els.brandMark.textContent = settings.logo_text;
+  const useCompanyLogo = settings.logo_text === "A";
+  els.brandMark.classList.toggle("company-logo", useCompanyLogo);
+  if (useCompanyLogo) {
+    const logo = document.createElement("img");
+    logo.src = "/nlgate-logo.png";
+    logo.alt = "НЛГЕЙТ";
+    logo.width = 150;
+    logo.height = 47;
+    els.brandMark.replaceChildren(logo);
+  } else {
+    els.brandMark.textContent = settings.logo_text;
+  }
   els.brandTitle.textContent = settings.brand_name;
   els.brandSubtitle.textContent = settings.portal_subtitle || "Auth Gateway Portal";
   document.title = settings.brand_name;
@@ -595,7 +758,16 @@ function applyPortalChrome() {
     els.helpButton.textContent = "Помощь";
     els.helpButton.classList.remove("hidden");
   }
-  if (state.view === "portal" && state.user) {
+  const management = state.runtime?.mode === "management";
+  const noPublicFiles = management || state.runtime?.mode === "login";
+  els.showDownloadsButton.classList.toggle("hidden", noPublicFiles);
+  els.downloadsLoginPanel.classList.toggle("hidden", noPublicFiles);
+  els.downloadsPortalPanel.classList.toggle("hidden", noPublicFiles);
+  if (noPublicFiles) {
+    els.helpButton.classList.add("hidden");
+    els.supportLink.classList.add("hidden");
+  }
+  if (state.view === "portal" && state.user && !management) {
     applyPortalTitle();
   }
 }
@@ -844,7 +1016,8 @@ function renderGroupEditForm(group) {
 }
 
 async function loadUsers() {
-  els.userForm.classList.toggle("hidden", !can("users.manage"));
+  els.userForm.classList.toggle("hidden", !can("users.manage") || state.runtime?.secure_profile);
+  document.getElementById("userLifecycleNotice")?.classList.toggle("hidden", !state.runtime?.secure_profile);
   els.createUserAdminFlag.classList.toggle("hidden", !can("users.superadmin.manage"));
   await ensureGroupLookup();
   if (els.userGroupSelector) {
@@ -869,7 +1042,7 @@ async function loadUsers() {
         </div>
         <div class="row-actions">
           ${can("users.manage") ? `<button class="secondary" data-action="edit-user" data-id="${escapeHTML(user.ID)}">Редактировать</button>` : ""}
-          ${can("users.manage") ? `<button class="secondary" data-action="block-user" data-id="${escapeHTML(user.ID)}" data-blocked="${user.BlockedAt ? "false" : "true"}">${user.BlockedAt ? "Разблокировать" : "Блокировать"}</button>` : ""}
+          ${can("users.manage") && !(state.runtime?.secure_profile && user.BlockedAt) ? `<button class="secondary" data-action="block-user" data-id="${escapeHTML(user.ID)}" data-blocked="${user.BlockedAt ? "false" : "true"}">${user.BlockedAt ? "Разблокировать" : "Блокировать"}</button>` : ""}
           ${can("users.manage") ? `<button class="danger" data-action="delete-user" data-id="${escapeHTML(user.ID)}">Удалить</button>` : ""}
         </div>
         ${state.editingUserID === user.ID ? renderUserEditForm(user) : ""}
@@ -891,14 +1064,14 @@ function renderUserEditForm(user) {
     <form class="inline-edit-form" data-user-edit data-id="${escapeHTML(user.ID)}">
       <input name="display_name" placeholder="Отображаемое имя" value="${escapeHTML(user.DisplayName || "")}" />
       <div class="form-field-full">${renderGroupSelector(user.GroupIDs || [], "Группы не созданы. Пользователя можно оставить без групп.")}</div>
-      <input name="password" type="password" placeholder="Новый пароль, если нужно" />
+      ${state.runtime?.secure_profile ? "" : `<input name="password" type="password" placeholder="Новый пароль, если нужно" />`}
       ${
         can("users.superadmin.manage")
-          ? `<label class="checkbox-line"><input name="is_admin" type="checkbox" ${user.IsAdmin ? "checked" : ""} /> Администратор</label>`
+          ? `<label class="checkbox-line"><input name="is_admin" type="checkbox" ${user.IsAdmin ? "checked" : ""} ${state.runtime?.secure_profile && !user.IsAdmin ? "disabled" : ""} /> Администратор</label>`
           : ""
       }
       <label class="checkbox-line">
-        <input name="blocked" type="checkbox" ${user.BlockedAt ? "checked" : ""} />
+        <input name="blocked" type="checkbox" ${user.BlockedAt ? "checked" : ""} ${state.runtime?.secure_profile && user.BlockedAt ? "disabled" : ""} />
         Заблокирован
       </label>
       <div class="form-actions">
@@ -1104,7 +1277,7 @@ function renderAdminDownloads(downloads) {
 	          <div class="${download.Enabled ? "status-ok" : "status-bad"}">${download.Enabled ? "published" : "disabled"}</div>
 	        </div>
 	        <div class="row-actions">
-	          <a class="button-link secondary" href="/downloads/${escapeHTML(download.ID)}">Скачать</a>
+	          ${state.runtime?.mode !== "management" ? `<a class="button-link secondary" href="/downloads/${escapeHTML(download.ID)}">Скачать</a>` : ""}
 	          ${can("downloads.manage") ? `<button class="secondary" data-action="edit-download" data-id="${escapeHTML(download.ID)}">Редактировать</button>` : ""}
 	          ${
             can("downloads.manage")
@@ -1257,6 +1430,7 @@ async function submitUserEdit(event, form) {
     group_ids: selectedValues(form, "group_ids"),
     blocked: data.get("blocked") === "on",
   };
+  if (form.elements.namedItem("blocked")?.disabled) delete body.blocked;
   if (can("users.superadmin.manage")) {
     body.is_admin = data.get("is_admin") === "on";
   }
@@ -1361,16 +1535,33 @@ function renderDiagnosticsText(current, history) {
 function renderSession(me) {
   els.sessionPanel.innerHTML = `
     <div><strong>${escapeHTML(me.user.username)}</strong></div>
-    <div>${canUseAdmin() ? "Администратор" : "Пользователь"}</div>
+    <div>${state.runtime?.mode !== "login" && canUseAdmin() ? "Администратор" : "Пользователь"}</div>
   `;
   els.identityBadge.textContent = me.user.display_name || me.user.username;
   els.identityBadge.classList.remove("hidden");
   syncNavigation();
 }
 
+function clearSession() {
+  state.user = null;
+  state.permissions = [];
+  state.csrfToken = "";
+  state.csrfCookieName = "";
+  state.resources = [];
+}
+
 function renderLoggedOut() {
+  if (state.runtime?.secure_profile) {
+    const destination = new URL(state.runtime.auth_ui_url);
+    destination.searchParams.set("return", state.runtime.mode === "management" ? "/admin" : "/");
+    window.location.replace(destination.href);
+    return;
+  }
+  const management = state.runtime?.mode === "management";
+  state.view = management ? "admin" : "portal";
+  els.runtimeStatusView.classList.add("hidden");
   els.pageTitle.textContent = "Вход";
-  els.pageSubtitle.textContent = "Авторизация в AGP";
+  els.pageSubtitle.textContent = management ? "Управление Auth Gateway Portal" : "Авторизация в AGP";
   els.loginView.classList.remove("hidden");
   els.portalView.classList.add("hidden");
   els.accessDeniedView.classList.add("hidden");
@@ -1379,16 +1570,50 @@ function renderLoggedOut() {
   els.logoutButton.classList.add("hidden");
   els.identityBadge.classList.add("hidden");
   els.sessionPanel.innerHTML = `<span class="muted">Нет активной сессии</span>`;
+  if (management) history.replaceState(null, "", "/admin");
+  if (state.runtime?.mode === "portal" && location.pathname.startsWith("/admin")) history.replaceState(null, "", "/");
   syncNavigation();
 }
 
 function syncNavigation() {
-  document.querySelectorAll(".nav-link").forEach((button) => {
+  const mode = state.runtime?.mode;
+  document.querySelectorAll(".nav-link[data-view]").forEach((button) => {
     const view = button.dataset.view;
-    const visible = state.user && (view !== "admin" || canUseAdmin());
+    const allowed = mode && (view === "admin" ? !["portal", "login"].includes(mode) && canUseAdmin() : mode !== "management");
+    const visible = Boolean(state.user && allowed);
     button.classList.toggle("hidden", !visible);
     button.classList.toggle("active", visible && view === state.view);
   });
+  const showManagementLink = mode === "portal" && state.user && canUseAdmin();
+  els.managementLink.classList.toggle("hidden", !showManagementLink);
+  if (showManagementLink) els.managementLink.href = state.runtime.management_url;
+  else els.managementLink.removeAttribute("href");
+  els.configurationLink.classList.toggle("hidden", !(mode === "management" && state.runtime?.configuration_enabled && state.user));
+  els.directoryLink.classList.toggle("hidden", !(mode === "management" && state.runtime?.secure_profile && state.user));
+}
+
+function csrfToken() {
+  const cookieName = state.runtime?.csrf_cookie_name;
+  if (!cookieName) throw new Error("Режим портала ещё не загружен. Повторите попытку.");
+  const cookie = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${cookieName}=`));
+  let token = "";
+  if (cookie) {
+    try {
+      token = decodeURIComponent(cookie.slice(cookieName.length + 1));
+    } catch {
+      throw new Error("Не удалось прочитать данные сессии. Выполните вход снова.");
+    }
+  }
+  token = token || (state.csrfCookieName === cookieName ? state.csrfToken : "");
+  if (!token) throw new Error("Данные сессии недоступны. Выполните вход снова.");
+  return token;
+}
+
+function sessionExpired() {
+  clearSession();
+  if (!state.runtime) return;
+  renderLoggedOut();
+  els.loginError.textContent = "Сессия завершена. Выполните вход снова.";
 }
 
 async function api(path, options = {}) {
@@ -1404,11 +1629,13 @@ async function api(path, options = {}) {
     init.body = JSON.stringify(options.body);
   }
   if (options.csrf) {
-    init.headers["X-CSRF-Token"] = state.csrfToken;
+    init.headers["X-CSRF-Token"] = csrfToken();
   }
   const response = await fetch(path, init);
   if (!response.ok) {
-    throw new Error(await responseErrorMessage(response));
+    const error = await responseError(response);
+    if (response.status === 401 && path !== "/api/v1/auth/login" && path !== "/api/v1/me") sessionExpired();
+    throw error;
   }
   if (response.status === 204) {
     return {};
@@ -1425,7 +1652,7 @@ function uploadDownload(form, onProgress) {
     xhr.open("POST", "/api/v1/admin/downloads");
     xhr.withCredentials = true;
     xhr.setRequestHeader("Accept", "application/json");
-    xhr.setRequestHeader("X-CSRF-Token", state.csrfToken);
+    xhr.setRequestHeader("X-CSRF-Token", csrfToken());
     xhr.upload.addEventListener("progress", (event) => {
       if (!onProgress) return;
       const total = event.lengthComputable ? event.total : 0;
@@ -1441,7 +1668,12 @@ function uploadDownload(form, onProgress) {
         }
         return;
       }
-      reject(new Error(responseErrorText(xhr.status, responseDetail(xhr.responseText))));
+      const detail = responseDetail(xhr.responseText);
+      const error = new Error(responseErrorText(xhr.status, detail));
+      error.status = xhr.status;
+      error.code = detail;
+      if (xhr.status === 401) sessionExpired();
+      reject(error);
     });
     xhr.addEventListener("error", () => reject(new Error("Сетевая ошибка при загрузке файла")));
     xhr.addEventListener("abort", () => reject(new Error("Загрузка файла отменена")));
@@ -1449,15 +1681,12 @@ function uploadDownload(form, onProgress) {
   });
 }
 
-async function responseErrorMessage(response) {
-  let detail = "";
-  try {
-    const payload = await response.json();
-    detail = payload.error || "";
-  } catch {
-    detail = await response.text().catch(() => "");
-  }
-  return responseErrorText(response.status, detail);
+async function responseError(response) {
+  const detail = responseDetail(await response.text().catch(() => ""));
+  const error = new Error(responseErrorText(response.status, detail));
+  error.status = response.status;
+  error.code = detail;
+  return error;
 }
 
 function responseErrorText(status, detail) {
@@ -1495,6 +1724,16 @@ function setDownloadFormBusy(busy) {
 }
 
 function showOperationError(prefix, error) {
+  if (error.code === "step_up_required" && state.runtime?.secure_profile && state.runtime.mode === "management") {
+    els.operationOutput.textContent = `${prefix}: требуется повторное подтверждение пароля и второго фактора.\n`;
+    const link = document.createElement("a");
+    link.href = "/auth-ui/step-up?return=%2Fadmin";
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Подтвердить сессию в отдельной вкладке";
+    els.operationOutput.append(link, document.createTextNode("\nПосле подтверждения вернитесь сюда и повторите действие."));
+    return;
+  }
   els.operationOutput.textContent = `${prefix}: ${error.message}`;
 }
 
@@ -1588,7 +1827,7 @@ function canOpenAdminTab(tab) {
 }
 
 function firstAvailableAdminTab() {
-  return ["resources", "downloads", "settings", "groups", "users", "sessions", "audit"].find((tab) => canOpenAdminTab(tab)) || "resources";
+  return ["resources", "downloads", "settings", "groups", "users", "sessions", "audit"].find((tab) => canOpenAdminTab(tab)) || "";
 }
 
 bootstrap();

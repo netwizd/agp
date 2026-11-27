@@ -1,0 +1,18 @@
+{
+  "id": "roleop_one",
+  "family": "restriction",
+  "requestDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "state": "pending",
+  "approvalStatus": "not_required",
+  "subjectId": "usr_target",
+  "createdBy": "usr_author",
+  "createdAt": "2026-11-25T12:00:00Z",
+  "roleBindingRevokeRequest": {
+    "bindingId": "rbind_one",
+    "principalId": "usr_target",
+    "expectedRevision": "1",
+    "roleDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "expectedAuthorityEpoch": "2",
+    "reason": "Revoke exact approved binding"
+  }
+}

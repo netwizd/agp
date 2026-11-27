@@ -1,0 +1,16 @@
+{
+  "id": "role_viewer",
+  "name": "Viewer",
+  "version": "0",
+  "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "permissions": [
+    "config.read"
+  ],
+  "allowedScopes": [
+    "global",
+    "site",
+    "node_group",
+    "node",
+    "resource"
+  ]
+}

@@ -21,6 +21,10 @@ type loginRequest struct {
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.SecureProfile {
+		writeError(w, http.StatusForbidden, "mfa_flow_required")
+		return
+	}
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
@@ -73,24 +77,36 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now().UTC()
 	expires := now.Add(s.cfg.SessionTTL)
-	session := domain.Session{
-		ID:        newID("sess"),
-		UserID:    user.ID,
-		TokenHash: sessionHash,
-		CSRFHash:  csrfHash,
-		IP:        ip,
-		UserAgent: ua,
-		ExpiresAt: expires,
-		CreatedAt: now,
+	audience, audienceOrigin := domain.SessionAudienceLegacy, ""
+	if s.managementRequest(r) {
+		audience = domain.SessionAudienceManagement
+		audienceOrigin = s.cfg.ManagementOrigin
 	}
-	if err := s.store.CreateSession(r.Context(), session); err != nil {
+	session := domain.Session{
+		Audience:       audience,
+		AudienceOrigin: audienceOrigin,
+		ID:             newID("sess"),
+		UserID:         user.ID,
+		TokenHash:      sessionHash,
+		CSRFHash:       csrfHash,
+		IP:             ip,
+		UserAgent:      ua,
+		ExpiresAt:      expires,
+		CreatedAt:      now,
+	}
+	if err := s.store.CreateAuthenticatedSession(r.Context(), session, user.PasswordHash, user.UpdatedAt, s.cfg.SessionProfile()); err != nil {
+		if errors.Is(err, storage.ErrPermissionDenied) {
+			writeError(w, http.StatusUnauthorized, "invalid_credentials")
+			return
+		}
 		s.logger.Error("session create failed", "error", err, "username", username)
 		writeError(w, http.StatusInternalServerError, "session_create_failed")
 		return
 	}
 
-	http.SetCookie(w, sessionCookie(s.cfg.SessionCookieName, sessionToken, expires, s.cfg.CookieSecure))
-	http.SetCookie(w, csrfCookie(s.cfg.CSRFCookieName, csrfToken, expires, s.cfg.CookieSecure))
+	sessionCookieName, csrfCookieName, secure := s.cookieProfile(r)
+	http.SetCookie(w, sessionCookie(sessionCookieName, sessionToken, expires, secure))
+	http.SetCookie(w, csrfCookie(csrfCookieName, csrfToken, expires, secure))
 	s.audit(r, "auth.login", user.ID, username, "", ip, ua, "success", "")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"user":       publicUser(user.User),
@@ -102,10 +118,15 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 func (s *Server) logout(w http.ResponseWriter, r *http.Request, session *domain.SessionContext) {
 	if err := s.store.DeleteSession(r.Context(), session.TokenHash); err != nil {
 		s.logger.Error("session delete failed", "error", err, "user_id", session.User.ID)
+		if s.cfg.SecureProfile {
+			writeError(w, http.StatusServiceUnavailable, "security_state_unavailable")
+			return
+		}
 	}
 	expired := time.Unix(0, 0)
-	http.SetCookie(w, sessionCookie(s.cfg.SessionCookieName, "", expired, s.cfg.CookieSecure))
-	http.SetCookie(w, csrfCookie(s.cfg.CSRFCookieName, "", expired, s.cfg.CookieSecure))
+	sessionCookieName, csrfCookieName, secure := s.cookieProfile(r)
+	http.SetCookie(w, sessionCookie(sessionCookieName, "", expired, secure))
+	http.SetCookie(w, csrfCookie(csrfCookieName, "", expired, secure))
 	s.audit(r, "auth.logout", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", "")
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -129,6 +150,10 @@ func (s *Server) resources(w http.ResponseWriter, r *http.Request, session *doma
 }
 
 func (s *Server) authRequest(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.SecureProfile {
+		writeError(w, http.StatusForbidden, "edge_auth_required")
+		return
+	}
 	ip := s.clientIP(r)
 	ua := r.UserAgent()
 	if s.cfg.TrustProxyHeaders && !s.trustedProxyRequest(r) {

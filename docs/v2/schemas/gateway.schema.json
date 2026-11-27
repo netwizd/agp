@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP Gateway declarative configuration v1alpha1",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.config/v1alpha1"
+    },
+    "kind": {
+      "const": "Gateway"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "siteId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "labels": {
+          "$ref": "shared.schema.json#/$defs/Labels"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "siteId",
+        "labels"
+      ],
+      "additionalProperties": false
+    },
+    "spec": {
+      "type": "object",
+      "properties": {
+        "ownership": {
+          "type": "string",
+          "enum": [
+            "managed",
+            "adopted"
+          ]
+        },
+        "nodeSelector": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "nodeIds": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "shared.schema.json#/$defs/Id"
+                  },
+                  "minItems": 1,
+                  "maxItems": 500,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "nodeIds"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "matchLabels": {
+                  "$ref": "shared.schema.json#/$defs/Labels"
+                }
+              },
+              "required": [
+                "matchLabels"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "componentProfileRef": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "digest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            }
+          },
+          "required": [
+            "id",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "certificateVersionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            }
+          },
+          "required": [
+            "certificateVersionId"
+          ],
+          "additionalProperties": false
+        },
+        "authorization": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "const": "central"
+            },
+            "failureMode": {
+              "const": "closed"
+            }
+          },
+          "required": [
+            "mode",
+            "failureMode"
+          ],
+          "additionalProperties": false
+        },
+        "waf": {
+          "type": "object",
+          "properties": {
+            "engine": {
+              "const": "modsecurity"
+            },
+            "policyRevisionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "off",
+                "detection",
+                "blocking"
+              ]
+            }
+          },
+          "required": [
+            "engine",
+            "policyRevisionId",
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "hostname": {
+                "$ref": "shared.schema.json#/$defs/Hostname"
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^/[^?#\\\\\\s]*$",
+                "format": "agp-path"
+              },
+              "upstream": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048,
+                    "format": "agp-upstream"
+                  },
+                  "connectTimeoutSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 60
+                  },
+                  "readTimeoutSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3600
+                  },
+                  "tls": {
+                    "type": "object",
+                    "properties": {
+                      "verify": {
+                        "const": true
+                      },
+                      "serverName": {
+                        "$ref": "shared.schema.json#/$defs/Hostname"
+                      },
+                      "caSecretVersionId": {
+                        "$ref": "shared.schema.json#/$defs/Id"
+                      }
+                    },
+                    "required": [
+                      "verify"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "url",
+                  "connectTimeoutSeconds",
+                  "readTimeoutSeconds",
+                  "tls"
+                ],
+                "additionalProperties": false
+              },
+              "access": {
+                "type": "object",
+                "properties": {
+                  "groupIds": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "shared.schema.json#/$defs/Id"
+                    },
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "uniqueItems": true
+                  },
+                  "allowCidrs": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "shared.schema.json#/$defs/Cidr"
+                    },
+                    "minItems": 0,
+                    "maxItems": 100,
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "groupIds",
+                  "allowCidrs"
+                ],
+                "additionalProperties": false
+              },
+              "wafExceptionIds": {
+                "type": "array",
+                "items": {
+                  "$ref": "shared.schema.json#/$defs/Id"
+                },
+                "minItems": 0,
+                "maxItems": 100,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "hostname",
+              "path",
+              "upstream",
+              "access",
+              "wafExceptionIds"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 1000
+        },
+        "monitoring": {
+          "type": "object",
+          "properties": {
+            "metrics": {
+              "type": "boolean"
+            },
+            "logs": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "metrics",
+            "logs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "ownership",
+        "nodeSelector",
+        "componentProfileRef",
+        "tls",
+        "authorization",
+        "waf",
+        "routes",
+        "monitoring"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false
+}

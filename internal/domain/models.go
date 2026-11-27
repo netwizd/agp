@@ -49,14 +49,24 @@ type ResourceDetail struct {
 }
 
 type Session struct {
-	ID        string
-	UserID    string
-	TokenHash string
-	CSRFHash  string
-	IP        string
-	UserAgent string
-	ExpiresAt time.Time
-	CreatedAt time.Time
+	AuthorityEpoch  uint64
+	SecurityVersion uint64
+	MFAAt           *time.Time
+	PrimaryAt       *time.Time
+	LastSeenAt      *time.Time
+	SourceSessionID string
+	GatewayID       string
+	NodeID          string
+	Audience        string
+	AudienceOrigin  string
+	ID              string
+	UserID          string
+	TokenHash       string
+	CSRFHash        string
+	IP              string
+	UserAgent       string
+	ExpiresAt       time.Time
+	CreatedAt       time.Time
 }
 
 type SessionContext struct {

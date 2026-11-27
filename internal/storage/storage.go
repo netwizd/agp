@@ -17,12 +17,17 @@ type errString string
 func (e errString) Error() string { return string(e) }
 
 type Store interface {
+	WriteIdentity(context.Context, func(IdentityTx) error) error
 	Close() error
 	Migrate(ctx context.Context) error
 	Ping(ctx context.Context) error
 	ApplyRetention(ctx context.Context, now time.Time, auditRetention time.Duration, sessionRetention time.Duration) error
 	FindUserByUsername(ctx context.Context, username string) (*domain.UserWithPassword, error)
 	CreateSession(ctx context.Context, session domain.Session) error
+	CreateAuthenticatedSession(ctx context.Context, session domain.Session, passwordHash string, userUpdatedAt time.Time, profile domain.SessionProfile) error
+	GetSessionProfile(ctx context.Context) (*domain.SessionProfile, error)
+	CheckSessionProfile(ctx context.Context, profile domain.SessionProfile) error
+	ApplySessionProfile(ctx context.Context, profile domain.SessionProfile) (int64, error)
 	FindSessionByTokenHash(ctx context.Context, tokenHash string) (*domain.SessionContext, error)
 	DeleteSession(ctx context.Context, tokenHash string) error
 	ListResourcesForUser(ctx context.Context, userID string) ([]domain.Resource, error)
@@ -55,6 +60,7 @@ type Store interface {
 	UpdatePortalSettings(ctx context.Context, settings domain.PortalSettings) (*domain.PortalSettings, error)
 	ListActiveSessions(ctx context.Context) ([]domain.ActiveSession, error)
 	RevokeSession(ctx context.Context, id string) error
+	ApplyIdentityMutation(ctx context.Context, actorTokenHash string, mutation IdentityMutation) (*IdentityMutationResult, error)
 	ListAuditEvents(ctx context.Context, filter domain.AuditFilter) ([]domain.AuditEvent, error)
 	ListResourceDiagnostics(ctx context.Context, resourceID string, limit int) ([]domain.ResourceDiagnosticsRun, error)
 }

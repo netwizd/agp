@@ -1,0 +1,12 @@
+# Generated third-party notices retain the original upstream license whitespace.
+internal/frontend/static/auth/3rdpartylicenses.txt -whitespace
+internal/frontend/static/config/3rdpartylicenses.txt -whitespace
+internal/frontend/static/directory/3rdpartylicenses.txt -whitespace
+
+# Existing immutable migration bytes are preserved; other whitespace rules apply.
+internal/storage/postgres/migrations/012_configuration_core.sql whitespace=-blank-at-eof
+internal/storage/postgres/migrations/013_configuration_projections.sql whitespace=-blank-at-eof
+internal/storage/postgres/migrations/014_configuration_seals.sql whitespace=-blank-at-eof
+internal/storage/sqlite/migrations/012_configuration_core.sql whitespace=-blank-at-eof
+internal/storage/sqlite/migrations/013_configuration_projections.sql whitespace=-blank-at-eof
+internal/storage/sqlite/migrations/014_configuration_seals.sql whitespace=-blank-at-eof

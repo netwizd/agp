@@ -1,0 +1,571 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP identity lifecycle TARGET contracts",
+  "$ref": "#/$defs/LifecycleUserView",
+  "$defs": {
+    "PendingUserInput": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "username": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "groupIds": {
+          "type": "array",
+          "items": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "maxItems": 100,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "displayName",
+        "groupIds"
+      ],
+      "additionalProperties": false
+    },
+    "LifecycleUserView": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "username": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "blocked": {
+          "type": "boolean"
+        },
+        "privileged": {
+          "type": "boolean"
+        },
+        "groupIds": {
+          "type": "array",
+          "items": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "maxItems": 100,
+          "uniqueItems": true
+        },
+        "revision": {
+          "$ref": "shared.schema.json#/$defs/UInt63",
+          "description": "Exact current principal security version. Used as expectedSecurityVersion in recovery plans and strong If-Match on invite creation."
+        },
+        "lifecycleState": {
+          "enum": [
+            "invited",
+            "active"
+          ],
+          "description": "Independent of blocked. Normal auth/session/handoff/management allow requires active; invited access exists only through a private typed setup capability."
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "displayName",
+        "blocked",
+        "privileged",
+        "groupIds",
+        "revision",
+        "lifecycleState"
+      ],
+      "additionalProperties": false
+    },
+    "PasswordSetup": {
+      "type": "object",
+      "properties": {
+        "newPassword": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "writeOnly": true,
+          "format": "agp-password-bytes",
+          "x-agp-min-utf8-bytes": 12,
+          "x-agp-max-utf8-bytes": 1024,
+          "description": "Valid UTF-8, 12..1024 bytes, exact unchanged bytes (no trim/normalization/truncation). Service must enforce byte length: JSON Schema maxLength counts code points. Argon2id outside DB writer under bounded concurrency; never expose plaintext or PHC."
+        }
+      },
+      "required": [
+        "newPassword"
+      ],
+      "additionalProperties": false
+    },
+    "PasswordResetRequest": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 1,
+          "maxLength": 254,
+          "writeOnly": true,
+          "description": "Lookup hint only; recipient must be resolved from an existing matching verified encrypted contact. Never send directly to this input."
+        }
+      },
+      "required": [
+        "username",
+        "email"
+      ],
+      "additionalProperties": false
+    },
+    "InviteRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 1,
+          "maxLength": 254,
+          "writeOnly": true
+        },
+        "ttlSeconds": {
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 86400
+        }
+      },
+      "required": [
+        "email",
+        "ttlSeconds"
+      ],
+      "additionalProperties": false
+    },
+    "InviteView": {
+      "type": "object",
+      "properties": {
+        "inviteId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "deliveryOperationId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        }
+      },
+      "required": [
+        "inviteId",
+        "deliveryOperationId",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "IdentityRecoveryRequest": {
+      "type": "object",
+      "properties": {
+        "targetPrincipalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "expectedSecurityVersion": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "allowedAction": {
+          "enum": [
+            "replace_mfa",
+            "reset_password",
+            "restart_activation"
+          ]
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "targetPrincipalId",
+        "expectedSecurityVersion",
+        "allowedAction",
+        "expiresAt",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "MFARecoveryPlanRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/IdentityRecoveryRequest"
+        },
+        {
+          "properties": {
+            "allowedAction": {
+              "const": "replace_mfa"
+            }
+          }
+        }
+      ]
+    },
+    "PasswordResetPlanRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/IdentityRecoveryRequest"
+        },
+        {
+          "properties": {
+            "allowedAction": {
+              "const": "reset_password"
+            }
+          }
+        }
+      ]
+    },
+    "IdentityRecoveryIntent": {
+      "type": "object",
+      "properties": {
+        "targetPrincipalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "expectedSecurityVersion": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "allowedAction": {
+          "enum": [
+            "replace_mfa",
+            "reset_password",
+            "restart_activation"
+          ]
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "expectedPasswordVersion": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "expectedAuthorityEpoch": {
+          "allOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            {
+              "not": {
+                "const": "0"
+              }
+            }
+          ]
+        },
+        "policyDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "custodianPrincipalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "targetFingerprint": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "restrictiveSteps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": [
+                  "raise_security_floor",
+                  "bump_authenticator_floor"
+                ]
+              },
+              "principalId": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              },
+              "authenticatorId": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              },
+              "minimumVersion": {
+                "allOf": [
+                  {
+                    "$ref": "shared.schema.json#/$defs/UInt63"
+                  },
+                  {
+                    "not": {
+                      "const": "0"
+                    }
+                  }
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "principalId",
+              "authenticatorId",
+              "minimumVersion"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true
+        },
+        "observedFloors": {
+          "type": "object",
+          "properties": {
+            "principal": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "password": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "factor": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "recovery": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "replay": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            }
+          },
+          "required": [
+            "principal",
+            "password",
+            "factor",
+            "recovery",
+            "replay"
+          ],
+          "additionalProperties": false,
+          "description": "Server-observed independent floors at plan time, rechecked at approve/execute. restart_activation successor principal/password versions strictly exceed max(current row,observed floor); no floor is lowered."
+        }
+      },
+      "required": [
+        "targetPrincipalId",
+        "expectedSecurityVersion",
+        "allowedAction",
+        "expiresAt",
+        "reason",
+        "expectedPasswordVersion",
+        "expectedAuthorityEpoch",
+        "policyDigest",
+        "custodianPrincipalId",
+        "targetFingerprint",
+        "restrictiveSteps"
+      ],
+      "additionalProperties": false,
+      "description": "Closed server-owned intent, not a client plan body. requestDigest covers JCS of every field. Server freezes current target/principal/password versions, action, policy, custodian and exact restrictive step specifications. The complete child requests with unique stable operation IDs are durably stored by Coordinator before any append. applied requires every receipt/materialization; no positive permission is reconstructed from deny journal. restart_activation is limited to invited principal, pins observed independent floors, clears obsolete tokens/flows/stages and leaves invited without live credentials. It issues no recovery ticket and never converts an active account into invited.",
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "allowedAction": {
+                "const": "restart_activation"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "observedFloors"
+            ]
+          }
+        }
+      ]
+    },
+    "RecoveryTicketIntent": {
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "requestDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "targetPrincipalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "allowedAction": {
+          "enum": [
+            "replace_mfa",
+            "reset_password"
+          ]
+        },
+        "authorityEpoch": {
+          "allOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            {
+              "not": {
+                "const": "0"
+              }
+            }
+          ]
+        },
+        "principalSecurityVersion": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "passwordVersion": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "policyDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "custodianPrincipalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        }
+      },
+      "required": [
+        "operationId",
+        "requestDigest",
+        "targetPrincipalId",
+        "allowedAction",
+        "authorityEpoch",
+        "principalSecurityVersion",
+        "passwordVersion",
+        "policyDigest",
+        "custodianPrincipalId",
+        "expiresAt"
+      ],
+      "additionalProperties": false,
+      "description": "Private single-issuance authorization. Hash/token row binds this exact applied operation/action/target/epoch/policy and post-execution versions. It is not a public bearer object and must never be accepted from HTTP as authorization. Ticket plaintext appears only in the first authorized custodian response."
+    },
+    "RecoveryTicketView": {
+      "type": "object",
+      "properties": {
+        "ticket": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "description": "256-bit secret, first custodian response only. No idempotency plaintext cache/logs or reissue from the same operation."
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        }
+      },
+      "required": [
+        "ticket",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "InviteDeliveryView": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "accepted",
+            "failed",
+            "expired"
+          ]
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "inviteId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "id",
+        "state",
+        "expiresAt",
+        "inviteId"
+      ],
+      "additionalProperties": false
+    },
+    "ActivationRecoveryPlanRequest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/IdentityRecoveryRequest"
+        },
+        {
+          "properties": {
+            "allowedAction": {
+              "const": "restart_activation"
+            }
+          }
+        }
+      ]
+    },
+    "LifecycleAccessView": {
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "authorityEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "usersRead": {
+          "type": "boolean"
+        },
+        "usersManage": {
+          "type": "boolean"
+        },
+        "privilegedManage": {
+          "type": "boolean"
+        },
+        "approve": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "principalId",
+        "authorityEpoch",
+        "usersRead",
+        "usersManage",
+        "privilegedManage",
+        "approve"
+      ],
+      "additionalProperties": false
+    },
+    "LifecycleUserList": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LifecycleUserView"
+          },
+          "maxItems": 200
+        },
+        "nextCursor": {
+          "oneOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

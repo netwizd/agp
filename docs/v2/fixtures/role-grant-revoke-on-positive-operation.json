@@ -1,0 +1,45 @@
+{
+  "id": "roleop_one",
+  "family": "grant_role_binding",
+  "requestDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "state": "pending",
+  "approvalStatus": "pending",
+  "subjectId": "usr_target",
+  "createdBy": "usr_author",
+  "createdAt": "2026-11-25T12:00:00Z",
+  "roleGrantRequest": {
+    "bindingId": "rbind_one",
+    "principalId": "usr_target",
+    "roleId": "role_viewer",
+    "roleVersion": "1",
+    "roleDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "permissions": [
+      "config.read"
+    ],
+    "scopeType": "global",
+    "scopeClosure": [
+      {
+        "scopeType": "global"
+      }
+    ],
+    "scopeSourceVersions": [],
+    "scopeClosureDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "expectedSecurityVersion": "3",
+    "expectedPasswordVersion": "2",
+    "targetFingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "expectedAuthorityEpoch": "2",
+    "preparedSequence": "0",
+    "preparedDigest": "",
+    "policyDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "expiresAt": "2026-11-25T12:05:00Z",
+    "grantExpiresAt": null
+  },
+  "roleBindingRevokeRequest": {
+    "bindingId": "rbind_one",
+    "principalId": "usr_target",
+    "expectedRevision": "1",
+    "roleDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "expectedAuthorityEpoch": "2",
+    "reason": "Revoke exact approved binding"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "operationId": "idop_recovery",
+  "requestDigest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "targetPrincipalId": "usr_target",
+  "allowedAction": "activate",
+  "authorityEpoch": "2",
+  "principalSecurityVersion": "8",
+  "passwordVersion": "4",
+  "policyDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "custodianPrincipalId": "usr_custodian",
+  "expiresAt": "2026-11-25T12:00:00Z"
+}

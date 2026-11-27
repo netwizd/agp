@@ -1,0 +1,669 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP positive role grant TARGET contracts",
+  "$ref": "#/$defs/RoleBindingRequest",
+  "$defs": {
+    "PermissionCode": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 96,
+      "pattern": "^[a-z][a-z0-9_.]{2,95}$",
+      "description": "Registered permission code; membership in the immutable server registry and applicability to every selected scope are service checks."
+    },
+    "ScopeRef": {
+      "type": "object",
+      "properties": {
+        "scopeType": {
+          "enum": [
+            "global",
+            "site",
+            "node_group",
+            "node",
+            "resource"
+          ]
+        },
+        "scopeId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "scopeType"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scopeType": {
+                "const": "global"
+              }
+            },
+            "required": [
+              "scopeType"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "scopeId"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "scopeId"
+            ]
+          }
+        }
+      ]
+    },
+    "ScopeSourceVersion": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "scope_graph",
+            "managed_node",
+            "gateway_ownership",
+            "configuration",
+            "resource"
+          ],
+          "description": "Server-selected authoritative ownership source. Operator-declared catalog/labels are never a source."
+        },
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "revision": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "digest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "RoleDefinition": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "version": {
+          "$ref": "#/$defs/PositiveUInt63"
+        },
+        "digest": {
+          "$ref": "shared.schema.json#/$defs/Digest",
+          "description": "SHA-256 of RFC 8785 JCS over exactly {id,name,version,permissions,allowedScopes}, with decimal-string version and sorted unique permission/scope arrays. The digest property is absent from the hash input, never present as an empty string."
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PermissionCode"
+          },
+          "minItems": 1,
+          "maxItems": 200,
+          "uniqueItems": true
+        },
+        "allowedScopes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "global",
+              "site",
+              "node_group",
+              "node",
+              "resource"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 5,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "version",
+        "digest",
+        "permissions",
+        "allowedScopes"
+      ],
+      "additionalProperties": false,
+      "description": "Immutable registered definition. permissions and allowedScopes are sorted unique arrays. Catalog metadata grants no authority."
+    },
+    "RoleBindingRequest": {
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "roleId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "scopeType": {
+          "enum": [
+            "global",
+            "site",
+            "node_group",
+            "node",
+            "resource"
+          ]
+        },
+        "scopeId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "principalId",
+        "roleId",
+        "scopeType"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scopeType": {
+                "const": "global"
+              }
+            },
+            "required": [
+              "scopeType"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "scopeId"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "scopeId"
+            ]
+          }
+        }
+      ]
+    },
+    "RoleBinding": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "principalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "roleId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "scopeType": {
+          "enum": [
+            "global",
+            "site",
+            "node_group",
+            "node",
+            "resource"
+          ]
+        },
+        "scopeId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "revision": {
+          "$ref": "#/$defs/PositiveUInt63"
+        },
+        "authorityEpoch": {
+          "$ref": "#/$defs/PositiveUInt63"
+        },
+        "roleVersion": {
+          "$ref": "#/$defs/PositiveUInt63"
+        },
+        "roleDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "createdAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "expiresAt": {
+          "anyOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UtcTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UtcTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "principalId",
+        "roleId",
+        "scopeType",
+        "revision",
+        "authorityEpoch",
+        "roleVersion",
+        "roleDigest",
+        "createdAt",
+        "expiresAt",
+        "revokedAt"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scopeType": {
+                "const": "global"
+              }
+            },
+            "required": [
+              "scopeType"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "scopeId"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "scopeId"
+            ]
+          }
+        }
+      ],
+      "description": "Redacted immutable binding incarnation and terminal revocation metadata. id is never recycled, including across epochs. Effective authority additionally requires active principal, matching independent epoch, current floors, no tombstone and unexpired binding. A fresh approved grant after revoke uses a new id."
+    },
+    "RoleGrantIntent": {
+      "type": "object",
+      "properties": {
+        "bindingId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "principalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "roleId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "roleVersion": {
+          "$ref": "#/$defs/PositiveUInt63"
+        },
+        "roleDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PermissionCode"
+          },
+          "minItems": 1,
+          "maxItems": 200,
+          "uniqueItems": true
+        },
+        "scopeType": {
+          "enum": [
+            "global",
+            "site",
+            "node_group",
+            "node",
+            "resource"
+          ]
+        },
+        "scopeId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "scopeClosure": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopeRef"
+          },
+          "minItems": 1,
+          "maxItems": 131072,
+          "uniqueItems": true
+        },
+        "scopeSourceVersions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopeSourceVersion"
+          },
+          "maxItems": 131072,
+          "uniqueItems": true
+        },
+        "scopeClosureDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "expectedSecurityVersion": {
+          "$ref": "#/$defs/PositiveUInt63"
+        },
+        "expectedPasswordVersion": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "targetFingerprint": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "expectedAuthorityEpoch": {
+          "$ref": "#/$defs/PositiveUInt63"
+        },
+        "preparedSequence": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "preparedDigest": {
+          "anyOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            },
+            {
+              "const": ""
+            }
+          ],
+          "description": "Empty only at independent sequence zero. Review does not require an unchanged sequence; final Current checks the actual independent head."
+        },
+        "policyDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "grantExpiresAt": {
+          "anyOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UtcTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "bindingId",
+        "principalId",
+        "roleId",
+        "roleVersion",
+        "roleDigest",
+        "permissions",
+        "scopeType",
+        "scopeClosure",
+        "scopeSourceVersions",
+        "scopeClosureDigest",
+        "expectedSecurityVersion",
+        "expectedPasswordVersion",
+        "targetFingerprint",
+        "expectedAuthorityEpoch",
+        "preparedSequence",
+        "preparedDigest",
+        "policyDigest",
+        "expiresAt",
+        "grantExpiresAt"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scopeType": {
+                "const": "global"
+              }
+            },
+            "required": [
+              "scopeType"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "scopeId"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "scopeId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "preparedSequence": {
+                "const": "0"
+              }
+            },
+            "required": [
+              "preparedSequence"
+            ]
+          },
+          "then": {
+            "properties": {
+              "preparedDigest": {
+                "const": ""
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "preparedDigest": {
+                "$ref": "shared.schema.json#/$defs/Digest"
+              }
+            }
+          }
+        }
+      ],
+      "description": "Server-derived immutable reviewer-visible intent. Active target only; exact role version/permission/scope/source pins and current actor/author/reviewer/target checks at approval and execution. First profile uses a five-minute operation approval window and grantExpiresAt=null; public input cannot select expiry. grantExpiresAt is distinct from operation expiresAt. Binding publication uses none_positive_grant; no positive journal replay. Full F10000 profile bounds closure and source arrays at 131072 unique records; serialized internal intent is limited to 64 MiB. Public RoleBindingRequest remains the small closed four-field input."
+    },
+    "RoleBindingRevokeRequest": {
+      "type": "object",
+      "properties": {
+        "bindingId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "principalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "expectedRevision": {
+          "$ref": "#/$defs/PositiveUInt63"
+        },
+        "roleDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "expectedAuthorityEpoch": {
+          "$ref": "#/$defs/PositiveUInt63"
+        },
+        "reason": {
+          "$ref": "shared.schema.json#/$defs/Reason"
+        }
+      },
+      "required": [
+        "bindingId",
+        "principalId",
+        "expectedRevision",
+        "roleDigest",
+        "expectedAuthorityEpoch",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "PositiveUInt63": {
+      "allOf": [
+        {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        {
+          "pattern": "^[1-9][0-9]{0,18}$"
+        }
+      ]
+    },
+    "ScopeGraphSite": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "ScopeGraphNodeGroup": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "siteId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "ScopeGraphNode": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "siteId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "groupIds": {
+          "type": "array",
+          "items": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "maxItems": 100,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "siteId",
+        "groupIds"
+      ],
+      "additionalProperties": false
+    },
+    "ScopeGraphResource": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "ScopeGraphResourceRoute": {
+      "type": "object",
+      "properties": {
+        "resourceId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "gatewayId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "routeId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "resourceId",
+        "gatewayId",
+        "routeId"
+      ],
+      "additionalProperties": false
+    },
+    "ScopeGraphManifest": {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "const": "agp.role-scopes/v1alpha1"
+        },
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "sites": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopeGraphSite"
+          },
+          "maxItems": 10000,
+          "uniqueItems": true
+        },
+        "nodeGroups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopeGraphNodeGroup"
+          },
+          "maxItems": 10000,
+          "uniqueItems": true
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopeGraphNode"
+          },
+          "maxItems": 10000,
+          "uniqueItems": true
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopeGraphResource"
+          },
+          "maxItems": 100000,
+          "uniqueItems": true
+        },
+        "resourceRoutes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopeGraphResourceRoute"
+          },
+          "maxItems": 100000,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "apiVersion",
+        "id",
+        "sites",
+        "nodeGroups",
+        "nodes",
+        "resources",
+        "resourceRoutes"
+      ],
+      "additionalProperties": false,
+      "x-agp-max-json-bytes": 16777216,
+      "description": "Optional scopeGraph in existing offline/pre-secure configuration BootstrapManifest. All arrays are required and non-null; serialized canonical manifest <=16 MiB. Service verifies globally unique entity IDs, existing references, group site consistency and unique (gatewayId,routeId) placement to one resource. SQL revision is fixed 1 in the immutable first profile; no wire version field. Every resolve also verifies current authoritative facts and epoch. This metadata does not create any positive grant and is never inferred from operator-declared catalog/labels."
+    }
+  }
+}

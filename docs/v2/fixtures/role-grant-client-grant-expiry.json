@@ -1,0 +1,6 @@
+{
+  "principalId": "usr_target",
+  "roleId": "role_viewer",
+  "scopeType": "global",
+  "grantExpiresAt": "2026-11-26T12:00:00Z"
+}

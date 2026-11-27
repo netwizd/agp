@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP task receipt v1alpha1",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.receipt/v1alpha1"
+    },
+    "taskId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "nodeId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "attemptId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "eventId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "receiptSequence": {
+      "$ref": "shared.schema.json#/$defs/UInt63"
+    },
+    "nodeDeploymentSequence": {
+      "$ref": "shared.schema.json#/$defs/UInt63"
+    },
+    "state": {
+      "$ref": "shared.schema.json#/$defs/DeploymentState"
+    },
+    "recordedAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "activeRevisionId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "activeBundleDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "lastHealthyRevisionId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "errorCode": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[a-z][a-z0-9_]+$"
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    }
+  },
+  "required": [
+    "apiVersion",
+    "taskId",
+    "nodeId",
+    "attemptId",
+    "eventId",
+    "receiptSequence",
+    "nodeDeploymentSequence",
+    "state",
+    "recordedAt"
+  ],
+  "additionalProperties": false
+}

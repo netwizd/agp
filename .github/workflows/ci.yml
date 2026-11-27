@@ -1,20 +1,29 @@
-name: ci
+name: Source checks
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      native_confirmation:
+        description: 'Type QUALIFY-NATIVE to run the separate native release checks on the trusted runner'
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  source:
+    name: Source checks (not release qualification)
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -22,24 +31,83 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Test
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/console-prototype/package-lock.json
+
+      - name: PostgreSQL client library for installer contract checks
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libpq5
+
+      - name: Install locked frontend dependencies
+        run: npm ci --prefix web/console-prototype
+
+      - name: Build embedded authentication, configuration and directory applications
+        run: |
+          npm --prefix web/console-prototype run build:auth
+          npm --prefix web/console-prototype run build:config
+          npm --prefix web/console-prototype run build:directory
+
+      # Host-dependent tests may skip here. Only the separately configured native
+      # acceptance environment can supply mandatory platform/runtime evidence.
+      - name: Go source tests
         run: go test ./...
 
-      - name: Vet
+      - name: Go vet
         run: go vet ./...
 
-      - name: Build
+      - name: Build all packaged roles
         run: |
-          go build -trimpath -o bin/agp ./cmd/agp
-          go build -trimpath -o bin/agpctl ./cmd/agpctl
+          for role in agp agpctl agp-security-journal agp-edge-auth agp-agent agp-helper agp-issuer agp-agent-identity agp-agent-validate; do
+            go build -trimpath -o "bin/$role" "./cmd/$role"
+          done
 
-      - name: Frontend syntax
+      - name: Installer and package contracts
+        run: |
+          bash -n install.sh update.sh scripts/build-release.sh
+          python3 scripts/test-release-install.py
+          python3 scripts/test-release-package.py
+
+      - name: Legacy frontend syntax
         run: node --check internal/frontend/static/app.js
 
       - name: Whitespace
-        run: git show --check --format=short --no-renames HEAD
+        run: git diff --check HEAD
 
-      - name: Release check
+  native-release-check:
+    name: Native release checks (manual, configured runner only)
+    needs: source
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.native_confirmation == 'QUALIFY-NATIVE'
+    runs-on: [self-hosted, linux, x64, agp-release]
+    steps:
+      # This job never runs on pull_request or push and has no publication or
+      # deployment permission. The owner must provision the isolated agp-release
+      # runner and pinned Nginx/PG inputs before explicitly dispatching it.
+      - name: Checkout trusted main commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate required native inputs
         env:
+          AGP_TEST_NGINX_BIN: ${{ vars.AGP_TEST_NGINX_BIN }}
           AGP_TEST_POSTGRES_DSN: ${{ secrets.AGP_TEST_POSTGRES_DSN }}
-        run: ./scripts/release-check.sh
+        run: |
+          test -n "$AGP_TEST_NGINX_BIN"
+          test -x "$AGP_TEST_NGINX_BIN"
+          test -n "$AGP_TEST_POSTGRES_DSN"
+          go version
+          node --version
+
+      - name: Native release check
+        env:
+          AGP_TEST_NGINX_BIN: ${{ vars.AGP_TEST_NGINX_BIN }}
+          AGP_TEST_POSTGRES_DSN: ${{ secrets.AGP_TEST_POSTGRES_DSN }}
+        run: bash scripts/release-check.sh

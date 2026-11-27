@@ -1,0 +1,33 @@
+import { DirectoryError, id, obj } from '../contracts';
+import { keys, uint, date, digest } from '../oidc/oidc-contracts';
+export { id, uint, date, digest };
+const fail=():never=>{throw new DirectoryError('invalid_response');};
+const string=(v:unknown,max:number,min=0):v is string=>typeof v==='string'&&v.length>=min&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
+export interface Access {principalId:string;authorityEpoch:string;usersRead:boolean;usersManage:boolean;privilegedManage:boolean;approve:boolean;}
+export interface User {id:string;username:string;displayName:string;blocked:boolean;privileged:boolean;groupIds:string[];revision:string;lifecycleState:'invited'|'active';}
+export interface Page {items:User[];nextCursor:string|null;}
+export interface Create {id:string;username:string;displayName:string;groupIds:string[];}
+export interface Invite {inviteId:string;deliveryOperationId:string;expiresAt:string;}
+export interface Delivery {id:string;state:'queued'|'accepted'|'failed'|'expired';expiresAt:string;inviteId:string;}
+export type Action='replace_mfa'|'reset_password'|'restart_activation';
+export interface Plan {targetPrincipalId:string;expectedSecurityVersion:string;allowedAction:Action;expiresAt:string;reason:string;}
+export interface Step {kind:'raise_security_floor'|'bump_authenticator_floor';principalId:string;authenticatorId:string;minimumVersion:string;}
+export interface Intent extends Plan {expectedPasswordVersion:string;expectedAuthorityEpoch:string;policyDigest:string;custodianPrincipalId:string;targetFingerprint:string;restrictiveSteps:Step[];observedFloors?:{principal:string;password:string;factor:string;recovery:string;replay:string};}
+export interface Operation {id:string;family:'identity_recovery';requestDigest:string;state:'pending'|'journaled'|'applied'|'rejected'|'recovery_required';approvalStatus:'not_required'|'pending'|'approved'|'rejected'|'expired';subjectId:string;createdBy:string;createdAt:string;recoveryRequest:Intent;}
+export interface Ticket {ticket:string;expiresAt:string;}
+export function access(v:unknown):Access {if(!obj(v)||!keys(v,['principalId','authorityEpoch','usersRead','usersManage','privilegedManage','approve'])||!id(v['principalId'])||!uint(v['authorityEpoch'],true)||!['usersRead','usersManage','privilegedManage','approve'].every(k=>typeof v[k]==='boolean'))return fail();return v as unknown as Access;}
+export function user(v:unknown):User {if(!obj(v)||!keys(v,['id','username','displayName','blocked','privileged','groupIds','revision','lifecycleState'])||!id(v['id'])||!string(v['username'],128,1)||!string(v['displayName'],256)||typeof v['blocked']!=='boolean'||typeof v['privileged']!=='boolean'||!uint(v['revision'],true)||!['invited','active'].includes(String(v['lifecycleState']))||!Array.isArray(v['groupIds'])||v['groupIds'].length>100||!v['groupIds'].every(id)||new Set(v['groupIds']).size!==v['groupIds'].length)return fail();return v as unknown as User;}
+export function page(v:unknown):Page {if(!obj(v)||!keys(v,['items','nextCursor'])||!Array.isArray(v['items'])||v['items'].length>200||v['nextCursor']!==null&&!id(v['nextCursor']))return fail();const items=v['items'].map(user);if(new Set(items.map(u=>u.id)).size!==items.length)return fail();return {items,nextCursor:v['nextCursor'] as string|null};}
+export function invite(v:unknown):Invite {if(!obj(v)||!keys(v,['inviteId','deliveryOperationId','expiresAt'])||!id(v['inviteId'])||!id(v['deliveryOperationId'])||!date(v['expiresAt']))return fail();return v as unknown as Invite;}
+export function delivery(v:unknown):Delivery {if(!obj(v)||!keys(v,['id','state','expiresAt','inviteId'])||!id(v['id'])||!id(v['inviteId'])||!date(v['expiresAt'])||!['queued','accepted','failed','expired'].includes(String(v['state'])))return fail();return v as unknown as Delivery;}
+export function operation(v:unknown):Operation {
+ if(!obj(v)||!keys(v,['id','family','requestDigest','state','approvalStatus','subjectId','createdBy','createdAt','recoveryRequest'])||!id(v['id'])||!v['id'].startsWith('recoveryop_')||v['family']!=='identity_recovery'||!digest(v['requestDigest'])||!id(v['subjectId'])||!id(v['createdBy'])||!date(v['createdAt'])||!['pending','journaled','applied','rejected','recovery_required'].includes(String(v['state']))||!['not_required','pending','approved','rejected','expired'].includes(String(v['approvalStatus'])))return fail();
+ const r=v['recoveryRequest'];if(!obj(r)||!keys(r,['targetPrincipalId','expectedSecurityVersion','allowedAction','expiresAt','reason','expectedPasswordVersion','expectedAuthorityEpoch','policyDigest','custodianPrincipalId','targetFingerprint','restrictiveSteps'],['observedFloors'])||r['targetPrincipalId']!==v['subjectId']||r['custodianPrincipalId']!==v['createdBy']||!uint(r['expectedSecurityVersion'],true)||!uint(r['expectedPasswordVersion'])||!uint(r['expectedAuthorityEpoch'],true)||!['replace_mfa','reset_password','restart_activation'].includes(String(r['allowedAction']))||!date(r['expiresAt'])||!string(r['reason'],2048,1)||!digest(r['policyDigest'])||!digest(r['targetFingerprint']))return fail();
+ const steps=r['restrictiveSteps'];if(!Array.isArray(steps)||steps.length<1||steps.length>4||!steps.every(s=>obj(s)&&keys(s,['kind','principalId','authenticatorId','minimumVersion'])&&['raise_security_floor','bump_authenticator_floor'].includes(String(s['kind']))&&s['principalId']===v['subjectId']&&id(s['authenticatorId'])&&uint(s['minimumVersion'],true))||new Set(steps.map(s=>JSON.stringify(s))).size!==steps.length)return fail();
+ const floors=r['observedFloors'];if(r['allowedAction']==='restart_activation'&&!floors||floors!==undefined&&(!obj(floors)||!keys(floors,['principal','password','factor','recovery','replay'])||!Object.values(floors).every(n=>uint(n))))return fail();
+ return v as unknown as Operation;
+}
+export function ticket(v:unknown):Ticket {if(!obj(v)||!keys(v,['ticket','expiresAt'])||typeof v['ticket']!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(v['ticket'])||!date(v['expiresAt']))return fail();return v as unknown as Ticket;}
+// The intent contains strings/objects/arrays only. UTF-16 key order agrees with JCS.
+const canonical=(v:unknown):string=>Array.isArray(v)?'['+v.map(canonical).join(',')+']':obj(v)?'{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+canonical(v[k])).join(',')+'}':JSON.stringify(v);
+export async function verifiedOperation(value:unknown):Promise<Operation>{const result=operation(value);const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(canonical(result.recoveryRequest)));const actual='sha256:'+Array.from(new Uint8Array(bytes),n=>n.toString(16).padStart(2,'0')).join('');if(actual!==result.requestDigest)return fail();return result;}

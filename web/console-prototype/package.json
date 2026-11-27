@@ -1,0 +1,49 @@
+{
+  "name": "agp-console-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Локальный интерактивный Angular-макет инженерной консоли AGP. Только демонстрационные данные.",
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
+  },
+  "scripts": {
+    "start": "ng serve agp-console --host 127.0.0.1 --port 4310",
+    "build": "ng build agp-console --configuration production",
+    "typecheck": "ng build agp-console --configuration development",
+    "export:preview": "npm run build && node export-preview.mjs",
+    "build:auth": "npm run generate:auth && ng build agp-auth --configuration production",
+    "typecheck:auth": "npm run generate:auth && tsc --project tsconfig.auth.json --noEmit",
+    "generate:auth": "node generate-auth-contracts.mjs",
+    "test:auth:browser": "node auth-browser-fixture.mjs",
+    "build:config": "ng build agp-config --configuration production",
+    "typecheck:config": "tsc --project tsconfig.config.json --noEmit",
+    "test:config:browser": "node config-browser-fixture.mjs",
+    "test:plans:browser": "node plan-proposals-browser-fixture.mjs",
+    "test:execution:browser": "node execution-browser-fixture.mjs",
+    "build:directory": "ng build agp-directory --configuration production",
+    "typecheck:directory": "tsc --project tsconfig.directory.json --noEmit",
+    "test:directory:browser": "node directory-browser-fixture.mjs",
+    "test:email:browser": "node email-browser-fixture.mjs",
+    "test:oidc:auth:browser": "node oidc-auth-browser-fixture.mjs",
+    "test:oidc:management:browser": "node oidc-management-browser-fixture.mjs",
+    "test:lifecycle:auth:browser": "node lifecycle-auth-browser-fixture.mjs",
+    "test:lifecycle:management:browser": "node lifecycle-management-browser-fixture.mjs",
+    "test:roles:browser": "node roles-browser-fixture.mjs"
+  },
+  "dependencies": {
+    "@angular/common": "22.2.6",
+    "@angular/compiler": "22.2.6",
+    "@angular/core": "22.2.6",
+    "@angular/forms": "22.2.6",
+    "@angular/platform-browser": "22.2.6",
+    "@angular/router": "22.2.6",
+    "rxjs": "7.8.2",
+    "tslib": "2.8.1"
+  },
+  "devDependencies": {
+    "@angular/build": "22.2.7",
+    "@angular/cli": "22.2.7",
+    "@angular/compiler-cli": "22.2.6",
+    "typescript": "~6.0.0"
+  }
+}

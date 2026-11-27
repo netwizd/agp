@@ -1,0 +1,42 @@
+{
+  "apiVersion": "agp.baseline-candidate/v1alpha1",
+  "purpose": "baseline_candidate",
+  "provenance": "managed_bootstrap",
+  "bootstrapProfile": "agp.managed-bootstrap/v1alpha1",
+  "syntaxValidated": true,
+  "activeConfigurationVerified": false,
+  "baselineVerified": false,
+  "deployable": true,
+  "noApply": true,
+  "candidateDigest": "sha256:c98b9df05a8d88371aa31646d7234d26aa5300dea78740afbe108d5b91ad9672",
+  "ownershipDigest": "sha256:796481f9963253210b3a4b16484e8e0709447817c0750332ac20ca5e73eaba53",
+  "treeDigest": "sha256:5cba8b15d16e4fbaf350243b821827a8738524554378ac95b18a289ce1f44c99",
+  "bundleDigest": "sha256:bd0fdd8376e4f1f43d7d47966730fd1b8d60d0b7b327104a44ed9a3ea77cf053",
+  "bootstrapProfileDigest": "sha256:89a201739e82b12770acf5ef9e03554e5c95ef36ac1dc2694ebdf9d1b501f587",
+  "sandboxToolDigest": "sha256:9925118b5102a010b8c8134eef5a4b57082eb87e2e771e9b63120bcd09a08621",
+  "sandboxProfileDigest": "sha256:59e8826fbf75640e39c16fa4f6447ae1b813739ab20c2ec09ad0cc972647119a",
+  "executionBootDigest": "sha256:e303944cd7a0f6bf88e463bc486a944a2a1bc6024d967b00d1de7857a7c209ae",
+  "nodeId": "node_example",
+  "siteId": "site_example",
+  "authorityId": "authority_example",
+  "authorityEpoch": "1",
+  "minimumDenySequence": "7",
+  "pins": {
+    "manifestDigest": "sha256:a8a3cd0c0bb9c19b1bdd0503fdee67d188a5b1ddace05493c21f569b334c6acc",
+    "profileDigest": "sha256:9e5853e5e309844a589842c6b5df9bff81c7b4ce51277c72d35c9554006fcde6",
+    "tupleDigest": "sha256:361a35d57863656217de8bddc4b321dc18d6579c5eee98cb81fbecb0bc6217cc",
+    "evidenceDigest": "sha256:7d9a4c7fd89f9d950da337af6a2ede1f001da9fcadc9b09a3ce4afb9f69e406a",
+    "rendererDigest": "sha256:d4736f1c1ab89602b047ba5a93fbd6fab00afa5e6f7aeca5b1db3df6aec45303"
+  },
+  "executionUid": 65534,
+  "executionGid": 65534,
+  "executionHost": {
+    "id": "ubuntu",
+    "versionId": "26.04",
+    "kernel": "synthetic-test-kernel",
+    "architecture": "amd64"
+  },
+  "checkedAt": "2026-11-25T00:00:00Z",
+  "expiresAt": "2026-11-25T00:05:00Z",
+  "runtimeHostQualified": false
+}

@@ -1,0 +1,82 @@
+{
+  "content": {
+    "apiVersion": "agp.config/v1alpha1",
+    "kind": "Configuration",
+    "metadata": {
+      "id": "config_main",
+      "name": "Корпоративная конфигурация"
+    },
+    "gateways": [
+      {
+        "apiVersion": "agp.config/v1alpha1",
+        "kind": "Gateway",
+        "metadata": {
+          "id": "gw_portal",
+          "name": "Портал филиала",
+          "siteId": "site_msk",
+          "labels": {
+            "environment": "pilot"
+          }
+        },
+        "spec": {
+          "ownership": "adopted",
+          "nodeSelector": {
+            "nodeIds": [
+              "node_msk01"
+            ]
+          },
+          "componentProfileRef": {
+            "id": "profile_nginx_waf_001",
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "tls": {
+            "certificateVersionId": "cert_portal_v1"
+          },
+          "authorization": {
+            "mode": "central",
+            "failureMode": "closed"
+          },
+          "waf": {
+            "engine": "modsecurity",
+            "policyRevisionId": "waf_balanced_v1",
+            "mode": "detection"
+          },
+          "routes": [
+            {
+              "id": "route_portal",
+              "name": "Внутренний портал",
+              "hostname": "app.example.net",
+              "path": "/",
+              "upstream": {
+                "url": "https://backend.example.net:8443",
+                "connectTimeoutSeconds": 5,
+                "readTimeoutSeconds": 60,
+                "tls": {
+                  "verify": true,
+                  "serverName": "backend.example.net"
+                }
+              },
+              "access": {
+                "groupIds": [
+                  "grp_AbCdEf123"
+                ],
+                "allowCidrs": [
+                  "10.20.0.0/16"
+                ]
+              },
+              "wafExceptionIds": []
+            }
+          ],
+          "monitoring": {
+            "metrics": true,
+            "logs": true
+          }
+        }
+      }
+    ],
+    "profileAssignments": []
+  },
+  "contentDigest": "sha256:83ad48b9387ce7d9aadbf7f9e2731e27361e0aededd92898c4a494f105bbf090",
+  "canonicalJSON": "{\"apiVersion\":\"agp.config/v1alpha1\",\"gateways\":[{\"apiVersion\":\"agp.config/v1alpha1\",\"kind\":\"Gateway\",\"metadata\":{\"id\":\"gw_portal\",\"labels\":{\"environment\":\"pilot\"},\"name\":\"Портал филиала\",\"siteId\":\"site_msk\"},\"spec\":{\"authorization\":{\"failureMode\":\"closed\",\"mode\":\"central\"},\"componentProfileRef\":{\"digest\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"id\":\"profile_nginx_waf_001\"},\"monitoring\":{\"logs\":true,\"metrics\":true},\"nodeSelector\":{\"nodeIds\":[\"node_msk01\"]},\"ownership\":\"adopted\",\"routes\":[{\"access\":{\"allowCidrs\":[\"10.20.0.0/16\"],\"groupIds\":[\"grp_AbCdEf123\"]},\"hostname\":\"app.example.net\",\"id\":\"route_portal\",\"name\":\"Внутренний портал\",\"path\":\"/\",\"upstream\":{\"connectTimeoutSeconds\":5,\"readTimeoutSeconds\":60,\"tls\":{\"serverName\":\"backend.example.net\",\"verify\":true},\"url\":\"https://backend.example.net:8443\"},\"wafExceptionIds\":[]}],\"tls\":{\"certificateVersionId\":\"cert_portal_v1\"},\"waf\":{\"engine\":\"modsecurity\",\"mode\":\"detection\",\"policyRevisionId\":\"waf_balanced_v1\"}}}],\"kind\":\"Configuration\",\"metadata\":{\"id\":\"config_main\",\"name\":\"Корпоративная конфигурация\"},\"profileAssignments\":[]}",
+  "yaml": "apiVersion: \"agp.config/v1alpha1\"\ngateways:\n  - apiVersion: \"agp.config/v1alpha1\"\n    kind: \"Gateway\"\n    metadata:\n      id: \"gw_portal\"\n      labels:\n        environment: \"pilot\"\n      name: \"Портал филиала\"\n      siteId: \"site_msk\"\n    spec:\n      authorization:\n        failureMode: \"closed\"\n        mode: \"central\"\n      componentProfileRef:\n        digest: \"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n        id: \"profile_nginx_waf_001\"\n      monitoring:\n        logs: true\n        metrics: true\n      nodeSelector:\n        nodeIds:\n          - \"node_msk01\"\n      ownership: \"adopted\"\n      routes:\n        - access:\n            allowCidrs:\n              - \"10.20.0.0/16\"\n            groupIds:\n              - \"grp_AbCdEf123\"\n          hostname: \"app.example.net\"\n          id: \"route_portal\"\n          name: \"Внутренний портал\"\n          path: \"/\"\n          upstream:\n            connectTimeoutSeconds: 5\n            readTimeoutSeconds: 60\n            tls:\n              serverName: \"backend.example.net\"\n              verify: true\n            url: \"https://backend.example.net:8443\"\n          wafExceptionIds: []\n      tls:\n        certificateVersionId: \"cert_portal_v1\"\n      waf:\n        engine: \"modsecurity\"\n        mode: \"detection\"\n        policyRevisionId: \"waf_balanced_v1\"\nkind: \"Configuration\"\nmetadata:\n  id: \"config_main\"\n  name: \"Корпоративная конфигурация\"\nprofileAssignments: []\n"
+}

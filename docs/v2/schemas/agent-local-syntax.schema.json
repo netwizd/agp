@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP local native syntax request (not AgentTask)",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.agent-local-syntax/v1alpha1"
+    },
+    "requestId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "authorityEpoch": {
+      "allOf": [
+        {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        {
+          "not": {
+            "const": "0"
+          }
+        }
+      ]
+    },
+    "nodeDeploymentSequence": {
+      "const": "0"
+    },
+    "capabilityDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "pins": {
+      "type": "object",
+      "properties": {
+        "manifestDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "profileDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "tupleDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "evidenceDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "rendererDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        }
+      },
+      "required": [
+        "manifestDigest",
+        "profileDigest",
+        "tupleDigest",
+        "evidenceDigest",
+        "rendererDigest"
+      ],
+      "additionalProperties": false
+    },
+    "policy": {
+      "allOf": [
+        {
+          "$ref": "waf-policy.schema.json"
+        },
+        {
+          "properties": {
+            "spec": {
+              "properties": {
+                "exceptions": {
+                  "maxItems": 0
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "mode": {
+      "enum": [
+        "detection",
+        "blocking"
+      ]
+    }
+  },
+  "required": [
+    "apiVersion",
+    "requestId",
+    "authorityEpoch",
+    "nodeDeploymentSequence",
+    "capabilityDigest",
+    "pins",
+    "policy",
+    "mode"
+  ],
+  "additionalProperties": false
+}

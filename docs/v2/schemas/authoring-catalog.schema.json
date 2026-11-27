@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "S1 operator-declared authoring catalog",
+  "description": "Internal import format, not connected-node or native-qualification evidence. Global ID uniqueness, Site/reference checks and existing identity groups are validated by the service. Repeating digest bytes in examples are placeholders.",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.catalog/v1alpha1"
+    },
+    "id": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "sourceKind": {
+      "const": "operator_declared"
+    },
+    "sourceRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "recordedAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "sites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 10000
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "siteId": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "labels": {
+            "$ref": "shared.schema.json#/$defs/Labels"
+          },
+          "nodeGroupIds": {
+            "type": "array",
+            "items": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "maxItems": 500
+          },
+          "capabilityDigest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          },
+          "baselineBundleDigest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          }
+        },
+        "required": [
+          "id",
+          "siteId",
+          "labels",
+          "nodeGroupIds"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 500
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "shared.schema.json#/$defs/Id"
+      },
+      "maxItems": 20000,
+      "uniqueItems": true
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "access_policy",
+              "waf_policy",
+              "ruleset",
+              "component_profile",
+              "certificate",
+              "policy_profile",
+              "assignment_resolution"
+            ]
+          },
+          "id": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "digest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          },
+          "siteId": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "state": {
+            "const": "published"
+          },
+          "profile": {
+            "$ref": "profile.schema.json"
+          },
+          "baseExceptionCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "digest",
+          "state",
+          "baseExceptionCount"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "policy_profile"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "required": [
+                "profile"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "profile"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "maxItems": 50000
+    }
+  },
+  "required": [
+    "apiVersion",
+    "id",
+    "sourceKind",
+    "sourceRef",
+    "recordedAt",
+    "sites",
+    "nodes",
+    "groups",
+    "inputs"
+  ],
+  "additionalProperties": false
+}

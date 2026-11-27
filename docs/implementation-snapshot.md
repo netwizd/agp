@@ -1,6 +1,7 @@
 # Срез Реализации
 
-Текущая ветка: `main`.
+Ветка и commit текущего workspace не подтверждены: `.git` не содержит читаемого
+Git object store. Статус начатого S0: [план разработки v2](v2/development.md#текущий-срез-s0--as-is-на-2026-11-18).
 
 Подробный roadmap: [roadmap.md](roadmap.md).
 
@@ -81,6 +82,7 @@ AGP_TEST_POSTGRES_DSN='postgres://agp:change-me@127.0.0.1:5432/agp?sslmode=disab
 
 ## Следующий Инкремент
 
-1. Пройти production runbook на целевом host.
-2. Закрепить `v1.0.0` tag после release-check и ручных проверок.
-3. Начать v1.1: MFA, invite links, notification settings, user activity.
+Продолжить S0 по [принятому плану v2](v2/development.md): изоляция management/login/application
+origins, отдельные sessions/handoff и явная миграция/reset старых sessions, затем
+соответствующая приёмка. MFA/recovery/AD и restore drill сохраняют свои этапы и зависимости.
+Первый пакет hardening не означает завершения S0, готовности к production или разрешения на tag/release/deploy.

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -25,12 +26,57 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case "waf-render":
+		if err := wafRender(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "waf-render failed: %v\n", err)
+			os.Exit(1)
+		}
+	case "waf-repository":
+		if err := wafRepository(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "waf-repository failed: %v\n", err)
+			os.Exit(1)
+		}
+	case "configuration-access":
+		if err := configurationAccess(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "configuration-access failed: %v\n", err)
+			os.Exit(1)
+		}
+	case "configuration-profile":
+		if err := configurationProfile(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "configuration-profile failed: %v\n", err)
+			os.Exit(1)
+		}
 	case "version":
 		info := version.Info()
 		fmt.Printf("agpctl %s commit=%s built_at=%s go=%s\n", info["version"], info["commit"], info["built_at"], info["go_version"])
 	case "hash-password":
 		if err := hashPassword(); err != nil {
 			fmt.Fprintf(os.Stderr, "hash-password failed: %v\n", err)
+			os.Exit(1)
+		}
+	case "identity-profile":
+		if err := identityProfile(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "identity-profile failed: %v\n", err)
+			os.Exit(1)
+		}
+	case "nginx-edge":
+		if err := edgeNginx(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "nginx-edge failed: %v\n", err)
+			os.Exit(1)
+		}
+	case "gateway-register":
+		if err := gatewayRegister(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "gateway-register failed: %v\n", err)
+			os.Exit(1)
+		}
+	case "security-state":
+		if err := securityState(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "security-state failed: %v\n", err)
+			os.Exit(1)
+		}
+	case "session-profile":
+		if err := sessionProfile(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "session-profile failed: %v\n", err)
 			os.Exit(1)
 		}
 	case "create-admin":
@@ -47,7 +93,16 @@ func main() {
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage:")
 	fmt.Fprintln(os.Stderr, "  agpctl version")
+	fmt.Fprintln(os.Stderr, "  agpctl waf-render --policy PATH --bundle DIR --work DIR --mode detection|blocking|off (render only)")
+	fmt.Fprintln(os.Stderr, "  agpctl waf-repository --trust-config PATH --store DIR --import-bundle DIR (offline trust administrator)")
+	fmt.Fprintln(os.Stderr, "  agpctl configuration-access --bootstrap-manifest PATH (initial installation only; CP stopped)")
+	fmt.Fprintln(os.Stderr, "  agpctl configuration-profile [--preview | --activate] (activation: CP stopped)")
+	fmt.Fprintln(os.Stderr, "  agpctl nginx-edge --origin HTTPS_ORIGIN --socket PATH --certificate PATH --key PATH (generate only)")
+	fmt.Fprintln(os.Stderr, "  agpctl identity-profile [--preview | --activate --revoke-sessions]")
+	fmt.Fprintln(os.Stderr, "  agpctl gateway-register --id ID --node ID --origin HTTPS_ORIGIN --callback URI --resource ID --generation ID (CP stopped)")
+	fmt.Fprintln(os.Stderr, "  agpctl security-state {head|prepare-restore|append-approved|replay|ready}")
 	fmt.Fprintln(os.Stderr, "  agpctl hash-password")
+	fmt.Fprintln(os.Stderr, "  agpctl session-profile [--preview | --apply --revoke-sessions]")
 	fmt.Fprintln(os.Stderr, "  agpctl create-admin -username admin [-display-name Administrator] [-group-name Administrators]")
 }
 
@@ -99,6 +154,28 @@ func createAdmin(args []string) error {
 		return fmt.Errorf("migrate store: %w", err)
 	}
 
+	if lease, ok := store.(interface {
+		AcquireIdentityLease(context.Context) (func(), error)
+	}); ok {
+		release, e := lease.AcquireIdentityLease(ctx)
+		if e != nil {
+			return e
+		}
+		defer release()
+	}
+	if err := store.WriteIdentity(ctx, func(tx storage.IdentityTx) error {
+		rows, e := tx.Query(ctx, `SELECT authority_id FROM security_state WHERE id=1`)
+		if e != nil {
+			return e
+		}
+		defer rows.Close()
+		if rows.Next() {
+			return errors.New("bootstrap create-admin is forbidden after secure activation; use an authenticated management command")
+		}
+		return rows.Err()
+	}); err != nil {
+		return err
+	}
 	groupID, err := ensureGroup(ctx, store, *groupName)
 	if err != nil {
 		return err
@@ -161,4 +238,59 @@ func readPasswordFromStdin() (string, error) {
 
 func normalizeUsername(username string) string {
 	return strings.ToLower(strings.TrimSpace(username))
+}
+
+func sessionProfile(args []string) error {
+	flags := flag.NewFlagSet("session-profile", flag.ContinueOnError)
+	preview := flags.Bool("preview", false, "preview the configured session profile without changes")
+	apply := flags.Bool("apply", false, "apply the configured profile")
+	revoke := flags.Bool("revoke-sessions", false, "explicitly revoke all sessions when changing profile")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 || (*apply && *preview) || (*revoke && !*apply) {
+		return errors.New("use --preview or --apply --revoke-sessions")
+	}
+	if *apply && !*revoke {
+		return errors.New("profile changes require --revoke-sessions")
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	store, err := runtime.OpenStore(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+	profile := cfg.SessionProfile()
+	if *apply {
+		if cfg.SecureProfile {
+			return errors.New("use identity-profile --activate --revoke-sessions for secure activation")
+		}
+		if err := store.Migrate(ctx); err != nil {
+			return err
+		}
+		revoked, err := store.ApplySessionProfile(ctx, profile)
+		if err != nil {
+			return err
+		}
+		return json.NewEncoder(os.Stdout).Encode(map[string]any{"profile": profile, "fingerprint": profile.Fingerprint(), "revoked_sessions": revoked, "applied": true})
+	}
+	current, err := store.GetSessionProfile(ctx)
+	if err != nil {
+		return fmt.Errorf("read profile (schema migration must already be applied for preview): %w", err)
+	}
+	resources, err := store.ListResources(ctx)
+	if err != nil {
+		return err
+	}
+	for _, resource := range resources {
+		if err := cfg.ValidateResourceHost(resource.PublicHost); err != nil {
+			return fmt.Errorf("resource %s: %w", resource.ID, err)
+		}
+	}
+	matches := storage.MatchSessionProfile(current, profile) == nil
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"current_profile": current, "requested_profile": profile, "fingerprint": profile.Fingerprint(), "reset_required": !matches, "applied": false})
 }

@@ -1,0 +1,9 @@
+{
+  "id": "flow_Example1",
+  "purpose": "login",
+  "audience": "management",
+  "state": "pending_mfa",
+  "nextStep": "totp",
+  "expiresAt": "2026-11-17T17:05:00Z",
+  "mfaSatisfied": false
+}

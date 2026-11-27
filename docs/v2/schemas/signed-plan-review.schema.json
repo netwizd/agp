@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP signed planning review v1alpha1",
+  "description": "AGP-PLAN-REVIEW-v1 Ed25519 signature over the full canonical envelope with empty signatureBase64. Standard padded Base64. At most 32 MiB + 64 KiB stored envelope. An immutable review.current=true records signing-time admission; only a fresh service check establishes present authority. Never an execution plan or permit.",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.signed-plan-review/v1alpha1"
+    },
+    "purpose": {
+      "const": "planning_review"
+    },
+    "deployable": {
+      "const": false
+    },
+    "noExecution": {
+      "const": true
+    },
+    "keyId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "proposal": {
+      "$ref": "plan-proposal.schema.json"
+    },
+    "review": {
+      "allOf": [
+        {
+          "$ref": "plan-proposal.schema.json#/$defs/Review"
+        },
+        {
+          "properties": {
+            "current": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "signatureAlgorithm": {
+      "const": "Ed25519"
+    },
+    "signatureBase64": {
+      "type": "string",
+      "minLength": 88,
+      "maxLength": 88,
+      "pattern": "^[A-Za-z0-9+/]{85}[AQgw]==$"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "purpose",
+    "deployable",
+    "noExecution",
+    "keyId",
+    "proposal",
+    "review",
+    "signatureAlgorithm",
+    "signatureBase64"
+  ],
+  "additionalProperties": false
+}

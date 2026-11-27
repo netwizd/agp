@@ -1,0 +1,37 @@
+{
+  "signed": {
+    "apiVersion": "agp.release/v1alpha1",
+    "releaseId": "release_pilot_001",
+    "sequence": "42",
+    "createdAt": "2026-11-14T08:00:00Z",
+    "expiresAt": "2026-12-14T08:00:00Z",
+    "platform": {
+      "os": "ubuntu",
+      "osVersion": "24.04",
+      "arch": "amd64"
+    },
+    "compatibilityProfile": {
+      "id": "profile_nginx_waf_001",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "minimumAgentProtocol": "agp.task/v1alpha1",
+    "securityFloor": "40",
+    "artifacts": [
+      {
+        "path": "../outside",
+        "length": "12345",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "mediaType": "application/zstd"
+      }
+    ],
+    "dependencyClosureDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "sbomDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "signatures": [
+    {
+      "keyId": "release_demo",
+      "algorithm": "ed25519",
+      "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+    }
+  ]
+}

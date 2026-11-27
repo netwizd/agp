@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Central Auth JSON decision, NOT an nginx auth_request response",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "const": "allow"
+        },
+        "reasonCode": {
+          "const": "allowed"
+        },
+        "userId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "groupIds": {
+          "type": "array",
+          "items": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "uniqueItems": true,
+          "maxItems": 100
+        },
+        "securitySequence": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        }
+      },
+      "required": [
+        "decision",
+        "reasonCode",
+        "userId",
+        "groupIds",
+        "securitySequence"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "const": "deny"
+        },
+        "reasonCode": {
+          "enum": [
+            "authentication_required",
+            "session_expired",
+            "mfa_required",
+            "access_denied"
+          ]
+        },
+        "securitySequence": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        }
+      },
+      "required": [
+        "decision",
+        "reasonCode",
+        "securitySequence"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

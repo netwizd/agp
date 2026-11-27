@@ -1,0 +1,15 @@
+{
+  "principalId": "user_site_editor",
+  "globalRead": false,
+  "globalEdit": false,
+  "gatewayRead": true,
+  "gatewayEdit": true,
+  "authorityEpoch": "1",
+  "sites": [
+    {
+      "siteId": "site_msk",
+      "read": true,
+      "edit": true
+    }
+  ]
+}

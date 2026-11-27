@@ -1,0 +1,10 @@
+{
+  "id": "usr_invited",
+  "username": "new-user",
+  "displayName": "New user",
+  "blocked": false,
+  "privileged": false,
+  "groupIds": [],
+  "revision": "1",
+  "lifecycleState": "invited"
+}

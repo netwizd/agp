@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP limited identity flow and email challenge contracts",
+  "$ref": "#/$defs/FlowView",
+  "$defs": {
+    "FlowView": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "login",
+            "step_up",
+            "verify_email",
+            "activate",
+            "recover"
+          ]
+        },
+        "audience": {
+          "type": "string",
+          "enum": [
+            "management",
+            "login",
+            "setup"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending_primary",
+            "pending_mfa",
+            "ready",
+            "completed",
+            "expired",
+            "cancelled"
+          ]
+        },
+        "nextStep": {
+          "type": "string",
+          "enum": [
+            "primary",
+            "redirect",
+            "totp",
+            "email_code",
+            "complete",
+            "none",
+            "totp_enrollment",
+            "recovery",
+            "password_setup"
+          ]
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "mfaSatisfied": {
+          "type": "boolean"
+        },
+        "contactId": {
+          "$ref": "shared.schema.json#/$defs/Id",
+          "description": "Available only after authorized invitation/contact binding; no anonymous account lookup."
+        }
+      },
+      "required": [
+        "id",
+        "purpose",
+        "audience",
+        "state",
+        "nextStep",
+        "expiresAt",
+        "mfaSatisfied"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "pending_primary",
+                  "pending_mfa",
+                  "expired",
+                  "cancelled"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "mfaSatisfied": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "purpose": {
+                "enum": [
+                  "verify_email",
+                  "activate",
+                  "recover"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "mfaSatisfied": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ChallengeView": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "flowId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "verify_email",
+            "invite_confirmation",
+            "recovery_confirmation"
+          ]
+        },
+        "generation": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "resendAfter": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "deliveryState": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "accepted",
+            "failed",
+            "expired"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "flowId",
+        "purpose",
+        "generation",
+        "expiresAt",
+        "resendAfter",
+        "deliveryState"
+      ],
+      "additionalProperties": false
+    },
+    "StartFlow": {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "login",
+            "step_up",
+            "verify_email",
+            "activate",
+            "recover"
+          ]
+        },
+        "audience": {
+          "type": "string",
+          "enum": [
+            "management",
+            "login",
+            "setup"
+          ]
+        }
+      },
+      "required": [
+        "purpose",
+        "audience"
+      ],
+      "additionalProperties": false,
+      "description": "activate and recover use setup audience on the configured login/management auth origin. Purpose alone grants no setup/recovery power; only private typed token context does. Normal login/step_up requires active principal."
+    },
+    "PrimaryProof": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "method": {
+              "const": "local_password"
+            },
+            "username": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "writeOnly": true
+            }
+          },
+          "required": [
+            "method",
+            "username",
+            "password"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "method": {
+              "const": "directory_password"
+            },
+            "providerId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "username": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "writeOnly": true
+            }
+          },
+          "required": [
+            "method",
+            "providerId",
+            "username",
+            "password"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "method": {
+              "const": "invitation"
+            },
+            "token": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$",
+              "writeOnly": true
+            }
+          },
+          "required": [
+            "method",
+            "token"
+          ],
+          "additionalProperties": false,
+          "description": "Only email activate token in an activate flow or email reset_password token in a recover flow. Server-resolved exact kind/action; browser cannot select target/capability. Atomic irreversible reservation and rotated flow/binding; consumed_at only with successful activation/password reset completion. Repeated raw token, cancelled/expired/lost reservation never authorizes another flow. A supervised ticket belongs only to recovery-proofs."
+        }
+      ]
+    },
+    "EmailIssue": {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "verify_email",
+            "invite_confirmation",
+            "recovery_confirmation"
+          ]
+        },
+        "contactId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "purpose",
+        "contactId"
+      ],
+      "additionalProperties": false
+    },
+    "EmailProof": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[0-9]{8}$",
+          "writeOnly": true
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "additionalProperties": false
+    },
+    "TotpProof": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[0-9]{6}$",
+          "writeOnly": true
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

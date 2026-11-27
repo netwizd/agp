@@ -1,0 +1,26 @@
+{
+  "apiVersion": "agp.owned-tree/v1alpha1",
+  "nodeId": "node-demo",
+  "siteId": "site-demo",
+  "root": "/var/lib/agp/owned/demo",
+  "entries": [
+    {
+      "path": ".",
+      "kind": "directory",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0700",
+      "size": "0",
+      "digest": ""
+    },
+    {
+      "path": "nginx.conf",
+      "kind": "file",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0660",
+      "size": "18",
+      "digest": "sha256:b08b92245ad272cc67601eeb5aac300b75121bb7ef6eab7d0b7c77fb3122fe37"
+    }
+  ]
+}

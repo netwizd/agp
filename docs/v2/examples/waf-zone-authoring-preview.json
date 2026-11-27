@@ -1,0 +1,39 @@
+{
+  "id": "zone_preview_example_1",
+  "purpose": "authoring_preview",
+  "authorId": "user_preview_author",
+  "zoneRevisionId": "wzrev_example_1",
+  "siteId": "site_msk",
+  "baseRevisionId": "rev_example_1",
+  "configDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "catalogSnapshotId": "catalog_authoring_example",
+  "catalogDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "resolverDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "inventoryDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "headsDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "previewDigest": "sha256:c4d0044351f9e41374e8e5e82bf7a73efc603c8a87092cdab87b094d3eedbc63",
+  "capacityProfile": "pilot-500",
+  "action": "reconcile",
+  "assignmentSource": "hypothetical_authoring_membership",
+  "authoringValid": true,
+  "deployable": false,
+  "pins": [
+    {
+      "zoneRevisionId": "wzrev_example_1",
+      "zoneId": "zone_external_api",
+      "contentDigest": "sha256:bf5b8153cc4129e0e6bbafdcfd71de8aee205dbd9147c1b43a88f5005fa30299"
+    }
+  ],
+  "members": [],
+  "conflicts": [],
+  "issues": [
+    {
+      "path": "",
+      "code": "native_qualification_required",
+      "message": "Synthetic contract fixture; no native qualification or publication evidence.",
+      "severity": "error"
+    }
+  ],
+  "createdAt": "2026-11-18T16:00:00Z",
+  "expiresAt": "2026-11-18T16:30:00Z"
+}

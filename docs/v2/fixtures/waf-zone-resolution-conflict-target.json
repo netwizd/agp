@@ -1,0 +1,51 @@
+{
+  "apiVersion": "agp.waf-zone-resolution/v1alpha1",
+  "kind": "WafZoneResolution",
+  "id": "wzr_api_000008",
+  "siteId": "site_msk",
+  "zoneRevisionId": "wzrev_api_000007",
+  "baseConfigRevisionId": "cfg_0001042",
+  "action": "reconcile",
+  "inventoryDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "capacityProfile": "fleet-10k",
+  "createdAt": "2026-11-17T12:00:00Z",
+  "expiresAt": "2026-11-17T12:30:00Z",
+  "resolutionDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "members": [
+    {
+      "gatewayId": "gw_orders",
+      "routeIds": [
+        "route_orders"
+      ],
+      "nodeIds": [
+        "node_msk01",
+        "node_msk02"
+      ],
+      "sourceZoneRevisionId": "wzrev_api_000006",
+      "targetZoneRevisionId": "wzrev_api_000007",
+      "sourcePolicyRevisionId": "waf_api_base_rev_006",
+      "targetPolicyRevisionId": "waf_api_base_rev_007",
+      "baseBindingDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "targetBindingDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "disposition": "conflict"
+    },
+    {
+      "gatewayId": "gw_payments",
+      "routeIds": [
+        "route_payments"
+      ],
+      "nodeIds": [
+        "node_msk01",
+        "node_msk02"
+      ],
+      "sourceZoneRevisionId": "wzrev_api_000006",
+      "targetZoneRevisionId": "wzrev_api_000007",
+      "sourcePolicyRevisionId": "waf_payments_derived_rev_004",
+      "targetPolicyRevisionId": "waf_payments_derived_rev_005",
+      "baseBindingDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "targetBindingDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "disposition": "derived"
+    }
+  ],
+  "conflicts": []
+}

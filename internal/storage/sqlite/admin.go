@@ -58,14 +58,24 @@ ORDER BY username`)
 		if err != nil {
 			return nil, err
 		}
-		groupIDs, err := listStrings(ctx, s.db, `SELECT group_id FROM user_groups WHERE user_id = ? ORDER BY group_id`, user.ID)
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	// This store has one connection. Release the user cursor before loading
+	// memberships, otherwise the nested query waits for its own connection.
+	for i := range users {
+		groupIDs, err := listStrings(ctx, s.db, `SELECT group_id FROM user_groups WHERE user_id = ? ORDER BY group_id`, users[i].ID)
 		if err != nil {
 			return nil, err
 		}
-		user.GroupIDs = groupIDs
-		users = append(users, user)
+		users[i].GroupIDs = groupIDs
 	}
-	return users, rows.Err()
+	return users, nil
 }
 
 func (s *Store) CreateUser(ctx context.Context, input domain.UserInput) (*domain.User, error) {
@@ -128,6 +138,15 @@ func (s *Store) UpdateUser(ctx context.Context, id string, update domain.UserUpd
 	if update.UpdateGroups {
 		if err := replaceUserGroups(ctx, tx, id, update.GroupIDs); err != nil {
 			return nil, err
+		}
+	}
+	if update.PasswordHash != nil || update.IsAdmin != nil || update.Blocked != nil || update.UpdateGroups {
+		now := time.Now().UTC()
+		if _, err := tx.ExecContext(ctx, `UPDATE users SET updated_at = ? WHERE id = ?`, now, id); err != nil {
+			return nil, fmt.Errorf("update user security timestamp: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`, now, id); err != nil {
+			return nil, fmt.Errorf("revoke user sessions: %w", err)
 		}
 	}
 	if err := ensureAffected(ctx, tx, `SELECT id FROM users WHERE id = ?`, id); err != nil {
@@ -213,6 +232,9 @@ UPDATE groups SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHER
 	if err := ensureRowsAffected("update group", res); err != nil {
 		return nil, err
 	}
+	if err := invalidateGroupSessions(ctx, tx, id); err != nil {
+		return nil, err
+	}
 	if err := replaceGroupPermissions(ctx, tx, id, input.PermissionIDs); err != nil {
 		return nil, err
 	}
@@ -223,11 +245,22 @@ UPDATE groups SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHER
 }
 
 func (s *Store) DeleteGroup(ctx context.Context, id string) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM groups WHERE id = ?`, id)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin delete group: %w", err)
+	}
+	defer rollbackUnlessCommitted(tx)
+	if err := invalidateGroupSessions(ctx, tx, id); err != nil {
+		return err
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM groups WHERE id = ?`, id)
 	if err != nil {
 		return normalizeSQLiteError("delete group", err)
 	}
-	return ensureRowsAffected("delete group", res)
+	if err := ensureRowsAffected("delete group", res); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) ListResources(ctx context.Context) ([]domain.ResourceDetail, error) {
@@ -282,6 +315,12 @@ func (s *Store) CreateResource(ctx context.Context, input domain.ResourceInput) 
 		return nil, fmt.Errorf("begin create resource: %w", err)
 	}
 	defer rollbackUnlessCommitted(tx)
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET id = id WHERE 0`); err != nil {
+		return nil, err
+	}
+	if err := storage.CheckResourceProfile(ctx, identityTx{tx}, input.PublicHost); err != nil {
+		return nil, err
+	}
 
 	id := storageID("res")
 	now := time.Now().UTC()
@@ -310,6 +349,12 @@ func (s *Store) UpdateResource(ctx context.Context, id string, update domain.Res
 		return nil, fmt.Errorf("begin update resource: %w", err)
 	}
 	defer rollbackUnlessCommitted(tx)
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET id = id WHERE 0`); err != nil {
+		return nil, err
+	}
+	if err := storage.CheckResourceUpdateProfile(ctx, identityTx{tx}, id, update.PublicHost); err != nil {
+		return nil, err
+	}
 
 	if update.Name != nil {
 		if _, err := tx.ExecContext(ctx, `UPDATE resources SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, *update.Name, id); err != nil {
@@ -825,6 +870,9 @@ func storageID(prefix string) string {
 
 func normalizeSQLiteError(operation string, err error) error {
 	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "configuration_revision_required") {
+		return fmt.Errorf("%s: %w", operation, storage.ErrConfigurationReadOnly)
+	}
 	if strings.Contains(msg, "constraint") || strings.Contains(msg, "unique") {
 		return fmt.Errorf("%s: %w", operation, storage.ErrConflict)
 	}
@@ -853,4 +901,16 @@ func uniqueTrimmed(values []string) []string {
 		result = append(result, value)
 	}
 	return result
+}
+
+// invalidateGroupSessions runs before changing or deleting the membership graph.
+func invalidateGroupSessions(ctx context.Context, tx *sql.Tx, id string) error {
+	now := time.Now().UTC()
+	if _, err := tx.ExecContext(ctx, `UPDATE sessions SET revoked_at = ? WHERE revoked_at IS NULL AND user_id IN (SELECT user_id FROM user_groups WHERE group_id = ?)`, now, id); err != nil {
+		return fmt.Errorf("revoke group member sessions: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET updated_at = ? WHERE id IN (SELECT user_id FROM user_groups WHERE group_id = ?)`, now, id); err != nil {
+		return fmt.Errorf("update group member security timestamps: %w", err)
+	}
+	return nil
 }

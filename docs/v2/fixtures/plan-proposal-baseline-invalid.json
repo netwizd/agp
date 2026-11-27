@@ -1,0 +1,57 @@
+{
+  "apiVersion": "agp.plan-proposal/v1alpha1",
+  "purpose": "planning_review",
+  "deployable": false,
+  "noExecution": true,
+  "id": "proposal_example",
+  "proposalDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "siteId": "site_msk",
+  "revisionId": "rev_000017",
+  "configDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "compilerDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "compilerVersion": "agp-compiler/example",
+  "inventoryDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "catalogSnapshotId": "catalog_example",
+  "catalogDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "dependencyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "previewDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "authorId": "usr_editor",
+  "authorityEpoch": "1",
+  "createdAt": "2026-11-24T09:00:00Z",
+  "expiresAt": "2026-11-24T09:30:00Z",
+  "reason": "Структурный пример для проверки контракта",
+  "rolloutPolicy": {
+    "canaryNodeIds": [
+      "node_msk01"
+    ],
+    "maxParallel": 1,
+    "maxUnavailable": 0,
+    "observationSeconds": 60,
+    "failureAction": "pause"
+  },
+  "targets": [
+    {
+      "nodeId": "node_msk01",
+      "capabilityDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "previewBundleDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "gatewayIds": [
+        "gw_portal"
+      ],
+      "secretVersionIds": [],
+      "baseBundleDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "resolvedInputs": [
+    {
+      "kind": "waf_policy",
+      "id": "waf_example",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "blockers": [
+    "capture_baseline_required",
+    "owned_tree_verification_required",
+    "node_bundle_qualification_required",
+    "execution_authorizer_required"
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "principalId": "usr_target",
+  "roleId": "role_viewer",
+  "scopeType": "global"
+}

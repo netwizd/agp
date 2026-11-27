@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP complete release dependency closure v1alpha1",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.dependency-closure/v1alpha1"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^objects/[0-9a-f]{64}$"
+          },
+          "length": {
+            "allOf": [
+              {
+                "$ref": "shared.schema.json#/$defs/UInt63"
+              },
+              {
+                "pattern": "^[1-9][0-9]*$"
+              }
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "path",
+          "length",
+          "sha256"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0,
+      "maxItems": 999
+    }
+  },
+  "required": [
+    "apiVersion",
+    "artifacts"
+  ],
+  "additionalProperties": false,
+  "description": "Lists every manifest artifact except the closure object itself, without duplicates. Runtime verification checks exact path/length/hash equality and completeness; paths are CAS names, never install paths."
+}

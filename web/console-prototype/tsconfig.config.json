@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.json","compilerOptions":{"outDir":"./out-tsc/config","types":[]},"include":["config-src/**/*.ts"]}

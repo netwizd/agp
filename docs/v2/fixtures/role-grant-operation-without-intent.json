@@ -1,0 +1,10 @@
+{
+  "id": "roleop_one",
+  "family": "grant_role_binding",
+  "requestDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "state": "pending",
+  "approvalStatus": "pending",
+  "subjectId": "usr_target",
+  "createdBy": "usr_author",
+  "createdAt": "2026-11-25T12:00:00Z"
+}

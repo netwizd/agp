@@ -1,0 +1,30 @@
+{
+  "apiVersion": "agp.task/v1alpha1",
+  "id": "task_000042",
+  "nodeId": "node_msk01",
+  "kind": "shell",
+  "idempotencyKey": "rollout_000008_node_msk01",
+  "writerEpoch": "12",
+  "nodeDeploymentSequence": "23",
+  "issuedAt": "2026-11-14T09:05:00Z",
+  "expiresAt": "2026-11-14T09:10:00Z",
+  "planId": "plan_000008",
+  "planDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "permitDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "preconditions": {
+    "baseRevisionId": "rev_000016",
+    "expectedNodeDeploymentSequence": "22",
+    "capabilityDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "payload": {
+    "targetRevisionId": "rev_000017",
+    "deploymentGeneration": "dep_000017",
+    "bundleDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "secretVersionIds": [
+      "cert_portal_v1"
+    ],
+    "minimumDenySequence": "91",
+    "recoveryBaseBundleDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "authorityEpoch": "3"
+}

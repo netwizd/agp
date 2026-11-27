@@ -1,0 +1,33 @@
+{
+  "apiVersion": "agp.role-scopes/v1alpha1",
+  "id": "scopegraph_installation",
+  "sites": [
+    {
+      "id": "site_msk"
+    }
+  ],
+  "nodeGroups": [
+    {
+      "id": "ng_msk",
+      "siteId": "site_msk"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node_msk01",
+      "siteId": "site_msk"
+    }
+  ],
+  "resources": [
+    {
+      "id": "res_portal"
+    }
+  ],
+  "resourceRoutes": [
+    {
+      "resourceId": "res_portal",
+      "gatewayId": "gw_msk",
+      "routeId": "route_portal"
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "configDigest": "sha256:83ad48b9387ce7d9aadbf7f9e2731e27361e0aededd92898c4a494f105bbf090",
+  "catalogDigest": "sha256:125322bf11ed9f370c01507e96dc58792240ecb40b66dcb2dfdd106386cb9375",
+  "compilerDigest": "sha256:2985acd73c53bc51a75b28ffaef866bd091fc85b19d6cc25e49d2432e7716046",
+  "compilerVersion": "docs-fixture",
+  "capacityProfile": "pilot-500",
+  "previewDigest": "sha256:1e9c34dc6402404f30efafd1b9d8674681e13c2e2ff7306c7ac6adf45b74bb49",
+  "deployable": false,
+  "bundles": [
+    {
+      "nodeId": "node_msk01",
+      "gatewayIds": [
+        "gw_portal"
+      ],
+      "routes": [
+        {
+          "gatewayId": "gw_portal",
+          "routeId": "route_portal",
+          "route": {
+            "id": "route_portal",
+            "name": "Внутренний портал",
+            "hostname": "app.example.net",
+            "path": "/",
+            "upstream": {
+              "url": "https://backend.example.net:8443",
+              "connectTimeoutSeconds": 5,
+              "readTimeoutSeconds": 60,
+              "tls": {
+                "verify": true,
+                "serverName": "backend.example.net"
+              }
+            },
+            "access": {
+              "groupIds": [
+                "grp_AbCdEf123"
+              ],
+              "allowCidrs": [
+                "10.20.0.0/16"
+              ]
+            },
+            "wafExceptionIds": []
+          },
+          "waf": {
+            "engine": "modsecurity",
+            "policyRevisionId": "waf_balanced_v1",
+            "mode": "detection"
+          },
+          "requireMfa": true,
+          "provenance": []
+        }
+      ],
+      "resolvedInputs": [
+        {
+          "kind": "certificate",
+          "id": "cert_portal_v1",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "kind": "component_profile",
+          "id": "profile_nginx_waf_001",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "kind": "waf_policy",
+          "id": "waf_balanced_v1",
+          "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "secretVersionIds": [
+        "cert_portal_v1"
+      ],
+      "artifacts": [
+        {
+          "name": "effective-routes.json",
+          "content": "[{\"gatewayId\":\"gw_portal\",\"provenance\":[],\"requireMfa\":true,\"route\":{\"access\":{\"allowCidrs\":[\"10.20.0.0/16\"],\"groupIds\":[\"grp_AbCdEf123\"]},\"hostname\":\"app.example.net\",\"id\":\"route_portal\",\"name\":\"Внутренний портал\",\"path\":\"/\",\"upstream\":{\"connectTimeoutSeconds\":5,\"readTimeoutSeconds\":60,\"tls\":{\"serverName\":\"backend.example.net\",\"verify\":true},\"url\":\"https://backend.example.net:8443\"},\"wafExceptionIds\":[]},\"routeId\":\"route_portal\",\"waf\":{\"engine\":\"modsecurity\",\"mode\":\"detection\",\"policyRevisionId\":\"waf_balanced_v1\"}}]",
+          "digest": "sha256:97473fd01412d64b1b99b60a15950ddcdecdfd8055654ff336d3f394148a87af"
+        },
+        {
+          "name": "nginx/proposal.conf",
+          "content": "# EdgeAuth runs as a separate service account. Grant only Nginx access to this socket.\nupstream agp_edge_auth_1d2814821bdcf07832c3c712 { server unix:/run/agp/edge-7ebf5709458f0cfc5c746317.sock; }\nmap $http_upgrade $agp_ec_1d2814821bdcf07832c3c712 { default upgrade; '' close; }\nserver {\n    listen 443 ssl;\n    http2 on;\n    server_name app.example.net;\n    ssl_certificate /etc/agp/secrets/cert_portal_v1/certificate.pem;\n    ssl_certificate_key /etc/agp/secrets/cert_portal_v1/private.key;\n    if ($http_host != \"app.example.net\") { return 421; }\n    set $agp_original_method $request_method;\n    location = /_agp/authorize {\n        internal;\n        proxy_pass http://agp_edge_auth_1d2814821bdcf07832c3c712/_agp/authorize;\n        proxy_pass_request_body off;\n        proxy_set_header Content-Length \"\";\n        proxy_set_header Host $http_host;\n        proxy_set_header X-Forwarded-Proto https;\n        proxy_set_header X-AGP-Client-IP $remote_addr;\n        proxy_set_header X-AGP-Start \"\";\n        proxy_set_header X-AGP-Original-URI $request_uri;\n        proxy_set_header X-AGP-Original-Method $agp_original_method;\n        proxy_http_version 1.1;\n    }\n    location = /_agp/start {\n        access_log off;\n        proxy_pass http://agp_edge_auth_1d2814821bdcf07832c3c712;\n        proxy_set_header Host $http_host;\n        proxy_set_header X-Forwarded-Proto https;\n        proxy_set_header X-AGP-Client-IP $remote_addr;\n        proxy_set_header X-AGP-Start \"\";\n        proxy_set_header X-AGP-Original-URI $request_uri;\n        proxy_set_header X-AGP-Original-Method $agp_original_method;\n        proxy_http_version 1.1;\n    }\n    location = /_agp/callback {\n        access_log off;\n        proxy_pass http://agp_edge_auth_1d2814821bdcf07832c3c712;\n        proxy_set_header Host $http_host;\n        proxy_set_header X-Forwarded-Proto https;\n        proxy_set_header X-AGP-Client-IP $remote_addr;\n        proxy_set_header X-AGP-Start \"\";\n        proxy_set_header X-AGP-Original-URI $request_uri;\n        proxy_set_header X-AGP-Original-Method $agp_original_method;\n        proxy_http_version 1.1;\n    }\n    location = /_agp/logout {\n        access_log off;\n        proxy_pass http://agp_edge_auth_1d2814821bdcf07832c3c712;\n        proxy_set_header Host $http_host;\n        proxy_set_header X-Forwarded-Proto https;\n        proxy_set_header X-AGP-Client-IP $remote_addr;\n        proxy_set_header X-AGP-Start \"\";\n        proxy_set_header X-AGP-Original-URI $request_uri;\n        proxy_set_header X-AGP-Original-Method $agp_original_method;\n        proxy_http_version 1.1;\n    }\n    location /_agp { return 404; }\n    location @agp_start {\n        proxy_pass http://agp_edge_auth_1d2814821bdcf07832c3c712;\n        proxy_set_header Host $http_host;\n        proxy_set_header X-Forwarded-Proto https;\n        proxy_set_header X-AGP-Client-IP $remote_addr;\n        proxy_set_header X-AGP-Original-URI $request_uri;\n        proxy_set_header X-AGP-Original-Method $agp_original_method;\n        proxy_http_version 1.1;\n        proxy_set_header X-AGP-Start \"1\";\n    }\n    location @agp_auth_unavailable { return 503; }\n    location / {\n        auth_request /_agp/authorize;\n        error_page 401 = @agp_start;\n        error_page 500 = @agp_auth_unavailable;\n        proxy_pass http://agp_edge_auth_1d2814821bdcf07832c3c712;\n        proxy_set_header Host $http_host;\n        proxy_set_header X-Forwarded-Proto https;\n        proxy_set_header X-AGP-Client-IP $remote_addr;\n        proxy_set_header X-AGP-Start \"\";\n        proxy_set_header X-AGP-Original-URI $request_uri;\n        proxy_set_header X-AGP-Original-Method $agp_original_method;\n        proxy_http_version 1.1;\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $agp_ec_1d2814821bdcf07832c3c712;\n        proxy_read_timeout 310s;\n        proxy_send_timeout 30s;\n    }\n}\n\n",
+          "digest": "sha256:05c440761740b31e7a3ed1df2f69eb68ebe4bafdce30dea792331d9c261205a0"
+        }
+      ],
+      "bundleDigest": "sha256:ac82b23479ae93eabbfda771bf3d62d65d28d177e81dd0cc3c6f2a19d7adee7e",
+      "deployable": true
+    }
+  ],
+  "resolvedInputs": [
+    {
+      "kind": "certificate",
+      "id": "cert_portal_v1",
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "kind": "component_profile",
+      "id": "profile_nginx_waf_001",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "kind": "waf_policy",
+      "id": "waf_balanced_v1",
+      "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "issues": [
+    {
+      "path": "",
+      "code": "native_qualification_required",
+      "message": "Operator-declared inventory provides no native runtime qualification; artifacts are proposals and cannot be deployed",
+      "severity": "error"
+    },
+    {
+      "path": "/nodes/node_msk01",
+      "code": "baseline_unavailable",
+      "message": "Node baseline bundle evidence is unavailable",
+      "severity": "error"
+    },
+    {
+      "path": "/nodes/node_msk01",
+      "code": "capability_unqualified",
+      "message": "Node capability evidence is unavailable",
+      "severity": "error"
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+// Real authenticated production Angular S1 acceptance. The caller owns the
+// disposable HTTPS/independent-journal lab; this module never mocks requests.
+import nodeAssert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+
+export async function s1Acceptance({page,context,management,raw,assert:check=nodeAssert}) {
+  const key=()=>`s1_${randomUUID().replaceAll('-','')}`;
+  const parse=response=>{check.equal(response.status,200,response.body.slice(0,600));return JSON.parse(response.body);};
+  const waitSaved=()=>page.waitForFunction(()=>document.querySelector('#saveStatus')?.textContent.includes('Черновик сохранён'));
+  const waitWrite=(method,path)=>page.waitForResponse(response=>new URL(response.url()).pathname===path&&response.request().method()===method);
+  const input=()=>page.locator('#configDocument');
+  const switchMode=async mode=>{
+    // The same textarea survives JSON↔YAML. Visibility alone does not mean
+    // that asynchronous normalization and Angular's render have completed.
+    const normalized=waitWrite('POST','/api/v2/config/documents');
+    await page.locator(`#${mode}Mode`).click();
+    const response=await normalized;check.equal(response.status(),200,await response.text());
+    await page.waitForFunction(mode=>{
+      const button=document.querySelector(`#${mode}Mode`);
+      if(button?.getAttribute('aria-pressed')!=='true'||button.disabled)return false;
+      if(mode==='form')return !!document.querySelector('#configName');
+      const editor=document.querySelector('#configDocument');
+      return !!editor&&(mode!=='json'||editor.value.trimStart().startsWith('{'));
+    },mode);
+  };
+  await page.goto(management+'/config-ui/',{waitUntil:'networkidle'});
+  await page.locator('#configurationTab').click();
+  await page.locator('#configName').waitFor();
+  check.equal(await page.locator('agp-config-shell').count(),1,'production config entry missing');
+  const runtime=parse(await raw(management+'/api/v1/public/runtime',{},context));
+  check.equal(runtime.mode,'management');
+  const source=JSON.parse(await readFile(new URL('../../docs/v2/examples/configuration.json',import.meta.url),'utf8'));
+  const groups=parse(await raw(management+'/api/v1/admin/groups',{},context));
+  check.ok(Array.isArray(groups.groups)&&groups.groups.length>0,'real identity group is required for reference validation');
+  const groupId=groups.groups[0].id||groups.groups[0].ID;check.match(groupId,/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/);
+  source.gateways[0].spec.routes[0].access.groupIds=[groupId];
+  source.metadata.name='S1 browser authoring snapshot';
+  source.gateways[0].spec.routes[0].upstream.tls.caSecretVersionId='ca_browser_v1';
+  await switchMode('json');
+  const created=waitWrite('POST','/api/v2/config/drafts');
+  await input().fill(JSON.stringify(source,null,2));
+  const createdResponse=await created;check.equal(createdResponse.status(),201,await createdResponse.text());
+  const firstDraft=await createdResponse.json();await waitSaved();
+  check.match(firstDraft.id,/^draft_/);check.equal(new URL(page.url()).searchParams.get('draft'),firstDraft.id);
+  await switchMode('form');await page.locator('#routeURL0').waitFor();
+  check.equal(await page.locator('#routeURL0').inputValue(),'https://backend.example.net:8443');
+  await page.locator('#gatewayName').fill('S1 изменённый шлюз');
+  await page.locator('#routePath0').fill('/typed-form');await waitSaved();
+  await switchMode('yaml');
+  const yaml=await input().inputValue();check.match(yaml,/ca_browser_v1/);check.match(yaml,/\/typed-form/);
+  await switchMode('json');
+  const roundtrip=JSON.parse(await input().inputValue());
+  check.equal(roundtrip.gateways[0].metadata.name,'S1 изменённый шлюз');
+  check.equal(roundtrip.gateways[0].spec.routes[0].upstream.tls.serverName,'backend.example.net');
+  check.equal(roundtrip.gateways[0].spec.routes[0].upstream.tls.caSecretVersionId,'ca_browser_v1');
+  check.deepEqual(roundtrip.gateways[0].metadata.labels,{environment:'pilot'});
+  check.equal(roundtrip.gateways[0].spec.routes[0].path,'/typed-form');
+  const beforeReload=parse(await raw(management+`/api/v2/config/drafts/${firstDraft.id}`,{},context));
+  check.ok(BigInt(beforeReload.revision)>BigInt(firstDraft.revision),'form edit did not advance CAS version');
+  await page.reload({waitUntil:'networkidle'});await page.locator('#configName').waitFor();
+  check.equal(new URL(page.url()).searchParams.get('draft'),firstDraft.id);
+  check.equal(await page.locator('#gatewayName').inputValue(),'S1 изменённый шлюз');
+  check.equal(await page.locator('#routePath0').inputValue(),'/typed-form');
+  console.log('PASS S1 real browser full snapshot form/JSON/YAML roundtrip, CAS autosave and draft reload');
+
+  await page.locator('#previewDraft').click();await page.locator('#configurationReport').waitFor();
+  check.match(await page.locator('#configurationReport').textContent(),/catalog_required/,'missing catalog must remain an explicit nondeployable report');
+  const sealed=waitWrite('POST',`/api/v2/config/drafts/${firstDraft.id}/revisions`);
+  await page.locator('#sealDraft').click();const sealedResponse=await sealed;check.equal(sealedResponse.status(),201,await sealedResponse.text());
+  const revision=await sealedResponse.json();
+  await page.waitForFunction(()=>document.querySelector('#saveStatus')?.textContent.includes('Создана неизменяемая ревизия'));
+  await page.waitForFunction(id=>document.querySelector('#revisionSelect')?.value===id,revision.id);
+  check.equal(revision.content.gateways[0].spec.routes[0].upstream.tls.caSecretVersionId,'ca_browser_v1');
+  check.equal(revision.viewScope,'global');
+  const validation=waitWrite('POST',`/api/v2/config/revisions/${revision.id}/validations`);
+  await page.locator('#validateRevision').click();const acceptedResponse=await validation;check.equal(acceptedResponse.status(),202,await acceptedResponse.text());
+  const accepted=await acceptedResponse.json();
+  await page.waitForFunction(target=>document.querySelector('#configurationReport')?.textContent.includes(target),revision.id);
+  const validationReport=parse(await raw(management+accepted.statusUrl,{},context));check.equal(validationReport.targetId,revision.id);check.equal(validationReport.deployable,false);
+  check.match(await page.locator('#configurationReport').textContent(),/deployable: false/);
+  console.log('PASS S1 real immutable revision, pinned validation and explicit catalog-required outcome');
+
+  const draftCreated=waitWrite('POST','/api/v2/config/drafts');
+  await page.locator('#configName').fill('Черновик после ревизии');
+  const secondResponse=await draftCreated;check.equal(secondResponse.status(),201,await secondResponse.text());
+  const secondDraft=await secondResponse.json();await waitSaved();
+  const cookies=await context.cookies(management),csrf=cookies.find(cookie=>cookie.name===runtime.csrf_cookie_name)?.value;
+  check.ok(csrf,'management CSRF cookie unavailable');
+  const remote=structuredClone(secondDraft.content);remote.metadata.name='Параллельная серверная правка';
+  const remoteUpdate=await raw(management+`/api/v2/config/drafts/${secondDraft.id}`,{method:'PUT',headers:{Origin:management,'X-CSRF-Token':csrf,'Idempotency-Key':key(),'If-Match':`"${secondDraft.revision}"`},body:{content:remote}},context);
+  check.equal(remoteUpdate.status,200,remoteUpdate.body);
+  await switchMode('json');
+  const local=JSON.parse(await input().inputValue());local.metadata.name='Локальный снимок после конфликта';
+  const localText=JSON.stringify(local,null,2);await input().fill(localText);
+  await page.locator('#draftConflict').waitFor();
+  check.equal(await input().inputValue(),localText,'412 discarded exact local authoring text');
+  const retained=parse(await raw(management+`/api/v2/config/drafts/${secondDraft.id}`,{},context));
+  check.equal(retained.content.metadata.name,remote.metadata.name,'UI silently overwrote the concurrent server draft');
+  const forkCreated=waitWrite('POST','/api/v2/config/drafts');
+  await page.locator('#forkLocalDraft').click();const forkResponse=await forkCreated;check.equal(forkResponse.status(),201,await forkResponse.text());
+  const fork=await forkResponse.json();await waitSaved();await page.locator('#draftConflict').waitFor({state:'hidden'});
+  check.equal(fork.baseRevisionId,revision.id);check.equal(fork.content.metadata.name,local.metadata.name);check.equal(await input().inputValue(),localText);
+  await page.reload({waitUntil:'networkidle'});await page.locator('#configName').waitFor();
+  check.equal(await page.locator('#configName').inputValue(),local.metadata.name);
+  console.log('PASS S1 real 412 preserves local text, explicit new-draft recovery and durable reload');
+  // The catalog declares references only; it cannot qualify a connected node,
+  // an installed component, TLS material, or deployment capability.
+  const catalogSource=JSON.parse(await readFile(new URL('../../docs/v2/examples/catalog-authoring-pilot.json',import.meta.url),'utf8'));
+  catalogSource.id='catalog_s1_browser';catalogSource.sourceRef='s1-browser:operator-declared-fixture';catalogSource.recordedAt=new Date().toISOString();catalogSource.groups=[groupId];
+  catalogSource.inputs.push({kind:'certificate',id:'ca_browser_v1',digest:'sha256:'+'d'.repeat(64),siteId:'site_msk',state:'published',baseExceptionCount:0});
+  await page.locator('details.catalog-import>summary').click();
+  await page.locator('#catalogDocument').fill(JSON.stringify(catalogSource,null,2));
+  const catalogCreated=waitWrite('POST','/api/v2/config/catalog-snapshots');
+  await page.locator('#importCatalog').click();const catalogResponse=await catalogCreated;check.equal(catalogResponse.status(),201,await catalogResponse.text());
+  const catalog=await catalogResponse.json();check.equal(catalog.id,catalogSource.id);check.equal(catalog.sourceKind,'operator_declared');check.match(catalog.contentDigest,/^sha256:[a-f0-9]{64}$/);
+  await page.waitForFunction(id=>document.querySelector('#catalogSelect')?.value===id,catalog.id);
+  await page.reload({waitUntil:'networkidle'});await page.locator('#configName').waitFor();
+  await page.locator('#catalogSelect').selectOption(catalog.id);
+  const previewed=waitWrite('POST',`/api/v2/config/drafts/${fork.id}/previews`);
+  await page.locator('#previewDraft').click();const previewResponse=await previewed;check.equal(previewResponse.status(),200,await previewResponse.text());
+  const report=await previewResponse.json();
+  check.equal(report.targetId,fork.id);check.equal(report.targetRevision,fork.revision);check.equal(report.configDigest,fork.contentDigest);
+  check.equal(report.catalogSnapshotId,catalog.id);check.equal(report.catalogDigest,catalog.contentDigest);check.match(report.compilerDigest,/^sha256:[a-f0-9]{64}$/);
+  check.equal(report.authoringValid,true);check.equal(report.deployable,false);
+  check.ok(report.issues.some(issue=>issue.code==='native_qualification_required'),'operator-declared inventory must never imply native qualification');
+  check.ok(report.issues.every(issue=>['native_qualification_required','capability_unqualified','baseline_unavailable'].includes(issue.code)),JSON.stringify(report.issues));
+  check.equal(report.preview.deployable,false);check.equal(report.preview.catalogDigest,catalog.contentDigest);check.equal(report.preview.bundles.length,1);
+  const bundle=report.preview.bundles[0];check.equal(bundle.nodeId,'node_msk01');check.equal(bundle.deployable,false);check.deepEqual(bundle.gatewayIds,['gw_portal']);check.equal(bundle.routes.length,1);
+  const effective=bundle.routes[0];check.equal(effective.gatewayId,'gw_portal');check.equal(effective.routeId,'route_portal');check.equal(effective.route.path,'/typed-form');check.equal(effective.route.upstream.tls.caSecretVersionId,'ca_browser_v1');check.equal(effective.route.upstream.tls.serverName,'backend.example.net');check.deepEqual(effective.route.access.groupIds,[groupId]);check.equal(effective.requireMfa,true);
+  check.deepEqual([...bundle.secretVersionIds].sort(),['ca_browser_v1','cert_portal_v1']);
+  const expectedInputs=Object.fromEntries(catalogSource.inputs.map(input=>[input.kind+'/'+input.id,input.digest]));
+  check.deepEqual(Object.fromEntries(bundle.resolvedInputs.map(input=>[input.kind+'/'+input.id,input.digest])),expectedInputs);
+  check.deepEqual(Object.fromEntries(report.preview.resolvedInputs.map(input=>[input.kind+'/'+input.id,input.digest])),expectedInputs);
+  const effectiveArtifact=bundle.artifacts.find(artifact=>artifact.name==='effective-routes.json');const nginxArtifact=bundle.artifacts.find(artifact=>artifact.name==='nginx/proposal.conf');check.ok(effectiveArtifact&&nginxArtifact,'complete node proposal artifacts are required');
+  check.deepEqual(JSON.parse(effectiveArtifact.content),bundle.routes);check.match(nginxArtifact.content,/server_name app\.example\.net;/);check.match(nginxArtifact.content,/cert_portal_v1/);
+  await page.locator('#nodeProposals').waitFor();check.match(await page.locator('#configurationReport').textContent(),new RegExp(catalog.id));check.ok((await page.locator('#configurationReport').textContent()).includes(catalog.contentDigest));
+  check.equal(await page.locator('.artifact-content').count(),0,'artifact content rendered before explicit expansion');
+  await page.locator('.node-proposal>summary').click();
+  await page.locator('.node-proposal details>summary').filter({hasText:'nginx/proposal.conf'}).click();
+  await page.locator('.artifact-content').waitFor();check.equal(await page.locator('.artifact-content').textContent(),nginxArtifact.content,'lazy artifact omitted or altered node proposal bytes');
+  console.log('PASS S1 real operator catalog import/select, exact input pins, complete node proposal and lazy artifact; authoring-valid remains nondeployable');
+  return {revisionId:revision.id,draftId:fork.id};
+}

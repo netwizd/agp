@@ -1,0 +1,20 @@
+{
+  "apiVersion": "agp.waf-zone/v1alpha1",
+  "kind": "WafZone",
+  "metadata": {
+    "id": "zone_engineering",
+    "name": "Инженерные системы",
+    "siteId": "site_msk",
+    "ownerId": "usr_security"
+  },
+  "spec": {
+    "policyRevisionId": "waf_api_base_rev_007",
+    "mode": "detection",
+    "membership": {
+      "gatewayIds": [
+        "gw_portal"
+      ]
+    },
+    "reason": "Единая базовая защита внешних production API"
+  }
+}

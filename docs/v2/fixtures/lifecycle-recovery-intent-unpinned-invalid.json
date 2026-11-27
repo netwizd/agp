@@ -1,0 +1,12 @@
+{
+  "targetPrincipalId": "usr_target",
+  "expectedSecurityVersion": "7",
+  "allowedAction": "replace_mfa",
+  "expiresAt": "2026-11-25T12:00:00Z",
+  "reason": "Owner-approved recovery",
+  "expectedPasswordVersion": "3",
+  "expectedAuthorityEpoch": "2",
+  "policyDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "custodianPrincipalId": "usr_custodian",
+  "targetFingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+}

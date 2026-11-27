@@ -1,0 +1,30 @@
+[Unit]
+Description=AGP EdgeAuth gateway %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agp-edge
+Group=agp-edge
+ExecStart=/usr/local/bin/agp-edge-auth -config /etc/agp-edge/%i/config.json
+RuntimeDirectory=agp-edge-%i
+RuntimeDirectoryMode=0750
+StateDirectory=agp-edge/%i
+StateDirectoryMode=0700
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

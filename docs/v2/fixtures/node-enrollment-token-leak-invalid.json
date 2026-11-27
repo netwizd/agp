@@ -1,0 +1,10 @@
+{
+  "id": "enr_example",
+  "enrollmentId": "enr_example",
+  "nodeId": "node_pilot",
+  "state": "issued",
+  "publicKeyDigest": "",
+  "requestDigest": "",
+  "expiresAt": "2026-11-20T10:10:00Z",
+  "token": "not-permitted-on-metadata-view"
+}

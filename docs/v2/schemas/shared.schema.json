@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP shared wire types v1alpha1",
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+      "description": "Opaque case-sensitive ID; no lowercasing or silent legacy rekey."
+    },
+    "UInt63": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 19,
+      "pattern": "^(0|[1-9][0-9]{0,18})$",
+      "format": "agp-uint63",
+      "description": "Decimal string, 0..9223372036854775807. Semantic range check mandatory."
+    },
+    "Digest": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "UtcTime": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 35,
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "Hostname": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
+      "format": "agp-hostname"
+    },
+    "Cidr": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "format": "agp-cidr"
+    },
+    "Reason": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 1024
+    },
+    "Labels": {
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_.-]{0,62}$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "PlanState": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "validated",
+        "approved",
+        "expired",
+        "superseded"
+      ]
+    },
+    "RevisionState": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "validated",
+        "approved",
+        "published",
+        "superseded"
+      ]
+    },
+    "RolloutState": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "paused",
+        "cancelling",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "recovery_required"
+      ]
+    },
+    "DeploymentState": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "prepared",
+        "validated",
+        "activating",
+        "reloading",
+        "verifying",
+        "succeeded",
+        "rejected",
+        "failed",
+        "rollback_pending",
+        "rolled_back",
+        "recovery_required"
+      ]
+    },
+    "TaskKind": {
+      "type": "string",
+      "enum": [
+        "inventory",
+        "validate_config",
+        "apply_config",
+        "upgrade_components",
+        "rollback_config",
+        "collect_diagnostics"
+      ]
+    },
+    "NodeConnectivity": {
+      "type": "string",
+      "enum": [
+        "online",
+        "offline",
+        "unknown"
+      ]
+    },
+    "Health": {
+      "type": "string",
+      "enum": [
+        "healthy",
+        "unhealthy",
+        "unknown",
+        "not_configured"
+      ]
+    },
+    "RolloutPolicy": {
+      "type": "object",
+      "properties": {
+        "canaryNodeIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Id"
+          },
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "maxParallel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25
+        },
+        "maxUnavailable": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 25
+        },
+        "observationSeconds": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 86400
+        },
+        "failureAction": {
+          "type": "string",
+          "enum": [
+            "pause",
+            "rollback_wave"
+          ]
+        }
+      },
+      "required": [
+        "canaryNodeIds",
+        "maxParallel",
+        "maxUnavailable",
+        "observationSeconds",
+        "failureAction"
+      ],
+      "additionalProperties": false
+    },
+    "Issue": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 512
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9_]+$"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warning"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "code",
+        "message",
+        "severity"
+      ],
+      "additionalProperties": false
+    },
+    "Problem": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "format": "uri"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 400,
+          "maximum": 599
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9_]+$"
+        },
+        "traceId": {
+          "$ref": "#/$defs/Id"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Issue"
+          },
+          "minItems": 0,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "status",
+        "code",
+        "traceId",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "ArtifactRef": {
+      "type": "object",
+      "properties": {
+        "digest": {
+          "$ref": "#/$defs/Digest"
+        },
+        "length": {
+          "$ref": "#/$defs/UInt63"
+        },
+        "mediaType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "digest",
+        "length",
+        "mediaType",
+        "platform"
+      ],
+      "additionalProperties": false
+    },
+    "NodeIdentity": {
+      "type": "object",
+      "properties": {
+        "nodeId": {
+          "$ref": "#/$defs/Id"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "agent",
+            "edge_auth"
+          ]
+        },
+        "serial": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/UtcTime"
+        }
+      },
+      "required": [
+        "nodeId",
+        "role",
+        "serial",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

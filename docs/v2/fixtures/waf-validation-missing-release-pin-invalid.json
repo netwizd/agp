@@ -1,0 +1,25 @@
+{
+  "id": "wvalidation_contract_only",
+  "policyRevisionId": "wprev_contract_only",
+  "contentDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "qualification": {
+    "id": "wafq_cab9cfdd4e3ea4b0b5dd0a75f28437b7240064bc66a7ea17f94fc48b96dce681",
+    "contentDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "rulesetVersionId": "crs_4_30_0",
+    "rulesetDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "profileId": "profile_contract_only",
+    "profileDigest": "sha256:5108e42615fa8fd2200955949114e224f905b5dfdd4f1bb8fd2df955b9feeeda",
+    "tupleDigest": "sha256:c00fa9806395e873cc22a057b03bd5f7ce799af024eb27f3bc8085e15040e730",
+    "evidenceDigest": "sha256:181d5e60a739c33e96693a0bec814834e741418b9f512a1f683772ce100a0158",
+    "releaseSequence": "42",
+    "compilerDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "expiresAt": "2026-11-18T12:31:00Z"
+  },
+  "qualificationDigest": "sha256:514536691256842ebd88fc807896f9b4e767ed8b7f30c5e9f9172ffd0a552de1",
+  "valid": true,
+  "current": false,
+  "deployable": false,
+  "issues": [],
+  "createdAt": "2026-11-18T12:01:00Z",
+  "expiresAt": "2026-11-18T12:31:00Z"
+}

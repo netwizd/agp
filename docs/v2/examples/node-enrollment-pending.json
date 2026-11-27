@@ -1,0 +1,9 @@
+{
+  "id": "enr_example",
+  "enrollmentId": "enr_example",
+  "nodeId": "node_pilot",
+  "state": "csr_pending",
+  "publicKeyDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "requestDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "expiresAt": "2026-11-20T10:10:00Z"
+}

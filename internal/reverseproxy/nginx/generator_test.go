@@ -180,3 +180,71 @@ func TestGenerateResourceServerRejectsInvalidCIDR(t *testing.T) {
 		t.Fatal("expected invalid CIDR to be rejected")
 	}
 }
+
+func TestTrustedIdentityHeadersAreSetInEachProxyLocation(t *testing.T) {
+	for _, path := range []string{"", "/app"} {
+		t.Run("path="+path, func(t *testing.T) {
+			recommendation, err := GenerateResourceServer(domain.ResourceDetail{
+				Resource: domain.Resource{ID: "res_app", InternalURL: "http://app.internal", PublicHost: "app.example", PublicPath: path},
+			}, "portal.example")
+			if err != nil {
+				t.Fatal(err)
+			}
+			marker := "location / {"
+			if path != "" {
+				marker = "location ^~ " + path + " {"
+			}
+			_, location, found := strings.Cut(recommendation.Snippet, marker)
+			if !found {
+				t.Fatal("missing application proxy location")
+			}
+			location, _, _ = strings.Cut(location, "}")
+			for _, header := range []string{
+				"Host $host", "X-Real-IP $remote_addr", "X-Forwarded-For $proxy_add_x_forwarded_for",
+				"X-Forwarded-Proto $scheme", "X-Forwarded-Host $host",
+				"X-AGP-User $agp_user", "X-AGP-User-ID $agp_user_id", "X-AGP-Groups $agp_groups",
+			} {
+				if !strings.Contains(location, "proxy_set_header "+header+";") {
+					t.Errorf("application location does not override %s", header)
+				}
+			}
+		})
+	}
+}
+
+func TestManagementBundleIsolation(t *testing.T) {
+	resource := domain.ResourceDetail{Resource: domain.Resource{ID: "app", Name: "App", PublicHost: "portal.example", PublicPath: "/apps/app", InternalURL: "http://upstream.example", Enabled: true}}
+	bundle, err := GenerateBundleForProfile([]domain.ResourceDetail{resource}, "portal.example:8443", "https://management.example:9443")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"server_name management.example;", "listen 9443 ssl;", "listen 8443 ssl;", "proxy_set_header Host $http_host;", "location = /admin { return 403; }", "/etc/nginx/ssl/management/cert.pem", "https://portal.example:8443/login", "https://portal.example:8443/access-denied"} {
+		if !strings.Contains(bundle.Snippet, want) {
+			t.Fatalf("management bundle lacks %q:\n%s", want, bundle.Snippet)
+		}
+	}
+	for _, publicPath := range []string{"", "/apps/app"} {
+		resource.PublicPath = publicPath
+		snippet, err := GenerateResourceServerForProfile(resource, "portal.example:8443", "https://management.example:9443")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, redirect := range []string{"https://portal.example:8443/login", "https://portal.example:8443/access-denied"} {
+			if !strings.Contains(snippet.Snippet, redirect) {
+				t.Fatalf("standalone resource stripped portal port: %s", snippet.Snippet)
+			}
+		}
+	}
+	for _, host := range []string{"management.example", "MANAGEMENT.example:8443"} {
+		resource.PublicHost = host
+		if _, err := GenerateBundleForProfile([]domain.ResourceDetail{resource}, "portal.example", "https://management.example"); err == nil {
+			t.Fatalf("generated application on management host %s", host)
+		}
+		if _, err := GenerateResourceServerForProfile(resource, "portal.example", "https://management.example"); err == nil {
+			t.Fatalf("standalone snippet accepted management host %s", host)
+		}
+	}
+	if _, err := GenerateBundleForProfile(nil, "management.example:8443", "https://management.example:9443"); err == nil {
+		t.Fatal("port-only origin separation accepted")
+	}
+}

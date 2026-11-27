@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP unsigned managed bootstrap syntax candidate v1alpha1",
+  "description": "Local metadata-only syntax evidence. Producer authentication, freshness, digest verification, exact runtime and host qualification require the Go verifier and trusted installation. No active baseline, revision ID, durable rollback bundle or apply authority. Examples are synthetic structural fixtures. Go output limit 64 KiB; expiresAt must be after checkedAt and at most five minutes later.",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.baseline-candidate/v1alpha1"
+    },
+    "purpose": {
+      "const": "baseline_candidate"
+    },
+    "provenance": {
+      "const": "managed_bootstrap"
+    },
+    "bootstrapProfile": {
+      "const": "agp.managed-bootstrap/v1alpha1"
+    },
+    "candidateDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "ownershipDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "treeDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "bundleDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "bootstrapProfileDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "sandboxToolDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "sandboxProfileDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "executionBootDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "nodeId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "siteId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "authorityId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "authorityEpoch": {
+      "allOf": [
+        {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        {
+          "not": {
+            "const": "0"
+          }
+        }
+      ]
+    },
+    "minimumDenySequence": {
+      "$ref": "shared.schema.json#/$defs/UInt63"
+    },
+    "pins": {
+      "type": "object",
+      "properties": {
+        "manifestDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "profileDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "tupleDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "evidenceDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "rendererDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        }
+      },
+      "required": [
+        "manifestDigest",
+        "profileDigest",
+        "tupleDigest",
+        "evidenceDigest",
+        "rendererDigest"
+      ],
+      "additionalProperties": false
+    },
+    "executionUid": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967294
+    },
+    "executionGid": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967294
+    },
+    "executionHost": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "versionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "kernel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "architecture": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        }
+      },
+      "required": [
+        "id",
+        "versionId",
+        "kernel",
+        "architecture"
+      ],
+      "additionalProperties": false
+    },
+    "checkedAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "expiresAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "runtimeHostQualified": {
+      "type": "boolean"
+    },
+    "syntaxValidated": {
+      "const": true
+    },
+    "activeConfigurationVerified": {
+      "const": false
+    },
+    "baselineVerified": {
+      "const": false
+    },
+    "deployable": {
+      "const": false
+    },
+    "noApply": {
+      "const": true
+    }
+  },
+  "required": [
+    "apiVersion",
+    "purpose",
+    "provenance",
+    "bootstrapProfile",
+    "candidateDigest",
+    "ownershipDigest",
+    "treeDigest",
+    "bundleDigest",
+    "bootstrapProfileDigest",
+    "sandboxToolDigest",
+    "sandboxProfileDigest",
+    "executionBootDigest",
+    "nodeId",
+    "siteId",
+    "authorityId",
+    "authorityEpoch",
+    "minimumDenySequence",
+    "pins",
+    "executionUid",
+    "executionGid",
+    "executionHost",
+    "checkedAt",
+    "expiresAt",
+    "runtimeHostQualified",
+    "syntaxValidated",
+    "activeConfigurationVerified",
+    "baselineVerified",
+    "deployable",
+    "noApply"
+  ],
+  "additionalProperties": false
+}

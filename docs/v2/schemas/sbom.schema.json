@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP component file and license inventory v1alpha1",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.sbom/v1alpha1"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "format": "agp-relativepath"
+          },
+          "digest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          },
+          "license": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "path",
+          "digest",
+          "license"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 1000
+    }
+  },
+  "required": [
+    "apiVersion",
+    "files"
+  ],
+  "additionalProperties": false,
+  "description": "Repository license inventory, not a claim of SPDX/CycloneDX conformance. Runtime verification requires one exact path/digest/license entry for every ComponentProfile runtime file, with no extras or duplicates."
+}

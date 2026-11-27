@@ -1,0 +1,6 @@
+import { safeReturnPath } from './safe-return';
+const key='agp_oidc_return';
+interface Handoff {sourceFlowId:string;purpose:'login'|'step_up';audience:'login'|'management';expiresAt:string;returnPath:string;}
+export function clearHandoff():void{try{sessionStorage.removeItem(key);}catch{/* No storage fallback. */}}
+export function saveHandoff(value:Handoff):void{clearHandoff();try{sessionStorage.setItem(key,JSON.stringify({...value,returnPath:safeReturnPath(value.returnPath)}));}catch{/* Return routing is optional and never an authentication proof. */}}
+export function takeHandoff():Handoff|null{let value:unknown;try{value=JSON.parse(sessionStorage.getItem(key)||'null');}catch{return null;}finally{clearHandoff();}if(!value||typeof value!=='object'||Array.isArray(value))return null;const v=value as Record<string,unknown>;if(Object.keys(v).length!==5||typeof v['sourceFlowId']!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(v['sourceFlowId'])||!['login','step_up'].includes(String(v['purpose']))||!['login','management'].includes(String(v['audience']))||typeof v['expiresAt']!=='string'||!Number.isFinite(Date.parse(v['expiresAt']))||Date.parse(v['expiresAt'])<=Date.now()||Date.parse(v['expiresAt'])>Date.now()+3600000||typeof v['returnPath']!=='string')return null;return {...v,returnPath:safeReturnPath(v['returnPath'])} as unknown as Handoff;}

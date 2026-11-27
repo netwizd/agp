@@ -1,0 +1,1369 @@
+[
+  {
+    "file": "examples/gateway.json",
+    "schema": "gateway",
+    "valid": true,
+    "reason": "structural example; digests/signature are placeholders"
+  },
+  {
+    "file": "examples/plan.json",
+    "schema": "plan",
+    "valid": true,
+    "reason": "structural example; digests/signature are placeholders"
+  },
+  {
+    "file": "examples/agent-task.json",
+    "schema": "agent-task",
+    "valid": true,
+    "reason": "structural example; digests/signature are placeholders"
+  },
+  {
+    "file": "examples/task-receipt.json",
+    "schema": "task-receipt",
+    "valid": true,
+    "reason": "structural example; digests/signature are placeholders"
+  },
+  {
+    "file": "examples/release-manifest.json",
+    "schema": "release-manifest",
+    "valid": true,
+    "reason": "structural example; digests/signature are placeholders"
+  },
+  {
+    "file": "examples/gateway.yaml",
+    "schema": "gateway",
+    "valid": true,
+    "reason": "YAML and JSON same model"
+  },
+  {
+    "file": "fixtures/gateway-fail-open.json",
+    "schema": "gateway",
+    "valid": false,
+    "reason": "fail-open is not supported"
+  },
+  {
+    "file": "fixtures/gateway-raw-command.json",
+    "schema": "gateway",
+    "valid": false,
+    "reason": "unknown command field"
+  },
+  {
+    "file": "fixtures/gateway-empty-access.json",
+    "schema": "gateway",
+    "valid": false,
+    "reason": "no accidental public route"
+  },
+  {
+    "file": "fixtures/task-numeric-sequence.json",
+    "schema": "agent-task",
+    "valid": false,
+    "reason": "no JS numeric sequence"
+  },
+  {
+    "file": "fixtures/task-oversize-counter.json",
+    "schema": "agent-task",
+    "valid": false,
+    "reason": "uint63 semantic upper bound"
+  },
+  {
+    "file": "fixtures/task-shell.json",
+    "schema": "agent-task",
+    "valid": false,
+    "reason": "closed operation set"
+  },
+  {
+    "file": "fixtures/receipt-unknown-state.json",
+    "schema": "task-receipt",
+    "valid": false,
+    "reason": "connectivity is not apply state"
+  },
+  {
+    "file": "fixtures/release-traversal.json",
+    "schema": "release-manifest",
+    "valid": false,
+    "reason": "content-addressed artifact paths only"
+  },
+  {
+    "file": "examples/waf-policy.json",
+    "schema": "waf-policy",
+    "valid": true,
+    "reason": "typed configuration example"
+  },
+  {
+    "file": "examples/profile.json",
+    "schema": "profile",
+    "valid": true,
+    "reason": "typed configuration example"
+  },
+  {
+    "file": "fixtures/waf-raw-directives.json",
+    "schema": "waf-policy",
+    "valid": false,
+    "reason": "no native directives"
+  },
+  {
+    "file": "fixtures/profile-empty-override.json",
+    "schema": "profile",
+    "valid": false,
+    "reason": "no empty accidental profile"
+  },
+  {
+    "file": "examples/auth-allow.json",
+    "schema": "auth-decision",
+    "valid": true,
+    "reason": "EdgeAuth must map semantic decision to HTTP, never proxy JSON 200",
+    "edgeAuthStatus": 204
+  },
+  {
+    "file": "examples/auth-deny.json",
+    "schema": "auth-decision",
+    "valid": true,
+    "reason": "EdgeAuth must map semantic decision to HTTP, never proxy JSON 200",
+    "edgeAuthStatus": 403
+  },
+  {
+    "file": "fixtures/auth-invalid-decision.json",
+    "schema": "auth-decision",
+    "valid": false,
+    "reason": "EdgeAuth must map semantic decision to HTTP, never proxy JSON 200"
+  },
+  {
+    "file": "fixtures/auth-allow-missing-user.json",
+    "schema": "auth-decision",
+    "valid": false,
+    "reason": "EdgeAuth must map semantic decision to HTTP, never proxy JSON 200"
+  },
+  {
+    "file": "examples/configuration.json",
+    "schema": "configuration",
+    "valid": true,
+    "reason": "full global snapshot preserves all gateways"
+  },
+  {
+    "file": "fixtures/configuration-unknown-field.json",
+    "schema": "configuration",
+    "valid": false,
+    "reason": "no arbitrary global command field"
+  },
+  {
+    "file": "examples/directory-provider.json",
+    "schema": "directory-provider",
+    "valid": true,
+    "reason": "qualified direct AD profile shape"
+  },
+  {
+    "file": "examples/identity-flow.json",
+    "schema": "identity-flow",
+    "valid": true,
+    "reason": "pending MFA is not an authenticated session"
+  },
+  {
+    "file": "fixtures/directory-insecure-tls.json",
+    "schema": "directory-provider",
+    "valid": false,
+    "reason": "no TLS verification bypass"
+  },
+  {
+    "file": "fixtures/directory-cached-allow.json",
+    "schema": "directory-provider",
+    "valid": false,
+    "reason": "live AD only"
+  },
+  {
+    "file": "fixtures/directory-zero-guard.json",
+    "schema": "directory-provider",
+    "valid": false,
+    "reason": "positive journal guard version"
+  },
+  {
+    "file": "fixtures/identity-pending-mfa-bypass.json",
+    "schema": "identity-flow",
+    "valid": false,
+    "reason": "pending flow cannot claim MFA"
+  },
+  {
+    "file": "examples/email-challenge.json",
+    "schema": "identity-flow",
+    "fragment": "/$defs/ChallengeView",
+    "valid": true,
+    "reason": "no plaintext OTP in response"
+  },
+  {
+    "file": "fixtures/email-challenge-secret-leak.json",
+    "schema": "identity-flow",
+    "fragment": "/$defs/ChallengeView",
+    "valid": false,
+    "reason": "no plaintext OTP response"
+  },
+  {
+    "file": "fixtures/email-challenge-mfa-bypass.json",
+    "schema": "identity-flow",
+    "fragment": "/$defs/ChallengeView",
+    "valid": false,
+    "reason": "email cannot bypass required MFA"
+  },
+  {
+    "file": "examples/configuration-fleet.json",
+    "schema": "configuration-v1alpha2",
+    "valid": true,
+    "reason": "versioned fleet envelope, not a load qualification"
+  },
+  {
+    "file": "examples/plan-fleet.json",
+    "schema": "plan-v1alpha2",
+    "valid": true,
+    "reason": "versioned fleet plan keeps exact targets and typed counters"
+  },
+  {
+    "file": "fixtures/configuration-unlimited.json",
+    "schema": "configuration-v1alpha2",
+    "valid": false,
+    "reason": "no unbounded capacity profile"
+  },
+  {
+    "file": "fixtures/plan-fleet-numeric-sequence.json",
+    "schema": "plan-v1alpha2",
+    "valid": false,
+    "reason": "fleet never weakens uint63 wire types"
+  },
+  {
+    "file": "examples/configuration-fleet.json",
+    "schema": "configuration",
+    "valid": false,
+    "reason": "old profile does not silently accept new version"
+  },
+  {
+    "file": "examples/plan-fleet.json",
+    "schema": "plan",
+    "valid": false,
+    "reason": "old plan version remains closed"
+  },
+  {
+    "file": "examples/waf-zone-change.json",
+    "schema": "waf-zone-change",
+    "valid": true,
+    "reason": "closed typed WAF zone contract; semantic references/digests require server verification"
+  },
+  {
+    "file": "examples/waf-zone-default.json",
+    "schema": "waf-zone",
+    "valid": true,
+    "reason": "closed typed WAF zone contract; semantic references/digests require server verification"
+  },
+  {
+    "file": "examples/waf-zone-explicit.json",
+    "schema": "waf-zone",
+    "valid": true,
+    "reason": "closed typed WAF zone contract; semantic references/digests require server verification"
+  },
+  {
+    "file": "examples/waf-zone-resolution-conflict.json",
+    "schema": "waf-zone-resolution",
+    "valid": true,
+    "reason": "closed typed WAF zone contract; semantic references/digests require server verification"
+  },
+  {
+    "file": "examples/waf-zone-resolution.json",
+    "schema": "waf-zone-resolution",
+    "valid": true,
+    "reason": "closed typed WAF zone contract; semantic references/digests require server verification"
+  },
+  {
+    "file": "examples/waf-zone.json",
+    "schema": "waf-zone",
+    "valid": true,
+    "reason": "closed typed WAF zone contract; semantic references/digests require server verification"
+  },
+  {
+    "file": "fixtures/waf-zone-change-floating-digest.json",
+    "schema": "waf-zone-change",
+    "valid": false,
+    "reason": "invalid or unsafe zone structure is rejected"
+  },
+  {
+    "file": "fixtures/waf-zone-change-live-apply.json",
+    "schema": "waf-zone-change",
+    "valid": false,
+    "reason": "invalid or unsafe zone structure is rejected"
+  },
+  {
+    "file": "fixtures/waf-zone-duplicate-gateway.json",
+    "schema": "waf-zone",
+    "valid": false,
+    "reason": "invalid or unsafe zone structure is rejected"
+  },
+  {
+    "file": "fixtures/waf-zone-empty-policy.json",
+    "schema": "waf-zone",
+    "valid": false,
+    "reason": "invalid or unsafe zone structure is rejected"
+  },
+  {
+    "file": "fixtures/waf-zone-empty-selector.json",
+    "schema": "waf-zone",
+    "valid": false,
+    "reason": "invalid or unsafe zone structure is rejected"
+  },
+  {
+    "file": "fixtures/waf-zone-false-default.json",
+    "schema": "waf-zone",
+    "valid": false,
+    "reason": "invalid or unsafe zone structure is rejected"
+  },
+  {
+    "file": "fixtures/waf-zone-mixed-membership.json",
+    "schema": "waf-zone",
+    "valid": false,
+    "reason": "invalid or unsafe zone structure is rejected"
+  },
+  {
+    "file": "fixtures/waf-zone-raw-rules.json",
+    "schema": "waf-zone",
+    "valid": false,
+    "reason": "invalid or unsafe zone structure is rejected"
+  },
+  {
+    "file": "fixtures/waf-zone-resolution-conflict-target.json",
+    "schema": "waf-zone-resolution",
+    "valid": false,
+    "reason": "invalid or unsafe zone structure is rejected"
+  },
+  {
+    "file": "fixtures/waf-zone-resolution-missing-target.json",
+    "schema": "waf-zone-resolution",
+    "valid": false,
+    "reason": "invalid or unsafe zone structure is rejected"
+  },
+  {
+    "file": "fixtures/waf-zone-resolution-unlimited.json",
+    "schema": "waf-zone-resolution",
+    "valid": false,
+    "reason": "invalid or unsafe zone structure is rejected"
+  },
+  {
+    "file": "examples/waf-effective-field.json",
+    "apiSchema": "WafEffectiveField",
+    "valid": true,
+    "reason": "typed API derivation/effective provenance contract"
+  },
+  {
+    "file": "examples/waf-policy-derivation.json",
+    "apiSchema": "WafPolicyDerivation",
+    "valid": true,
+    "reason": "typed API derivation/effective provenance contract"
+  },
+  {
+    "file": "fixtures/waf-provenance-invalid-pl.json",
+    "apiSchema": "WafEffectiveField",
+    "valid": false,
+    "reason": "typed API derivation/effective provenance contract"
+  },
+  {
+    "file": "fixtures/waf-provenance-wrong-kind.json",
+    "apiSchema": "WafEffectiveField",
+    "valid": false,
+    "reason": "typed API derivation/effective provenance contract"
+  },
+  {
+    "file": "fixtures/waf-derivation-raw-directives.json",
+    "apiSchema": "WafPolicyDerivation",
+    "valid": false,
+    "reason": "typed API derivation/effective provenance contract"
+  },
+  {
+    "file": "examples/catalog-authoring-pilot.json",
+    "schema": "authoring-catalog",
+    "valid": true,
+    "reason": "Internal operator-declared format; references/digests are unqualified placeholders."
+  },
+  {
+    "file": "fixtures/catalog-trust-kind-invalid.json",
+    "schema": "authoring-catalog",
+    "valid": false,
+    "reason": "Operator-declared data cannot assert native qualification provenance."
+  },
+  {
+    "file": "fixtures/catalog-unknown-qualification-invalid.json",
+    "schema": "authoring-catalog",
+    "valid": false,
+    "reason": "Unknown node qualification claims are not part of the closed authoring catalog."
+  },
+  {
+    "file": "examples/configuration-normalized.json",
+    "apiSchema": "NormalizedConfigurationDocument",
+    "valid": true,
+    "reason": "Actual parser/export fixture; no runtime validation evidence."
+  },
+  {
+    "file": "examples/configuration-draft.json",
+    "apiSchema": "Draft",
+    "valid": true,
+    "reason": "Full draft wire DTO with a quoted-ETag-compatible UInt63 version."
+  },
+  {
+    "file": "examples/compiler-authoring-preview.json",
+    "apiSchema": "CompilerResult",
+    "valid": true,
+    "reason": "Actual compiler output with explicitly synthetic build pin and unqualified declared catalog."
+  },
+  {
+    "file": "examples/configuration-validation-report.json",
+    "apiSchema": "ValidationReport",
+    "valid": true,
+    "reason": "Pinned authoring-valid report remains non-deployable."
+  },
+  {
+    "file": "fixtures/validation-report-deployable-invalid.json",
+    "apiSchema": "ValidationReport",
+    "valid": false,
+    "reason": "The S1 report cannot assert deployment authorization."
+  },
+  {
+    "file": "fixtures/compiler-node-deployable-invalid.json",
+    "apiSchema": "CompilerResult",
+    "valid": false,
+    "reason": "An individual node proposal cannot override the aggregate non-deployable boundary."
+  },
+  {
+    "file": "fixtures/validation-report-unpinned-invalid.json",
+    "apiSchema": "ValidationReport",
+    "valid": false,
+    "reason": "A report must pin its exact compiler identity even without deployment authority."
+  },
+  {
+    "file": "examples/waf-zone-revision.json",
+    "apiSchema": "WafZoneRevision",
+    "valid": true,
+    "reason": "Closed S1b transport fixture; IDs and pins are synthetic, not runtime or publication evidence."
+  },
+  {
+    "file": "examples/waf-zone-authoring-summary.json",
+    "apiSchema": "ZoneAuthoringSummary",
+    "valid": true,
+    "reason": "Closed S1b transport fixture; IDs and pins are synthetic, not runtime or publication evidence."
+  },
+  {
+    "file": "examples/waf-zone-authoring-preview.json",
+    "apiSchema": "ZoneAuthoringPreview",
+    "valid": true,
+    "reason": "Closed S1b transport fixture; IDs and pins are synthetic, not runtime or publication evidence."
+  },
+  {
+    "file": "examples/waf-zone-authoring-review.json",
+    "apiSchema": "ZoneAuthoringReview",
+    "valid": true,
+    "reason": "Closed S1b transport fixture; IDs and pins are synthetic, not runtime or publication evidence."
+  },
+  {
+    "file": "examples/configuration-access.json",
+    "apiSchema": "ConfigurationAccess",
+    "valid": true,
+    "reason": "Closed S1b transport fixture; IDs and pins are synthetic, not runtime or publication evidence."
+  },
+  {
+    "file": "fixtures/waf-zone-revision-extra-metadata-invalid.json",
+    "apiSchema": "WafZoneRevision",
+    "valid": false,
+    "reason": "Pilot transport cannot weaken the accepted TARGET DTO or assert trusted publication authority."
+  },
+  {
+    "file": "fixtures/waf-zone-preview-trusted-invalid.json",
+    "apiSchema": "ZoneAuthoringPreview",
+    "valid": false,
+    "reason": "Pilot transport cannot weaken the accepted TARGET DTO or assert trusted publication authority."
+  },
+  {
+    "file": "fixtures/waf-zone-review-publication-invalid.json",
+    "apiSchema": "ZoneAuthoringReview",
+    "valid": false,
+    "reason": "Pilot transport cannot weaken the accepted TARGET DTO or assert trusted publication authority."
+  },
+  {
+    "file": "examples/component-profile.json",
+    "schema": "component-profile",
+    "valid": true,
+    "reason": "Synthetic structural fixture only; no trusted release, complete production closure or native qualification is asserted."
+  },
+  {
+    "file": "examples/qualification-evidence.json",
+    "schema": "qualification-evidence",
+    "valid": true,
+    "reason": "Synthetic structural fixture only; no trusted release, complete production closure or native qualification is asserted."
+  },
+  {
+    "file": "examples/dependency-closure.json",
+    "schema": "dependency-closure",
+    "valid": true,
+    "reason": "Synthetic structural fixture only; no trusted release, complete production closure or native qualification is asserted."
+  },
+  {
+    "file": "examples/sbom.json",
+    "schema": "sbom",
+    "valid": true,
+    "reason": "Synthetic structural fixture only; no trusted release, complete production closure or native qualification is asserted."
+  },
+  {
+    "file": "examples/waf-policy-validation.json",
+    "apiSchema": "WafPolicyValidation",
+    "valid": true,
+    "reason": "Synthetic structural fixture only; no trusted release, complete production closure or native qualification is asserted."
+  },
+  {
+    "file": "examples/configuration-access-approve.json",
+    "apiSchema": "ConfigurationAccess",
+    "valid": true,
+    "reason": "Synthetic structural fixture only; no trusted release, complete production closure or native qualification is asserted."
+  },
+  {
+    "file": "fixtures/component-profile-absolute-path-invalid.json",
+    "schema": "component-profile",
+    "valid": false,
+    "reason": "Closed repository/proof shape rejects unsafe paths, failed evidence, unknown fields, missing release identity or deployment claims."
+  },
+  {
+    "file": "fixtures/qualification-failed-check-invalid.json",
+    "schema": "qualification-evidence",
+    "valid": false,
+    "reason": "Closed repository/proof shape rejects unsafe paths, failed evidence, unknown fields, missing release identity or deployment claims."
+  },
+  {
+    "file": "fixtures/dependency-closure-traversal-invalid.json",
+    "schema": "dependency-closure",
+    "valid": false,
+    "reason": "Closed repository/proof shape rejects unsafe paths, failed evidence, unknown fields, missing release identity or deployment claims."
+  },
+  {
+    "file": "fixtures/sbom-unknown-field-invalid.json",
+    "schema": "sbom",
+    "valid": false,
+    "reason": "Closed repository/proof shape rejects unsafe paths, failed evidence, unknown fields, missing release identity or deployment claims."
+  },
+  {
+    "file": "fixtures/waf-validation-missing-release-pin-invalid.json",
+    "apiSchema": "WafPolicyValidation",
+    "valid": false,
+    "reason": "Closed repository/proof shape rejects unsafe paths, failed evidence, unknown fields, missing release identity or deployment claims."
+  },
+  {
+    "file": "fixtures/waf-validation-deployable-invalid.json",
+    "apiSchema": "WafPolicyValidation",
+    "valid": false,
+    "reason": "Closed repository/proof shape rejects unsafe paths, failed evidence, unknown fields, missing release identity or deployment claims."
+  },
+  {
+    "file": "fixtures/qualification-unbound-native-report-invalid.json",
+    "schema": "qualification-evidence",
+    "valid": false,
+    "reason": "Accepted evidence must bind the raw native report through the verified closure."
+  },
+  {
+    "file": "examples/agent-local-syntax.json",
+    "schema": "agent-local-syntax",
+    "valid": true,
+    "reason": "local diagnostic only; synthetic digests, no execution permit"
+  },
+  {
+    "file": "examples/agent-local-syntax-result.json",
+    "schema": "agent-local-syntax-result",
+    "valid": true,
+    "reason": "local diagnostic only; synthetic digests, no execution permit"
+  },
+  {
+    "file": "fixtures/local-syntax-mutating-sequence-invalid.json",
+    "schema": "agent-local-syntax",
+    "valid": false,
+    "reason": "local diagnostic only; synthetic digests, no execution permit"
+  },
+  {
+    "file": "fixtures/local-syntax-command-invalid.json",
+    "schema": "agent-local-syntax",
+    "valid": false,
+    "reason": "local diagnostic only; synthetic digests, no execution permit"
+  },
+  {
+    "file": "fixtures/local-syntax-exception-invalid.json",
+    "schema": "agent-local-syntax",
+    "valid": false,
+    "reason": "local diagnostic only; synthetic digests, no execution permit"
+  },
+  {
+    "file": "fixtures/local-syntax-remote-claim-invalid.json",
+    "schema": "agent-local-syntax-result",
+    "valid": false,
+    "reason": "local diagnostic only; synthetic digests, no execution permit"
+  },
+  {
+    "file": "examples/node-identity-profile.json",
+    "apiSchema": "NodeIdentityProfile",
+    "valid": true,
+    "reason": "AS-IS public metadata projection; no real credentials"
+  },
+  {
+    "file": "examples/node-enrollment-pending.json",
+    "apiSchema": "NodeEnrollmentView",
+    "valid": true,
+    "reason": "AS-IS public metadata projection; no real credentials"
+  },
+  {
+    "file": "fixtures/node-enrollment-token-leak-invalid.json",
+    "apiSchema": "NodeEnrollmentView",
+    "valid": false,
+    "reason": "AS-IS public metadata projection; no real credentials"
+  },
+  {
+    "file": "fixtures/node-identity-operation-invalid.json",
+    "apiSchema": "NodeIdentityOperation",
+    "valid": false,
+    "reason": "AS-IS public metadata projection; no real credentials"
+  },
+  {
+    "file": "fixtures/local-syntax-safe-failure.json",
+    "schema": "agent-local-syntax-result",
+    "valid": true,
+    "reason": "Failure diagnostics use fixed stages and bounded suffixes; paths and unknown execution claims are rejected."
+  },
+  {
+    "file": "fixtures/local-syntax-failure-path-invalid.json",
+    "schema": "agent-local-syntax-result",
+    "valid": false,
+    "reason": "Failure diagnostics use fixed stages and bounded suffixes; paths and unknown execution claims are rejected."
+  },
+  {
+    "file": "fixtures/local-syntax-unknown-failure-invalid.json",
+    "schema": "agent-local-syntax-result",
+    "valid": false,
+    "reason": "Failure diagnostics use fixed stages and bounded suffixes; paths and unknown execution claims are rejected."
+  },
+  {
+    "file": "fixtures/local-syntax-quota-failure.json",
+    "schema": "agent-local-syntax-result",
+    "valid": true,
+    "reason": "Durable results retain the fixed quota code; internal numeric errno diagnostics are not persisted."
+  },
+  {
+    "file": "fixtures/local-syntax-errno-output-invalid.json",
+    "schema": "agent-local-syntax-result",
+    "valid": false,
+    "reason": "Durable results retain the fixed quota code; internal numeric errno diagnostics are not persisted."
+  },
+  {
+    "file": "examples/plan-proposal.json",
+    "schema": "plan-proposal",
+    "valid": true,
+    "reason": "Structural fixture only: synthetic digests/signatures; no current authority, qualification or runtime evidence."
+  },
+  {
+    "file": "examples/signed-plan-review.json",
+    "schema": "signed-plan-review",
+    "valid": true,
+    "reason": "Structural fixture only: synthetic digests/signatures; no current authority, qualification or runtime evidence."
+  },
+  {
+    "file": "examples/signed-plan.json",
+    "schema": "signed-plan",
+    "valid": true,
+    "reason": "Structural fixture only: synthetic digests/signatures; no current authority, qualification or runtime evidence."
+  },
+  {
+    "file": "fixtures/plan-review-deployable-invalid.json",
+    "schema": "signed-plan-review",
+    "valid": false,
+    "reason": "Closed planning/execution contracts reject authority escalation, invented baseline/commands and numeric UInt63 values."
+  },
+  {
+    "file": "fixtures/plan-review-execution-purpose-invalid.json",
+    "schema": "signed-plan-review",
+    "valid": false,
+    "reason": "Closed planning/execution contracts reject authority escalation, invented baseline/commands and numeric UInt63 values."
+  },
+  {
+    "file": "fixtures/plan-proposal-baseline-invalid.json",
+    "schema": "plan-proposal",
+    "valid": false,
+    "reason": "Closed planning/execution contracts reject authority escalation, invented baseline/commands and numeric UInt63 values."
+  },
+  {
+    "file": "fixtures/plan-proposal-raw-command-invalid.json",
+    "schema": "plan-proposal",
+    "valid": false,
+    "reason": "Closed planning/execution contracts reject authority escalation, invented baseline/commands and numeric UInt63 values."
+  },
+  {
+    "file": "fixtures/plan-proposal-numeric-epoch-invalid.json",
+    "schema": "plan-proposal",
+    "valid": false,
+    "reason": "Closed planning/execution contracts reject authority escalation, invented baseline/commands and numeric UInt63 values."
+  },
+  {
+    "file": "fixtures/signed-plan-purpose-invalid.json",
+    "schema": "signed-plan",
+    "valid": false,
+    "reason": "Closed planning/execution contracts reject authority escalation, invented baseline/commands and numeric UInt63 values."
+  },
+  {
+    "file": "fixtures/signed-plan-numeric-sequence-invalid.json",
+    "schema": "signed-plan",
+    "valid": false,
+    "reason": "Closed planning/execution contracts reject authority escalation, invented baseline/commands and numeric UInt63 values."
+  },
+  {
+    "file": "examples/owned-tree.json",
+    "schema": "owned-tree",
+    "valid": true,
+    "reason": "Structural fixture with synthetic filesystem identities, not an installed manifest, active runtime or authority proof."
+  },
+  {
+    "file": "examples/owned-tree-observation.json",
+    "schema": "owned-tree-observation",
+    "valid": true,
+    "reason": "Structural fixture with synthetic filesystem identities, not an installed manifest, active runtime or authority proof."
+  },
+  {
+    "file": "fixtures/owned-tree-traversal-invalid.json",
+    "schema": "owned-tree",
+    "valid": false,
+    "reason": "Closed metadata-only contract rejects unsafe paths/types/modes or invented runtime/execution authority."
+  },
+  {
+    "file": "fixtures/owned-tree-link-invalid.json",
+    "schema": "owned-tree",
+    "valid": false,
+    "reason": "Closed metadata-only contract rejects unsafe paths/types/modes or invented runtime/execution authority."
+  },
+  {
+    "file": "fixtures/owned-tree-write-mode-invalid.json",
+    "schema": "owned-tree",
+    "valid": false,
+    "reason": "Closed metadata-only contract rejects unsafe paths/types/modes or invented runtime/execution authority."
+  },
+  {
+    "file": "fixtures/owned-tree-numeric-size-invalid.json",
+    "schema": "owned-tree",
+    "valid": false,
+    "reason": "Closed metadata-only contract rejects unsafe paths/types/modes or invented runtime/execution authority."
+  },
+  {
+    "file": "fixtures/owned-tree-root-invalid.json",
+    "schema": "owned-tree",
+    "valid": false,
+    "reason": "Closed metadata-only contract rejects unsafe paths/types/modes or invented runtime/execution authority."
+  },
+  {
+    "file": "fixtures/owned-tree-missing-root-invalid.json",
+    "schema": "owned-tree",
+    "valid": false,
+    "reason": "Closed metadata-only contract rejects unsafe paths/types/modes or invented runtime/execution authority."
+  },
+  {
+    "file": "fixtures/owned-tree-command-invalid.json",
+    "schema": "owned-tree",
+    "valid": false,
+    "reason": "Closed metadata-only contract rejects unsafe paths/types/modes or invented runtime/execution authority."
+  },
+  {
+    "file": "fixtures/owned-tree-runtime-invalid.json",
+    "schema": "owned-tree-observation",
+    "valid": false,
+    "reason": "Closed metadata-only contract rejects unsafe paths/types/modes or invented runtime/execution authority."
+  },
+  {
+    "file": "fixtures/owned-tree-execution-invalid.json",
+    "schema": "owned-tree-observation",
+    "valid": false,
+    "reason": "Closed metadata-only contract rejects unsafe paths/types/modes or invented runtime/execution authority."
+  },
+  {
+    "file": "fixtures/owned-tree-purpose-invalid.json",
+    "schema": "owned-tree-observation",
+    "valid": false,
+    "reason": "Closed metadata-only contract rejects unsafe paths/types/modes or invented runtime/execution authority."
+  },
+  {
+    "file": "fixtures/owned-tree-file-bytes-invalid.json",
+    "schema": "owned-tree-observation",
+    "valid": false,
+    "reason": "Closed metadata-only contract rejects unsafe paths/types/modes or invented runtime/execution authority."
+  },
+  {
+    "file": "examples/baseline-candidate.json",
+    "schema": "baseline-candidate",
+    "valid": true,
+    "reason": "Synthetic structural example; no runtime, baseline or producer trust is established."
+  },
+  {
+    "file": "fixtures/baseline-candidate-promotion-invalid.json",
+    "schema": "baseline-candidate",
+    "valid": false,
+    "reason": "Closed candidate has no promotion/revision/apply authority and always executes under a nonroot identity."
+  },
+  {
+    "file": "fixtures/baseline-candidate-apply-invalid.json",
+    "schema": "baseline-candidate",
+    "valid": false,
+    "reason": "Closed candidate has no promotion/revision/apply authority and always executes under a nonroot identity."
+  },
+  {
+    "file": "fixtures/baseline-candidate-root-uid-invalid.json",
+    "schema": "baseline-candidate",
+    "valid": false,
+    "reason": "Closed candidate has no promotion/revision/apply authority and always executes under a nonroot identity."
+  },
+  {
+    "file": "fixtures/baseline-candidate-revision-invalid.json",
+    "schema": "baseline-candidate",
+    "valid": false,
+    "reason": "Closed candidate has no promotion/revision/apply authority and always executes under a nonroot identity."
+  },
+  {
+    "file": "fixtures/lifecycle-user-invited.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/LifecycleUserView",
+    "valid": true,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-user-unknown-state.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/LifecycleUserView",
+    "valid": false,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-pending-password-invalid.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/PendingUserInput",
+    "valid": false,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-invite-rawtoken-invalid.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/InviteView",
+    "valid": false,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-password-setup.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/PasswordSetup",
+    "valid": true,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-password-action-invalid.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/PasswordSetup",
+    "valid": false,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-reset-request.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/PasswordResetRequest",
+    "valid": true,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-reset-target-invalid.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/PasswordResetRequest",
+    "valid": false,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-mfa-plan.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/MFARecoveryPlanRequest",
+    "valid": true,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-mfa-plan-password-invalid.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/MFARecoveryPlanRequest",
+    "valid": false,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-password-reset-plan.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/PasswordResetPlanRequest",
+    "valid": true,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-password-plan-mfa-invalid.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/PasswordResetPlanRequest",
+    "valid": false,
+    "reason": "Structural TARGET lifecycle/action boundary; runtime authorization, byte limits, cryptography and journal semantics require separate integration acceptance."
+  },
+  {
+    "file": "fixtures/lifecycle-recovery-intent.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/IdentityRecoveryIntent",
+    "valid": true,
+    "reason": "Closed TARGET action/version boundary; synthetic structural data establishes no authorization or cryptographic evidence."
+  },
+  {
+    "file": "fixtures/lifecycle-recovery-intent-unpinned-invalid.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/IdentityRecoveryIntent",
+    "valid": false,
+    "reason": "Closed TARGET action/version boundary; synthetic structural data establishes no authorization or cryptographic evidence."
+  },
+  {
+    "file": "fixtures/lifecycle-recovery-intent-numeric-invalid.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/IdentityRecoveryIntent",
+    "valid": false,
+    "reason": "Closed TARGET action/version boundary; synthetic structural data establishes no authorization or cryptographic evidence."
+  },
+  {
+    "file": "fixtures/lifecycle-ticket-intent.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/RecoveryTicketIntent",
+    "valid": true,
+    "reason": "Closed TARGET action/version boundary; synthetic structural data establishes no authorization or cryptographic evidence."
+  },
+  {
+    "file": "fixtures/lifecycle-ticket-action-invalid.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/RecoveryTicketIntent",
+    "valid": false,
+    "reason": "Closed TARGET action/version boundary; synthetic structural data establishes no authorization or cryptographic evidence."
+  },
+  {
+    "file": "fixtures/lifecycle-activation-ready.json",
+    "schema": "identity-flow",
+    "fragment": "/$defs/FlowView",
+    "valid": true,
+    "reason": "Closed TARGET action/version boundary; synthetic structural data establishes no authorization or cryptographic evidence."
+  },
+  {
+    "file": "fixtures/lifecycle-activation-mfa-invalid.json",
+    "schema": "identity-flow",
+    "fragment": "/$defs/FlowView",
+    "valid": false,
+    "reason": "Closed TARGET action/version boundary; synthetic structural data establishes no authorization or cryptographic evidence."
+  },
+  {
+    "file": "fixtures/lifecycle-invitation-browser-action-invalid.json",
+    "schema": "identity-flow",
+    "fragment": "/$defs/PrimaryProof",
+    "valid": false,
+    "reason": "Closed TARGET action/version boundary; synthetic structural data establishes no authorization or cryptographic evidence."
+  },
+  {
+    "file": "fixtures/lifecycle-activation-recovery-plan.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/ActivationRecoveryPlanRequest",
+    "valid": true,
+    "reason": "restart_activation pins independent floors, stays invited and cannot issue a recovery ticket. Structural TARGET fixture only."
+  },
+  {
+    "file": "fixtures/lifecycle-activation-recovery-wrong-action.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/ActivationRecoveryPlanRequest",
+    "valid": false,
+    "reason": "restart_activation pins independent floors, stays invited and cannot issue a recovery ticket. Structural TARGET fixture only."
+  },
+  {
+    "file": "fixtures/lifecycle-activation-recovery-intent.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/IdentityRecoveryIntent",
+    "valid": true,
+    "reason": "restart_activation pins independent floors, stays invited and cannot issue a recovery ticket. Structural TARGET fixture only."
+  },
+  {
+    "file": "fixtures/lifecycle-activation-recovery-floors-missing.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/IdentityRecoveryIntent",
+    "valid": false,
+    "reason": "restart_activation pins independent floors, stays invited and cannot issue a recovery ticket. Structural TARGET fixture only."
+  },
+  {
+    "file": "fixtures/lifecycle-activation-recovery-ticket-invalid.json",
+    "schema": "identity-lifecycle",
+    "fragment": "/$defs/RecoveryTicketIntent",
+    "valid": false,
+    "reason": "restart_activation pins independent floors, stays invited and cannot issue a recovery ticket. Structural TARGET fixture only."
+  },
+  {
+    "file": "fixtures/role-grant-global-input.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBindingRequest"
+  },
+  {
+    "file": "fixtures/role-grant-site-input.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBindingRequest"
+  },
+  {
+    "file": "fixtures/role-grant-node_group-input.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBindingRequest"
+  },
+  {
+    "file": "fixtures/role-grant-node-input.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBindingRequest"
+  },
+  {
+    "file": "fixtures/role-grant-resource-input.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBindingRequest"
+  },
+  {
+    "file": "fixtures/role-grant-global-with-id.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBindingRequest"
+  },
+  {
+    "file": "fixtures/role-grant-missing-scope-id.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBindingRequest"
+  },
+  {
+    "file": "fixtures/role-grant-unknown-scope.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBindingRequest"
+  },
+  {
+    "file": "fixtures/role-grant-client-authority-pin.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBindingRequest"
+  },
+  {
+    "file": "fixtures/role-grant-client-grant-expiry.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBindingRequest"
+  },
+  {
+    "file": "fixtures/role-grant-role-definition.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleDefinition"
+  },
+  {
+    "file": "fixtures/role-grant-numeric-role-version.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleDefinition"
+  },
+  {
+    "file": "fixtures/role-grant-duplicate-role-permission.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleDefinition"
+  },
+  {
+    "file": "fixtures/role-grant-binding-view.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBinding"
+  },
+  {
+    "file": "fixtures/role-grant-revoked-binding.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBinding"
+  },
+  {
+    "file": "fixtures/role-grant-missing-binding-epoch.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBinding"
+  },
+  {
+    "file": "fixtures/role-grant-grant-intent.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleGrantIntent"
+  },
+  {
+    "file": "fixtures/role-grant-site-intent.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleGrantIntent"
+  },
+  {
+    "file": "fixtures/role-grant-untrusted-catalog-source.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleGrantIntent"
+  },
+  {
+    "file": "fixtures/role-grant-missing-target-pin.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleGrantIntent"
+  },
+  {
+    "file": "fixtures/role-grant-unknown-intent-field.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleGrantIntent"
+  },
+  {
+    "file": "fixtures/role-grant-operation.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "apiSchema": "SecurityOperation"
+  },
+  {
+    "file": "fixtures/role-grant-operation-without-intent.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "apiSchema": "SecurityOperation"
+  },
+  {
+    "file": "fixtures/role-grant-wrong-intent-family.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "apiSchema": "SecurityOperation"
+  },
+  {
+    "file": "fixtures/role-grant-revoke-operation.json",
+    "valid": true,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "apiSchema": "SecurityOperation"
+  },
+  {
+    "file": "fixtures/role-grant-revoke-on-positive-operation.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "apiSchema": "SecurityOperation"
+  },
+  {
+    "file": "fixtures/role-grant-unknown-revoke-field.json",
+    "valid": false,
+    "reason": "Structural only; all digests are synthetic placeholders, no cryptographic verification.",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBindingRevokeRequest"
+  },
+  {
+    "file": "fixtures/role-grant-zero-role-version.json",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleDefinition",
+    "valid": false,
+    "reason": "Structural counter/head invariant; fixture digests are synthetic placeholders, no cryptographic verification."
+  },
+  {
+    "file": "fixtures/role-grant-zero-binding-epoch.json",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleBinding",
+    "valid": false,
+    "reason": "Structural counter/head invariant; fixture digests are synthetic placeholders, no cryptographic verification."
+  },
+  {
+    "file": "fixtures/role-grant-nonzero-head-without-digest.json",
+    "schema": "role-grant",
+    "fragment": "/$defs/RoleGrantIntent",
+    "valid": false,
+    "reason": "Structural counter/head invariant; fixture digests are synthetic placeholders, no cryptographic verification."
+  },
+  {
+    "file": "examples/role-scope-graph.json",
+    "schema": "role-grant",
+    "fragment": "/$defs/ScopeGraphManifest",
+    "valid": true,
+    "reason": "Installation metadata shape only; actual resources/nodes/gateway ownership must be verified by the bootstrap/resolver, no production authority asserted."
+  },
+  {
+    "file": "fixtures/role-grant-graph-wrong-version.json",
+    "schema": "role-grant",
+    "fragment": "/$defs/ScopeGraphManifest",
+    "valid": false,
+    "reason": "Closed typed bootstrap graph shape; semantic ownership and cross-reference checks remain mandatory in runtime."
+  },
+  {
+    "file": "fixtures/role-grant-graph-untrusted-authority.json",
+    "schema": "role-grant",
+    "fragment": "/$defs/ScopeGraphManifest",
+    "valid": false,
+    "reason": "Closed typed bootstrap graph shape; semantic ownership and cross-reference checks remain mandatory in runtime."
+  },
+  {
+    "file": "fixtures/role-grant-graph-null-array.json",
+    "schema": "role-grant",
+    "fragment": "/$defs/ScopeGraphManifest",
+    "valid": false,
+    "reason": "Closed typed bootstrap graph shape; semantic ownership and cross-reference checks remain mandatory in runtime."
+  },
+  {
+    "file": "fixtures/role-grant-graph-wire-version.json",
+    "schema": "role-grant",
+    "fragment": "/$defs/ScopeGraphManifest",
+    "valid": false,
+    "reason": "Closed typed bootstrap graph shape; semantic ownership and cross-reference checks remain mandatory in runtime."
+  },
+  {
+    "file": "fixtures/role-grant-graph-implicit-resource.json",
+    "schema": "role-grant",
+    "fragment": "/$defs/ScopeGraphManifest",
+    "valid": false,
+    "reason": "Closed typed bootstrap graph shape; semantic ownership and cross-reference checks remain mandatory in runtime."
+  },
+  {
+    "file": "fixtures/role-grant-graph-missing-memberships.json",
+    "schema": "role-grant",
+    "fragment": "/$defs/ScopeGraphManifest",
+    "valid": false,
+    "reason": "Closed typed bootstrap graph shape; semantic ownership and cross-reference checks remain mandatory in runtime."
+  },
+  {
+    "file": "fixtures/role-grant-graph-duplicate-memberships.json",
+    "schema": "role-grant",
+    "fragment": "/$defs/ScopeGraphManifest",
+    "valid": false,
+    "reason": "Closed typed bootstrap graph shape; semantic ownership and cross-reference checks remain mandatory in runtime."
+  },
+  {
+    "apiSchema": "ExecutionReceipt",
+    "file": "fixtures/valid/execution-receipt.json",
+    "valid": true
+  },
+  {
+    "apiSchema": "ExecutionReceipt",
+    "file": "fixtures/invalid/execution-receipt-unsigned.json",
+    "valid": false
+  },
+  {
+    "apiSchema": "ExecutionReceipt",
+    "file": "fixtures/invalid/execution-receipt-wrong-purpose.json",
+    "valid": false
+  },
+  {
+    "apiSchema": "ExecutionReceipt",
+    "file": "fixtures/invalid/execution-receipt-extra-command.json",
+    "valid": false
+  },
+  {
+    "apiSchema": "BaselineChallengeRequest",
+    "file": "fixtures/valid/baseline-challenge-request.json",
+    "valid": true,
+    "reason": "Structural fixture only; synthetic signature/digests, no cryptographic or runtime proof."
+  },
+  {
+    "apiSchema": "BaselineChallenge",
+    "file": "fixtures/valid/baseline-challenge.json",
+    "valid": true,
+    "reason": "Structural fixture only; synthetic signature/digests, no cryptographic or runtime proof."
+  },
+  {
+    "apiSchema": "BaselineCapture",
+    "file": "fixtures/valid/baseline-capture.json",
+    "valid": true,
+    "reason": "Structural fixture only; synthetic signature/digests, no cryptographic or runtime proof."
+  },
+  {
+    "apiSchema": "BaselineCapture",
+    "file": "fixtures/valid/baseline-capture-zero-head.json",
+    "valid": true,
+    "reason": "Structural fixture only; synthetic signature/digests, no cryptographic or runtime proof."
+  },
+  {
+    "apiSchema": "BaselineChallengeRequest",
+    "file": "fixtures/invalid/baseline-challenge-request-node.json",
+    "valid": false,
+    "reason": "Node identity comes from the authenticated certificate, never from request input."
+  },
+  {
+    "apiSchema": "BaselineChallenge",
+    "file": "fixtures/invalid/baseline-challenge-numeric-epoch.json",
+    "valid": false,
+    "reason": "Closed baseline DTO rejects authority claims, wrong purpose, malformed pins and non-string UInt63 counters."
+  },
+  {
+    "apiSchema": "BaselineChallenge",
+    "file": "fixtures/invalid/baseline-challenge-zero-epoch.json",
+    "valid": false,
+    "reason": "Closed baseline DTO rejects authority claims, wrong purpose, malformed pins and non-string UInt63 counters."
+  },
+  {
+    "apiSchema": "BaselineChallenge",
+    "file": "fixtures/invalid/baseline-challenge-noncanonical-nonce.json",
+    "valid": false,
+    "reason": "Closed baseline DTO rejects authority claims, wrong purpose, malformed pins and non-string UInt63 counters."
+  },
+  {
+    "apiSchema": "BaselineChallenge",
+    "file": "fixtures/invalid/baseline-challenge-command.json",
+    "valid": false,
+    "reason": "Closed baseline DTO rejects authority claims, wrong purpose, malformed pins and non-string UInt63 counters."
+  },
+  {
+    "apiSchema": "BaselineCapture",
+    "file": "fixtures/invalid/baseline-capture-unsigned.json",
+    "valid": false,
+    "reason": "Closed baseline DTO rejects authority claims, wrong purpose, malformed pins and non-string UInt63 counters."
+  },
+  {
+    "apiSchema": "BaselineCapture",
+    "file": "fixtures/invalid/baseline-capture-wrong-purpose.json",
+    "valid": false,
+    "reason": "Closed baseline DTO rejects authority claims, wrong purpose, malformed pins and non-string UInt63 counters."
+  },
+  {
+    "apiSchema": "BaselineCapture",
+    "file": "fixtures/invalid/baseline-capture-numeric-high-water.json",
+    "valid": false,
+    "reason": "Closed baseline DTO rejects authority claims, wrong purpose, malformed pins and non-string UInt63 counters."
+  },
+  {
+    "apiSchema": "BaselineCapture",
+    "file": "fixtures/invalid/baseline-capture-claimed-health.json",
+    "valid": false,
+    "reason": "Closed baseline DTO rejects authority claims, wrong purpose, malformed pins and non-string UInt63 counters."
+  },
+  {
+    "apiSchema": "BaselineCapture",
+    "file": "fixtures/invalid/baseline-capture-zero-head-with-digest.json",
+    "valid": false,
+    "reason": "The zero journal head has an empty digest; nonzero heads use sha256-prefixed digests."
+  },
+  {
+    "apiSchema": "BaselineCapture",
+    "file": "fixtures/invalid/baseline-capture-raw-head-digest.json",
+    "valid": false,
+    "reason": "Journal digests include the sha256: prefix."
+  },
+  {
+    "apiSchema": "BaselineCapture",
+    "file": "fixtures/invalid/baseline-capture-missing-anchor.json",
+    "valid": false,
+    "reason": "Closed baseline DTO rejects authority claims, wrong purpose, malformed pins and non-string UInt63 counters."
+  }
+]

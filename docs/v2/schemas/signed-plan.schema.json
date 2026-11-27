@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP signed immutable deployment plan v1alpha1",
+  "description": "Structural execution-purpose envelope, not proof of approvals, qualification or live authority. Ed25519 signature uses AGP-DEPLOYMENT-PLAN-v1 plus newline and the canonical envelope digest with empty signature. Signature is unpadded Base64url. Pilot plan limit 2 MiB, fleet plan 32 MiB, envelope overhead at most 4096 bytes; helper admission currently accepts pilot plans only.",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.signed-plan/v1alpha1"
+    },
+    "purpose": {
+      "const": "execution"
+    },
+    "keyId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "plan": {
+      "oneOf": [
+        {
+          "$ref": "plan.schema.json"
+        },
+        {
+          "$ref": "plan-v1alpha2.schema.json"
+        }
+      ]
+    },
+    "signature": {
+      "type": "string",
+      "minLength": 86,
+      "maxLength": 86,
+      "pattern": "^[A-Za-z0-9_-]{85}[AQgw]$"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "purpose",
+    "keyId",
+    "plan",
+    "signature"
+  ],
+  "additionalProperties": false
+}

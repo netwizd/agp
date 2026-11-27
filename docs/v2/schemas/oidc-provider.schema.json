@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP first qualified AD-backed OIDC provider configuration",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.identity/v1alpha1"
+    },
+    "kind": {
+      "const": "OIDCProvider"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "versionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "securityGuardId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "securityGuardVersion": {
+          "allOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            {
+              "not": {
+                "const": "0"
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "versionId",
+        "securityGuardId",
+        "securityGuardVersion"
+      ],
+      "additionalProperties": false
+    },
+    "spec": {
+      "type": "object",
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://[^/?#@]+(?:/[^?#]*)?$",
+          "maxLength": 2048,
+          "description": "Exact HTTPS URI; service additionally rejects userinfo, fragments, query, encoded authority, unsafe DNS/egress and noncanonical host/port. No redirect or environment proxy."
+        },
+        "authorizationEndpoint": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://[^/?#@]+(?:/[^?#]*)?$",
+          "maxLength": 2048,
+          "description": "Exact HTTPS URI; service additionally rejects userinfo, fragments, query, encoded authority, unsafe DNS/egress and noncanonical host/port. No redirect or environment proxy."
+        },
+        "tokenEndpoint": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://[^/?#@]+(?:/[^?#]*)?$",
+          "maxLength": 2048,
+          "description": "Exact HTTPS URI; service additionally rejects userinfo, fragments, query, encoded authority, unsafe DNS/egress and noncanonical host/port. No redirect or environment proxy."
+        },
+        "jwksUri": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://[^/?#@]+(?:/[^?#]*)?$",
+          "maxLength": 2048,
+          "description": "Exact HTTPS URI; service additionally rejects userinfo, fragments, query, encoded authority, unsafe DNS/egress and noncanonical host/port. No redirect or environment proxy."
+        },
+        "caSecretVersionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "responseType": {
+          "const": "code"
+        },
+        "scope": {
+          "const": "openid"
+        },
+        "tokenEndpointAuthMethod": {
+          "const": "client_secret_basic"
+        },
+        "pkceMethod": {
+          "const": "S256"
+        },
+        "allowedSigningAlgorithms": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "RS256"
+            }
+          ],
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "mfaClaimMode": {
+          "const": "none",
+          "description": "First profile requires AGP TOTP. Unqualified acr/amr strings never satisfy MFA. Future issuer-specific mappings require a separately qualified contract/version."
+        },
+        "identityBinding": {
+          "const": "approved_directory_link"
+        },
+        "clients": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "purpose": {
+                "enum": [
+                  "login",
+                  "management"
+                ]
+              },
+              "clientId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "clientSecretVersionId": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              },
+              "redirectUri": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https://[^/?#@]+(?:/[^?#]*)?$",
+                "maxLength": 2048,
+                "description": "Exact server-derived purpose origin + /auth/v2/oidc/providers/{providerId}/callback. Never supplied by an anonymous request; no wildcard or shared issuer callback."
+              },
+              "maximumAuthenticationAgeSeconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 300,
+                "default": 300
+              }
+            },
+            "required": [
+              "purpose",
+              "clientId",
+              "clientSecretVersionId",
+              "redirectUri",
+              "maximumAuthenticationAgeSeconds"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "allOf": [
+            {
+              "contains": {
+                "properties": {
+                  "purpose": {
+                    "const": "login"
+                  }
+                },
+                "required": [
+                  "purpose"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "purpose": {
+                    "const": "management"
+                  }
+                },
+                "required": [
+                  "purpose"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ],
+          "description": "Exactly one client per purpose, with distinct clientId and distinct client secret versions. Service enforces inequality, exact listener URI and immutable provider ownership."
+        }
+      },
+      "required": [
+        "issuer",
+        "authorizationEndpoint",
+        "tokenEndpoint",
+        "jwksUri",
+        "caSecretVersionId",
+        "responseType",
+        "scope",
+        "tokenEndpointAuthMethod",
+        "pkceMethod",
+        "allowedSigningAlgorithms",
+        "mfaClaimMode",
+        "identityBinding",
+        "clients"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,9 @@
+{
+  "id": "flow_setup",
+  "purpose": "activate",
+  "audience": "setup",
+  "state": "ready",
+  "nextStep": "complete",
+  "expiresAt": "2026-11-25T12:00:00Z",
+  "mfaSatisfied": true
+}

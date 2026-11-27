@@ -1,0 +1,39 @@
+{
+  "bindingId": "rbind_one",
+  "principalId": "usr_target",
+  "roleId": "role_viewer",
+  "roleVersion": "1",
+  "roleDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "permissions": [
+    "config.read"
+  ],
+  "scopeType": "site",
+  "scopeClosure": [
+    {
+      "scopeType": "site",
+      "scopeId": "site_one"
+    },
+    {
+      "scopeType": "node",
+      "scopeId": "node_one"
+    }
+  ],
+  "scopeSourceVersions": [
+    {
+      "kind": "operator_declared",
+      "id": "catalog_one",
+      "revision": "1"
+    }
+  ],
+  "scopeClosureDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "expectedSecurityVersion": "3",
+  "expectedPasswordVersion": "2",
+  "targetFingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "expectedAuthorityEpoch": "2",
+  "preparedSequence": "0",
+  "preparedDigest": "",
+  "policyDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "expiresAt": "2026-11-25T12:05:00Z",
+  "grantExpiresAt": null,
+  "scopeId": "site_one"
+}

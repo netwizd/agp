@@ -1,0 +1,44 @@
+{
+  "apiVersion": "agp.owned-tree-observation/v1alpha1",
+  "purpose": "capture_baseline",
+  "noExecution": true,
+  "runtimeValidated": false,
+  "nodeId": "node-demo",
+  "siteId": "site-demo",
+  "manifestDigest": "sha256:917361827825f37821e715ddba17cf98cb85eef11793e1ab48565e0ed4a1a13c",
+  "treeDigest": "sha256:aa13a1171683046a2bfc7797fd3b7fdf4e39b7c5660ed9e57cca5dc5390f3a8c",
+  "root": "/var/lib/agp/owned/demo",
+  "observedAt": "2026-11-25T10:00:00Z",
+  "entries": [
+    {
+      "path": ".",
+      "kind": "directory",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0700",
+      "size": "0",
+      "digest": "",
+      "device": "2049",
+      "inode": "1000",
+      "mountId": "42",
+      "links": "2",
+      "modifiedAt": "2026-11-25T10:00:00Z",
+      "changedAt": "2026-11-25T10:00:00Z"
+    },
+    {
+      "path": "nginx.conf",
+      "kind": "file",
+      "uid": 0,
+      "gid": 0,
+      "mode": "0600",
+      "size": "18",
+      "digest": "sha256:b08b92245ad272cc67601eeb5aac300b75121bb7ef6eab7d0b7c77fb3122fe37",
+      "device": "2049",
+      "inode": "1001",
+      "mountId": "42",
+      "links": "1",
+      "modifiedAt": "2026-11-25T10:00:00Z",
+      "changedAt": "2026-11-25T10:00:00Z"
+    }
+  ]
+}

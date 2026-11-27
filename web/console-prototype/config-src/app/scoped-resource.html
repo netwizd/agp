@@ -1,0 +1,66 @@
+<section aria-labelledby="scopedResourceTitle">
+  <h2 id="scopedResourceTitle">Доступные маршруты ресурсов</h2>
+  <p class="boundary">Выберите размещение ресурса: один маршрут на одном шлюзе. Сервер передаёт только разрешённый маршрут и проверяет его изменение. Сохранение создаёт ревизию; применение на узлы не выполняется.</p>
+  <section class="section editor-card" aria-labelledby="resourceListTitle">
+    <h3 id="resourceListTitle">Размещения в вашей области доступа</h3>
+    <div class="zone-toolbar">
+      <label>Ревизия списка (пусто — текущий head)<input id="resourceListRevision" [formControl]="listRevision" autocomplete="off"></label>
+      <button id="resourceRefreshList" type="button" class="secondary" [disabled]="listBusy()" (click)="refreshResources()">Обновить список</button>
+    </div>
+    @if(listBusy()){<p role="status">Загружаем доступные маршруты…</p>}
+    @if(listError()){<p id="resourceListError" class="alert error" role="alert">{{listError()}}. Повторите загрузку списка. Локальные изменения сохранены.</p>}
+    @if(listRevisionId()){<p class="muted">Точная ревизия списка: <code id="resourceListRevisionId">{{listRevisionId()}}</code></p>}
+    @if(listLoaded()&&!resources().length){<p id="resourceListEmpty">В выбранной ревизии нет доступных размещений ресурсов.</p>}
+    <nav id="resourcePlacementList" class="gateway-list" aria-label="Доступные размещения ресурсов">
+      @for(item of resources();track placementKey(item)){
+        <button type="button" class="secondary resource-placement" [attr.data-resource-id]="item.resourceId" [attr.data-gateway-id]="item.gatewayId" [attr.data-route-id]="item.routeId" [disabled]="busy()||hasLocalChanges()||!!pending()" (click)="openResource(item)">
+          <strong>{{item.resourceName}} · {{item.routeName}}</strong>
+          <small>{{item.resourceId}} · {{item.gatewayId}} / {{item.routeId}}</small>
+          <small>{{item.hostname}}{{item.path}} · {{item.access.edit?'Редактирование':'Только чтение'}}</small>
+        </button>
+      }
+    </nav>
+    @if(nextCursor()){<button id="resourceMorePlacements" type="button" class="secondary" [disabled]="listBusy()" (click)="moreResources()">Ещё размещения</button>}
+    @if(hasLocalChanges()||pending()){<p class="muted">Обновление списка сохраняет открытый маршрут. Для переключения завершите исходный запрос или явно сбросьте локальную форму.</p>}
+  </section>
+
+  @if(error()){
+    <section id="resourceError" class="alert error" role="alert"><strong>{{error()}}</strong>
+      @if(error()==='zone_resolution_required'){<p>Для этого изменения требуется согласованное разрешение WAF-зоны. Локальные поля сохранены.</p>}
+      @for(issue of issues();track $index){<p>{{issue.path}} · {{issue.code}} · {{issue.message}}</p>}
+    </section>
+  }
+  @if(loaded();as revision){
+    <section class="section editor-card" aria-labelledby="resourceRouteTitle">
+      <h3 id="resourceRouteTitle">{{revision.resourceView.resourceName}}</h3>
+      <dl class="pins"><dt>Resource / Gateway / Route</dt><dd id="resourcePlacementIdentity">{{revision.resourceView.resourceId}} / {{revision.resourceView.gatewayId}} / {{revision.resourceView.route.id}}</dd><dt>Revision / digest</dt><dd>{{revision.id}} / {{revision.contentDigest}}</dd></dl>
+      @if(!canEdit()){<p id="resourceReadOnly" class="boundary">Это размещение открыто только для чтения.</p>}
+      <fieldset class="permission-fields" [disabled]="busy()||!canEdit()" [formGroup]="form">
+        <legend>Поля маршрута</legend>
+        <div class="grid">
+          <label>Название маршрута<input id="resourceRouteName" formControlName="name" maxlength="128"></label>
+          <label>Hostname<input id="resourceRouteHostname" formControlName="hostname" autocapitalize="none" autocomplete="off"></label>
+          <label>Path<input id="resourceRoutePath" formControlName="path" autocomplete="off"></label>
+          <label>Upstream URL<input id="resourceRouteURL" formControlName="url" autocapitalize="none" autocomplete="off"></label>
+          <label>Connect timeout, сек<input id="resourceRouteConnect" type="number" formControlName="connect" min="1" max="60" step="1"></label>
+          <label>Read timeout, сек<input id="resourceRouteRead" type="number" formControlName="read" min="1" max="3600" step="1"></label>
+          <label>Upstream TLS server name<input id="resourceRouteServerName" formControlName="serverName" autocomplete="off"></label>
+          <label>CA secret version ID<input id="resourceRouteCA" formControlName="ca" autocomplete="off"></label>
+          <label>Группы доступа<textarea id="resourceRouteGroups" formControlName="groups" rows="3"></textarea></label>
+          <label>Разрешённые CIDR<textarea id="resourceRouteCIDRs" formControlName="cidrs" rows="3"></textarea></label>
+          <label class="wide">WAF exception IDs<textarea id="resourceRouteExceptions" formControlName="exceptions" rows="2"></textarea></label>
+        </div>
+      </fieldset>
+      <p class="muted">Проверка TLS upstream включена. Hostname и path проверяются сервером с учётом влияния на соседние маршруты. ID ресурса, шлюза и маршрута сохраняются.</p>
+      @if(form.invalid&&dirty()){<p id="resourceInvalid" class="alert warning" role="alert">Заполните обязательные поля и проверьте целочисленные таймауты. Введённые значения сохранены.</p>}
+      <div class="save-bar"><p id="resourceStatus" role="status" aria-live="polite">{{notice()}}</p><button id="resourceSave" type="button" [disabled]="busy()||!canEdit()||!dirty()||form.invalid||!!pending()||conflict()" (click)="save()">Создать ревизию маршрута</button></div>
+      <div class="zone-actions"><button id="resourceDownload" type="button" class="quiet" (click)="download()">Скачать локальный маршрут</button><button id="resourceDiscard" type="button" class="quiet" [disabled]="busy()||!!pending()" (click)="discard()">Сбросить локальную форму</button></div>
+    </section>
+  }
+  @if(pending()){
+    <section class="alert warning"><p>Результат неизвестен. Повтор сохраняет исходный ключ, base, размещение и содержимое маршрута.</p><button id="resourceRetry" type="button" [disabled]="busy()" (click)="retry()">Повторить исходный запрос</button></section>
+  }
+  @if(conflict()){
+    <section id="resourceConflict" class="alert warning"><p>Head изменился. Локальные поля сохранены. Укажите актуальный baseRevisionId и явно замените base для того же ресурса, шлюза и маршрута.</p><div class="zone-toolbar"><label>Новый точный baseRevisionId<input id="resourceBaseId" [formControl]="baseId" autocomplete="off"></label><button id="resourceUseBase" type="button" [disabled]="busy()||!!pending()||!baseId.value" (click)="useBase()">Сохранить локальные поля и заменить base</button></div></section>
+  }
+</section>

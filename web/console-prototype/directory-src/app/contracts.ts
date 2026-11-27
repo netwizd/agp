@@ -1,0 +1,56 @@
+// Closed UI wire boundary. Permission and validation decisions always belong to the server.
+export interface Access { principalId: string; manage: boolean; approve: boolean; authorityEpoch: string; }
+export interface DirectoryDocument {
+  apiVersion: 'agp.identity/v1alpha1'; kind: 'DirectoryProvider';
+  metadata: { id: string; versionId: string; securityGuardId: string; securityGuardVersion: string; };
+  spec: { forestGuid: string; domainDns: string; transport: 'ldaps'|'starttls'; endpoints: {host:string;port:number}[];
+    userBaseDns: string[]; groupBaseDns: string[]; bindDn: string; bindSecretVersionId: string; caSecretVersionId: string;
+    loginAttribute: 'userPrincipalName'|'sAMAccountName'; provisioning: 'preprovisioned'|'jit_unprivileged';
+    groupResolution: 'token_groups_security'; accountCheck: 'live_each_allow'; operationTimeoutSeconds: number; maximumGroups: number;
+    groupMappings: {groupObjectGuid:string;accessGroupId:string}[]; };
+}
+export interface Provider { id:string; name:string; enabled:boolean; revision:string; configuration:DirectoryDocument|null; forestGuid:string; securityGuardId:string; }
+export interface ProviderPage { items:Provider[]; nextCursor?:string; }
+export interface Version { configuration:DirectoryDocument; contentDigest:string; }
+export interface TestResult { operationId:string; state:'queued'|'running'|'passed'|'failed'; checks:{name:'tls'|'service_bind'|'account_lookup'|'group_resolution'|'domain_policy';state:'pending'|'passed'|'failed';reasonCode:string}[]; }
+export interface ProviderChange { providerType:'directory'; providerId:string;versionId:string;contentDigest:string;guardId:string;previousGuardVersion:string;nextGuardVersion:string;expectedRowVersion:string;expectedAuthorityEpoch:string;enabled:boolean;expiresAt:string;reason:string; }
+export interface SecurityOperation { id:string;family:'provider_security_change';requestDigest:string;state:'pending'|'journaled'|'applied'|'rejected'|'recovery_required';approvalStatus:'not_required'|'pending'|'approved'|'rejected'|'expired';subjectId:string;createdBy:string;createdAt:string;providerChange:ProviderChange; }
+export interface Accepted { operationId:string; resourceId:string; statusUrl:string; submittedAt:string; }
+export class DirectoryError extends Error { constructor(readonly code:string,readonly status=0){super(code);} }
+export const obj=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v);
+export const id=(v:unknown):v is string=>typeof v==='string'&&/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(v);
+export const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v)&&v!=='00000000-0000-0000-0000-000000000000';
+const digest=(v:unknown):v is string=>typeof v==='string'&&/^sha256:[a-f0-9]{64}$/.test(v);
+const uint=(v:unknown):v is string=>typeof v==='string'&&/^(0|[1-9][0-9]{0,18})$/.test(v)&&BigInt(v)<=9223372036854775807n;
+const text=(v:unknown,max:number,min=1):v is string=>typeof v==='string'&&v.length>=min&&v.length<=max&&!/[\u0000-\u001f\u007f]/.test(v);
+const date=(v:unknown):v is string=>typeof v==='string'&&/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(v)&&Number.isFinite(Date.parse(v));
+const integer=(v:unknown,min:number,max:number)=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=min&&v<=max;
+const within=(v:unknown,values:readonly unknown[])=>values.includes(v);
+const hostname=(v:unknown)=>typeof v==='string'&&v.length<=253&&v.includes('.')&&v.split('.').every(label=>/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
+const keys=(v:Record<string,unknown>,required:string[],optional:string[]=[])=>required.every(k=>Object.hasOwn(v,k))&&Object.keys(v).every(k=>required.includes(k)||optional.includes(k));
+function fail():never {throw new DirectoryError('invalid_response');}
+export function decodeAccess(v:unknown):Access {if(!obj(v)||!keys(v,['principalId','manage','approve','authorityEpoch'])||!id(v['principalId'])||typeof v['manage']!=='boolean'||typeof v['approve']!=='boolean'||!uint(v['authorityEpoch']))return fail();return v as unknown as Access;}
+export function validDocument(v:unknown):v is DirectoryDocument {
+  if(!obj(v)||!keys(v,['apiVersion','kind','metadata','spec'])||v['apiVersion']!=='agp.identity/v1alpha1'||v['kind']!=='DirectoryProvider')return false;
+  const m=v['metadata'],s=v['spec'];if(!obj(m)||!keys(m,['id','versionId','securityGuardId','securityGuardVersion'])||!id(m['id'])||!id(m['versionId'])||!id(m['securityGuardId'])||!uint(m['securityGuardVersion'])||m['securityGuardVersion']==='0'||!obj(s))return false;
+  if(!keys(s,['forestGuid','domainDns','transport','endpoints','userBaseDns','groupBaseDns','bindDn','bindSecretVersionId','caSecretVersionId','loginAttribute','provisioning','groupResolution','accountCheck','operationTimeoutSeconds','maximumGroups','groupMappings'])||!uuid(s['forestGuid'])||!hostname(s['domainDns'])||!within(s['transport'],['ldaps','starttls'])||!text(s['bindDn'],2048)||!id(s['bindSecretVersionId'])||!id(s['caSecretVersionId'])||!within(s['loginAttribute'],['userPrincipalName','sAMAccountName'])||!within(s['provisioning'],['preprovisioned','jit_unprivileged'])||s['groupResolution']!=='token_groups_security'||s['accountCheck']!=='live_each_allow'||!integer(s['operationTimeoutSeconds'],1,10)||!integer(s['maximumGroups'],1,10000))return false;
+  const endpoints=s['endpoints'];if(!Array.isArray(endpoints)||endpoints.length<1||endpoints.length>8||!endpoints.every(e=>obj(e)&&keys(e,['host','port'])&&hostname(e['host'])&&integer(e['port'],1,65535))||new Set(endpoints.map(e=>JSON.stringify(e))).size!==endpoints.length)return false;
+  for(const k of ['userBaseDns','groupBaseDns']){const list=s[k];if(!Array.isArray(list)||list.length<1||list.length>16||!list.every(d=>text(d,2048))||new Set(list).size!==list.length)return false;}
+  const mappings=s['groupMappings'];return Array.isArray(mappings)&&mappings.length<=2000&&mappings.every(m=>obj(m)&&keys(m,['groupObjectGuid','accessGroupId'])&&uuid(m['groupObjectGuid'])&&id(m['accessGroupId']))&&new Set(mappings.map(m=>m['groupObjectGuid'])).size===mappings.length;
+}
+export function decodeProvider(v:unknown):Provider {if(!obj(v)||!keys(v,['id','name','enabled','revision','configuration','forestGuid','securityGuardId'])||!id(v['id'])||!text(v['name'],128)||typeof v['enabled']!=='boolean'||!uint(v['revision'])||v['revision']==='0'||!uuid(v['forestGuid'])||!id(v['securityGuardId'])||(v['configuration']!==null&&!validDocument(v['configuration'])))return fail();const p=v as unknown as Provider;if(p.configuration&&(p.configuration.metadata.id!==p.id||p.configuration.metadata.securityGuardId!==p.securityGuardId||p.configuration.spec.forestGuid!==p.forestGuid))return fail();if(!p.configuration&&p.enabled)return fail();return p;}
+export function decodePage(v:unknown):ProviderPage {if(!obj(v)||!keys(v,['items'],['nextCursor'])||!Array.isArray(v['items'])||v['items'].length>200||(v['nextCursor']!==undefined&&!text(v['nextCursor'],1024)))return fail();const items=v['items'].map(decodeProvider);if(new Set(items.map(p=>p.id)).size!==items.length)return fail();return {items,...(v['nextCursor']?{nextCursor:v['nextCursor'] as string}:{})};}
+export function decodeVersion(v:unknown):Version {if(!obj(v)||!keys(v,['configuration','contentDigest'])||!validDocument(v['configuration'])||!digest(v['contentDigest']))return fail();return v as unknown as Version;}
+export function decodeTest(v:unknown):TestResult {if(!obj(v)||!keys(v,['operationId','state','checks'])||!id(v['operationId'])||!within(v['state'],['queued','running','passed','failed'])||!Array.isArray(v['checks'])||v['checks'].length>5||!v['checks'].every(c=>obj(c)&&keys(c,['name','state','reasonCode'])&&within(c['name'],['tls','service_bind','account_lookup','group_resolution','domain_policy'])&&within(c['state'],['pending','passed','failed'])&&text(c['reasonCode'],96)))return fail();const result=v as unknown as TestResult;if(new Set(result.checks.map(c=>c.name)).size!==result.checks.length||result.state==='passed'&&(result.checks.length!==5||result.checks.some(c=>c.state!=='passed')))return fail();return result;}
+export function decodeOperation(v:unknown):SecurityOperation {
+  if(!obj(v)||!keys(v,['id','family','requestDigest','state','approvalStatus','subjectId','createdBy','createdAt','providerChange'])||!id(v['id'])||v['family']!=='provider_security_change'||!digest(v['requestDigest'])||!within(v['state'],['pending','journaled','applied','rejected','recovery_required'])||!within(v['approvalStatus'],['not_required','pending','approved','rejected','expired'])||!id(v['subjectId'])||!id(v['createdBy'])||!date(v['createdAt']))return fail();
+  const p=v['providerChange'];if(!obj(p)||!keys(p,['providerType','providerId','versionId','contentDigest','guardId','previousGuardVersion','nextGuardVersion','expectedRowVersion','expectedAuthorityEpoch','enabled','expiresAt','reason'])||p['providerType']!=='directory'||!id(p['providerId'])||p['providerId']!==v['subjectId']||!id(p['versionId'])||!digest(p['contentDigest'])||!id(p['guardId'])||!uint(p['previousGuardVersion'])||!uint(p['nextGuardVersion'])||p['nextGuardVersion']==='0'||!uint(p['expectedRowVersion'])||!uint(p['expectedAuthorityEpoch'])||typeof p['enabled']!=='boolean'||!date(p['expiresAt'])||!text(p['reason'],2048))return fail();return v as unknown as SecurityOperation;
+}
+export function decodeAccepted(v:unknown):Accepted {if(!obj(v)||!keys(v,['operationId','resourceId','statusUrl','submittedAt'])||!id(v['operationId'])||!id(v['resourceId'])||v['statusUrl']!=='/api/v2/security/operations/'+v['operationId']||!date(v['submittedAt']))return fail();return v as unknown as Accepted;}
+export interface Approval {approvalId:string;operationId:string;requestDigest:string;approvedBy:string;}
+export function decodeApproval(v:unknown):Approval {if(!obj(v)||!keys(v,['approvalId','operationId','requestDigest','approvedBy'])||!id(v['approvalId'])||!id(v['operationId'])||!digest(v['requestDigest'])||!id(v['approvedBy']))return fail();return v as unknown as Approval;}
+
+export interface DirectoryIdentity {id:string;principalId:string;providerId:string;forestGuid:string;objectGuid:string;authenticatorVersion:string;revoked:boolean;}
+export interface IdentityPage {items:DirectoryIdentity[];nextCursor?:string;}
+export function decodeIdentity(v:unknown):DirectoryIdentity {if(!obj(v)||!keys(v,['id','principalId','providerId','forestGuid','objectGuid','authenticatorVersion','revoked'])||!id(v['id'])||!id(v['principalId'])||!id(v['providerId'])||!uuid(v['forestGuid'])||!uuid(v['objectGuid'])||!uint(v['authenticatorVersion'])||v['authenticatorVersion']==='0'||typeof v['revoked']!=='boolean')return fail();return v as unknown as DirectoryIdentity;}
+export function decodeIdentities(v:unknown):IdentityPage {if(!obj(v)||!keys(v,['items'],['nextCursor'])||!Array.isArray(v['items'])||v['items'].length>200||(v['nextCursor']!==undefined&&!id(v['nextCursor'])))return fail();const items=v['items'].map(decodeIdentity);if(new Set(items.map(x=>x.id)).size!==items.length)return fail();return {items,...(v['nextCursor']?{nextCursor:v['nextCursor'] as string}:{})};}

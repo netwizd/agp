@@ -1,8 +1,16 @@
 # AGP v1.0: инструкция production-развертывания
 
+Историческая инструкция legacy release v1.0. Приведённые ниже команды старого
+интерактивного installer и `git pull` updater не описывают текущие скрипты.
+Установка и обновление из публичных GitHub release assets описаны в
+[актуальном runbook](operations.md#установка-и-обновление-из-github).
+Закреплённый Nginx baseline — 1.30.8; его отдельная установка и квалификация
+описаны в [Nginx рекомендациях](nginx-recommendations.md). Secure S0/S1/WAF pilot
+и его ограничения также описаны в актуальном runbook.
+
 ## Scope
 
-v1.0 - production-ready single-node deployment без Docker:
+Историческая модель v1.0 — single-node deployment без Docker:
 
 - AGP backend работает как systemd service;
 - PostgreSQL используется как production database;
@@ -13,7 +21,7 @@ v1.0 - production-ready single-node deployment без Docker:
 v1.1 зарезервирована для MFA, invite/password setup links, encrypted sensitive
 profile fields и notification workflows.
 
-## Production Baseline
+## Исторический Production Baseline v1.0
 
 Требования:
 
@@ -22,7 +30,7 @@ profile fields и notification workflows.
 - PostgreSQL DB с отдельной ролью `agp`;
 - публичный DNS host портала, например `enter.company.com`;
 - TLS certificate для портала;
-- Nginx, доступный из внешней сети;
+- Nginx stable 1.30.6 с `http_ssl`, `http_v2`, `http_auth_request`, доступный из внешней сети;
 - закрытый backend `127.0.0.1:8080`.
 
 Рекомендуемая файловая структура:
@@ -65,6 +73,16 @@ sudo ./install.sh
 - опционально ставит Nginx config и backup timer.
 
 Firewall не изменяется без явного согласия администратора.
+
+Nginx version закреплён в [`scripts/nginx-toolchain.env`](../scripts/nginx-toolchain.env).
+Явный `NGINX_VERSION` должен совпадать с pin. Nginx setup предназначен для чистого
+host: существующий binary, `/etc/nginx` или целевые APT repository files приводят
+к остановке до установки пакетов. Installer проверяет signing fingerprint и
+использует подписанные APT metadata, выбирает точную package version и проверяет
+обязательные modules. Новая stable не устанавливается автоматически вместо pin.
+При существующем Nginx выберите «no» для его setup и сохраните текущую конфигурацию.
+Историческая проверка package 1.30.6 выполнена на Ubuntu 26.04 amd64; другие packages/architecture
+нуждаются в отдельном native прогоне по [Nginx рекомендациям](nginx-recommendations.md).
 
 ## Ручная Установка
 
@@ -176,6 +194,14 @@ sudo ./update.sh --auto --allow-dirty
 После обновления backend Nginx config не затирается. Если менялся generator,
 нужно заново скопировать bundle из админки, сохранить реальные TLS paths,
 проверить `nginx -t` и выполнить reload.
+
+Обновление Nginx — отдельная операция: проверить signing/provenance точного пакета,
+пройти `scripts/test-nginx.sh` на стенде, сохранить старые package/module versions
+и `/etc/nginx`, подготовить совместимый rollback и согласовать окно production.
+После обновления пакета с сохранением configuration обязательны `nginx -t`,
+контролируемый reload и smoke разрешённого/запрещённого доступа. `install.sh` не
+обновляет существующий Nginx; APT pin меняется вместе с qualification. Подробная
+процедура и границы native suite — [Nginx рекомендации](nginx-recommendations.md).
 
 ## Readiness И Metrics
 

@@ -1,0 +1,22 @@
+{
+  "apiVersion": "agp.waf-zone/v1alpha1",
+  "kind": "WafZone",
+  "metadata": {
+    "id": "zone_external_api",
+    "name": "Внешние production API",
+    "siteId": "site_msk",
+    "ownerId": "usr_security"
+  },
+  "spec": {
+    "policyRevisionId": "waf_api_base_rev_007",
+    "mode": "blocking",
+    "membership": {
+      "matchLabels": {
+        "environment": "production",
+        "exposure": "external",
+        "app_class": "api"
+      }
+    },
+    "reason": "Единая базовая защита внешних production API"
+  }
+}

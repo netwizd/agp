@@ -15,7 +15,10 @@ import (
 	"github.com/netwizd/agp/internal/authz"
 	"github.com/netwizd/agp/internal/diagnostics"
 	"github.com/netwizd/agp/internal/domain"
+	"github.com/netwizd/agp/internal/identity"
 	nginxgen "github.com/netwizd/agp/internal/reverseproxy/nginx"
+	"github.com/netwizd/agp/internal/securityjournal"
+	"github.com/netwizd/agp/internal/securitystate"
 	"github.com/netwizd/agp/internal/storage"
 )
 
@@ -110,17 +113,18 @@ func (s *Server) adminCreateUser(w http.ResponseWriter, r *http.Request, session
 		writeError(w, http.StatusBadRequest, "weak_password")
 		return
 	}
-	user, err := s.store.CreateUser(r.Context(), domain.UserInput{
+	result, err := s.applyIdentityMutation(r, session, storage.IdentityMutation{Kind: storage.IdentityCreateUser, UserInput: domain.UserInput{
 		Username:     username,
 		PasswordHash: passwordHash,
 		DisplayName:  strings.TrimSpace(req.DisplayName),
 		IsAdmin:      req.IsAdmin,
 		GroupIDs:     normalizeIDs(req.GroupIDs),
-	})
+	}})
 	if err != nil {
 		writeStorageError(w, err, "user_create_failed")
 		return
 	}
+	user := result.User
 	s.auditWithMetadata(r, "admin.user.created", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", user.ID, map[string]any{
 		"target_user_id": user.ID,
 		"username":       user.Username,
@@ -171,11 +175,12 @@ func (s *Server) adminUpdateUser(w http.ResponseWriter, r *http.Request, session
 		update.UpdateGroups = true
 		update.GroupIDs = normalizeIDs(*req.GroupIDs)
 	}
-	user, err := s.store.UpdateUser(r.Context(), targetID, update)
+	result, err := s.applyIdentityMutation(r, session, storage.IdentityMutation{Kind: storage.IdentityUpdateUser, ID: targetID, UserUpdate: update})
 	if err != nil {
 		writeStorageError(w, err, "user_update_failed")
 		return
 	}
+	user := result.User
 	changed := map[string]any{}
 	if req.DisplayName != nil {
 		changed["display_name"] = *req.DisplayName
@@ -206,7 +211,7 @@ func (s *Server) adminDeleteUser(w http.ResponseWriter, r *http.Request, session
 		writeError(w, http.StatusBadRequest, "cannot_delete_self")
 		return
 	}
-	if err := s.store.DeleteUser(r.Context(), id); err != nil {
+	if _, err := s.applyIdentityMutation(r, session, storage.IdentityMutation{Kind: storage.IdentityDeleteUser, ID: id}); err != nil {
 		writeStorageError(w, err, "user_delete_failed")
 		return
 	}
@@ -234,11 +239,12 @@ func (s *Server) adminCreateGroup(w http.ResponseWriter, r *http.Request, sessio
 		writeError(w, http.StatusBadRequest, "invalid_group")
 		return
 	}
-	group, err := s.store.CreateGroup(r.Context(), input)
+	result, err := s.applyIdentityMutation(r, session, storage.IdentityMutation{Kind: storage.IdentityCreateGroup, GroupInput: input})
 	if err != nil {
 		writeStorageError(w, err, "group_create_failed")
 		return
 	}
+	group := result.Group
 	s.auditWithMetadata(r, "admin.group.created", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", group.ID, map[string]any{
 		"target_group_id": group.ID,
 		"name":            group.Name,
@@ -257,11 +263,12 @@ func (s *Server) adminUpdateGroup(w http.ResponseWriter, r *http.Request, sessio
 		writeError(w, http.StatusBadRequest, "invalid_group")
 		return
 	}
-	group, err := s.store.UpdateGroup(r.Context(), r.PathValue("id"), input)
+	result, err := s.applyIdentityMutation(r, session, storage.IdentityMutation{Kind: storage.IdentityUpdateGroup, ID: r.PathValue("id"), GroupInput: input})
 	if err != nil {
 		writeStorageError(w, err, "group_update_failed")
 		return
 	}
+	group := result.Group
 	s.auditWithMetadata(r, "admin.group.updated", session.User.ID, session.User.Username, "", s.clientIP(r), r.UserAgent(), "success", group.ID, map[string]any{
 		"target_group_id": group.ID,
 		"name":            group.Name,
@@ -272,7 +279,7 @@ func (s *Server) adminUpdateGroup(w http.ResponseWriter, r *http.Request, sessio
 
 func (s *Server) adminDeleteGroup(w http.ResponseWriter, r *http.Request, session *domain.SessionContext) {
 	id := r.PathValue("id")
-	if err := s.store.DeleteGroup(r.Context(), id); err != nil {
+	if _, err := s.applyIdentityMutation(r, session, storage.IdentityMutation{Kind: storage.IdentityDeleteGroup, ID: id}); err != nil {
 		writeStorageError(w, err, "group_delete_failed")
 		return
 	}
@@ -362,12 +369,16 @@ func (s *Server) adminDeleteResource(w http.ResponseWriter, r *http.Request, ses
 }
 
 func (s *Server) adminResourceNginx(w http.ResponseWriter, r *http.Request, session *domain.SessionContext) {
+	if s.cfg.SecureProfile {
+		writeError(w, http.StatusConflict, "edge_auth_configuration_required")
+		return
+	}
 	resource, err := s.store.FindResourceByID(r.Context(), r.PathValue("id"))
 	if err != nil {
 		writeStorageError(w, err, "resource_get_failed")
 		return
 	}
-	recommendation, err := nginxgen.GenerateResourceServer(*resource, s.cfg.PortalHost)
+	recommendation, err := nginxgen.GenerateResourceServerForProfile(*resource, s.cfg.PortalHost, s.cfg.ManagementOrigin)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "nginx_generation_failed")
 		return
@@ -377,13 +388,17 @@ func (s *Server) adminResourceNginx(w http.ResponseWriter, r *http.Request, sess
 }
 
 func (s *Server) adminNginxBundle(w http.ResponseWriter, r *http.Request, session *domain.SessionContext) {
+	if s.cfg.SecureProfile {
+		writeError(w, http.StatusConflict, "edge_auth_configuration_required")
+		return
+	}
 	resources, err := s.store.ListResources(r.Context())
 	if err != nil {
 		s.logger.Error("admin nginx bundle resources failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "nginx_generation_failed")
 		return
 	}
-	bundle, err := nginxgen.GenerateBundle(resources, s.cfg.PortalHost)
+	bundle, err := nginxgen.GenerateBundleForProfile(resources, s.cfg.PortalHost, s.cfg.ManagementOrigin)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "nginx_generation_failed")
 		return
@@ -481,7 +496,7 @@ func (s *Server) adminRevokeSession(w http.ResponseWriter, r *http.Request, sess
 		writeError(w, http.StatusBadRequest, "cannot_revoke_current_session")
 		return
 	}
-	if err := s.store.RevokeSession(r.Context(), id); err != nil {
+	if _, err := s.applyIdentityMutation(r, session, storage.IdentityMutation{Kind: storage.IdentityRevokeSession, ID: id}); err != nil {
 		writeStorageError(w, err, "session_revoke_failed")
 		return
 	}
@@ -643,6 +658,22 @@ func parseAuditTime(raw string, endOfDay bool) (time.Time, error) {
 
 func writeStorageError(w http.ResponseWriter, err error, fallback string) {
 	switch {
+	case errors.Is(err, identity.ErrDirectoryUnavailable):
+		writeError(w, http.StatusServiceUnavailable, "identity_provider_unavailable")
+	case errors.Is(err, identity.ErrProof), errors.Is(err, identity.ErrExpired):
+		writeError(w, http.StatusForbidden, "permission_required")
+	case errors.Is(err, storage.ErrConfigurationReadOnly):
+		writeError(w, http.StatusConflict, "configuration_revision_required")
+	case errors.Is(err, securitystate.ErrUnavailable), errors.Is(err, securitystate.ErrBarrier), errors.Is(err, securityjournal.ErrUnavailable):
+		writeError(w, http.StatusServiceUnavailable, "security_state_unavailable")
+	case errors.Is(err, storage.ErrInviteRequired):
+		writeError(w, http.StatusForbidden, "invite_required")
+	case errors.Is(err, storage.ErrApprovalRequired):
+		writeError(w, http.StatusForbidden, "approval_required")
+	case errors.Is(err, storage.ErrPermissionDenied):
+		writeError(w, http.StatusForbidden, "permission_required")
+	case errors.Is(err, storage.ErrLastAdmin):
+		writeError(w, http.StatusConflict, "last_active_admin_required")
 	case errors.Is(err, storage.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found")
 	case errors.Is(err, storage.ErrConflict):
@@ -684,6 +715,9 @@ func (s *Server) resourceInputFromCreate(req adminCreateResourceRequest) (domain
 	if publicHost == "" {
 		publicHost = normalizeHostInput(s.cfg.PortalHost)
 	}
+	if err := s.cfg.ValidateResourceHost(publicHost); err != nil {
+		return domain.ResourceInput{}, false
+	}
 	publicPath, ok := normalizePublicPath(req.PublicPath)
 	if !ok {
 		return domain.ResourceInput{}, false
@@ -719,6 +753,11 @@ func (s *Server) resourceUpdateFromRequest(req adminUpdateResourceRequest) (doma
 	if update.PublicHost != nil && *update.PublicHost == "" {
 		defaultHost := normalizeHostInput(s.cfg.PortalHost)
 		update.PublicHost = &defaultHost
+	}
+	if update.PublicHost != nil {
+		if err := s.cfg.ValidateResourceHost(*update.PublicHost); err != nil {
+			return domain.ResourceUpdate{}, false
+		}
 	}
 	if req.PublicPath != nil {
 		publicPath, ok := normalizePublicPath(*req.PublicPath)

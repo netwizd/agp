@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP immutable non-executing plan proposal v1alpha1",
+  "description": "AS-IS planning artifact, canonical JSON at most 32 MiB. Digests, unique target IDs, source closure, time ordering, authority and current permissions require service verification; this schema supplies no execution authorization.",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.plan-proposal/v1alpha1"
+    },
+    "purpose": {
+      "const": "planning_review"
+    },
+    "deployable": {
+      "const": false
+    },
+    "noExecution": {
+      "const": true
+    },
+    "id": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "proposalDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "siteId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "revisionId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "configDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "compilerDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "compilerVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "inventoryDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "catalogSnapshotId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "catalogDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "dependencyDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "previewDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "authorId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "authorityEpoch": {
+      "allOf": [
+        {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        {
+          "not": {
+            "const": "0"
+          }
+        }
+      ]
+    },
+    "createdAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "expiresAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "reason": {
+      "$ref": "shared.schema.json#/$defs/Reason"
+    },
+    "rolloutPolicy": {
+      "$ref": "shared.schema.json#/$defs/RolloutPolicy"
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "capabilityDigest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          },
+          "previewBundleDigest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          },
+          "gatewayIds": {
+            "type": "array",
+            "items": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "minItems": 0,
+            "maxItems": 10000,
+            "uniqueItems": true
+          },
+          "secretVersionIds": {
+            "type": "array",
+            "items": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "minItems": 0,
+            "maxItems": 100,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "nodeId",
+          "capabilityDigest",
+          "previewBundleDigest",
+          "gatewayIds",
+          "secretVersionIds"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 500
+    },
+    "resolvedInputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "access_policy",
+              "waf_policy",
+              "ruleset",
+              "component_profile",
+              "certificate",
+              "policy_profile",
+              "assignment_resolution"
+            ]
+          },
+          "id": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "digest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "digest"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 0,
+      "maxItems": 50000
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "minItems": 4,
+      "uniqueItems": true,
+      "allOf": [
+        {
+          "contains": {
+            "const": "capture_baseline_required"
+          }
+        },
+        {
+          "contains": {
+            "const": "owned_tree_verification_required"
+          }
+        },
+        {
+          "contains": {
+            "const": "node_bundle_qualification_required"
+          }
+        },
+        {
+          "contains": {
+            "const": "execution_authorizer_required"
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "apiVersion",
+    "purpose",
+    "deployable",
+    "noExecution",
+    "id",
+    "proposalDigest",
+    "siteId",
+    "revisionId",
+    "configDigest",
+    "compilerDigest",
+    "compilerVersion",
+    "inventoryDigest",
+    "catalogSnapshotId",
+    "catalogDigest",
+    "dependencyDigest",
+    "previewDigest",
+    "authorId",
+    "authorityEpoch",
+    "createdAt",
+    "expiresAt",
+    "reason",
+    "rolloutPolicy",
+    "targets",
+    "resolvedInputs",
+    "blockers"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Review": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "proposalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "proposalDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "authorId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "reviewerId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "purpose": {
+          "const": "planning_review"
+        },
+        "current": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "reason": {
+          "$ref": "shared.schema.json#/$defs/Reason"
+        }
+      },
+      "required": [
+        "id",
+        "proposalId",
+        "proposalDigest",
+        "authorId",
+        "reviewerId",
+        "purpose",
+        "current",
+        "createdAt",
+        "expiresAt",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "Create": {
+      "type": "object",
+      "properties": {
+        "revisionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "siteId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "targetNodeIds": {
+          "type": "array",
+          "items": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true
+        },
+        "rolloutPolicy": {
+          "$ref": "shared.schema.json#/$defs/RolloutPolicy"
+        },
+        "reason": {
+          "$ref": "shared.schema.json#/$defs/Reason"
+        }
+      },
+      "required": [
+        "revisionId",
+        "siteId",
+        "targetNodeIds",
+        "rolloutPolicy",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "ReviewRequest": {
+      "type": "object",
+      "properties": {
+        "proposalDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "reason": {
+          "$ref": "shared.schema.json#/$defs/Reason"
+        }
+      },
+      "required": [
+        "proposalDigest",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

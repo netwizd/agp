@@ -1,0 +1,15 @@
+{
+  "routeId": "route_api",
+  "field": "paranoiaLevel",
+  "effectiveValue": {
+    "kind": "integer",
+    "value": 2
+  },
+  "source": {
+    "kind": "zone",
+    "id": "zone_rev_7",
+    "redacted": false
+  },
+  "locked": false,
+  "lockedByProfileRevisionId": null
+}

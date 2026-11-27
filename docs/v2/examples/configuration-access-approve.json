@@ -1,0 +1,15 @@
+{
+  "principalId": "user_explicit_approver",
+  "globalRead": true,
+  "globalEdit": false,
+  "globalApprove": true,
+  "authorityEpoch": "1",
+  "sites": [
+    {
+      "siteId": "site_msk",
+      "read": true,
+      "edit": false,
+      "approve": true
+    }
+  ]
+}

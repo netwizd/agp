@@ -1,0 +1,86 @@
+:root {
+  font-family: Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  color: #25334b;
+  background: #f5f7fb;
+  font-size: 14px;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+  --primary: #4359ca;
+  --text: #26344a;
+  --muted: #667085;
+  --line: #e6ebf2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,input,select,textarea {
+  font: inherit;
+}
+
+button,a,input,select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+button,a,input,select,textarea {
+  outline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 3px solid #7588ec;
+  outline-offset: 3px;
+}
+
+button,input,select,textarea {
+  color: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+::selection {
+  background: #dce3ff;
+}
+
+.sr-only {
+  position: absolute!important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media(prefers-reduced-motion:reduce) {
+  *,*::before,*::after {
+    animation-duration: .01ms!important;
+    animation-iteration-count: 1!important;
+    transition: none!important;
+    scroll-behavior: auto!important;
+  }
+
+}

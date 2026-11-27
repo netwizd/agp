@@ -1,0 +1,5 @@
+{
+  "method": "invitation",
+  "token": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "allowedAction": "replace_mfa"
+}

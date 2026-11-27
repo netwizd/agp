@@ -1,0 +1,60 @@
+{
+  "apiVersion": "agp.signed-plan/v1alpha1",
+  "purpose": "planning_review",
+  "keyId": "execution_example",
+  "plan": {
+    "apiVersion": "agp.plan/v1alpha1",
+    "id": "plan_000008",
+    "kind": "apply_config",
+    "siteId": "site_msk",
+    "revisionId": "rev_000017",
+    "createdBy": "usr_editor",
+    "createdAt": "2026-11-14T09:00:00Z",
+    "expiresAt": "2026-11-14T09:30:00Z",
+    "targets": [
+      {
+        "nodeId": "node_msk01",
+        "baseRevisionId": "rev_000016",
+        "expectedNodeDeploymentSequence": "22",
+        "capabilityDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "bundleDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "secretVersionIds": [
+          "cert_portal_v1"
+        ],
+        "baseBundleDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      }
+    ],
+    "rolloutPolicy": {
+      "canaryNodeIds": [
+        "node_msk01"
+      ],
+      "maxParallel": 1,
+      "maxUnavailable": 0,
+      "observationSeconds": 60,
+      "failureAction": "pause"
+    },
+    "compilerVersion": "agp-compiler/0.1.0",
+    "minimumDenySequence": "91",
+    "reason": "Первичная публикация на пилотном узле",
+    "planDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "resolvedInputs": [
+      {
+        "kind": "waf_policy",
+        "id": "waf_balanced_v1",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "kind": "component_profile",
+        "id": "profile_nginx_waf_001",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "kind": "certificate",
+        "id": "cert_portal_v1",
+        "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ],
+    "authorityEpoch": "3"
+  },
+  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+}

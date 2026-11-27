@@ -1,0 +1,52 @@
+{
+  "apiVersion": "agp.catalog/v1alpha1",
+  "id": "catalog_authoring_example",
+  "sourceKind": "operator_declared",
+  "sourceRef": "Documentation example: replace references; not qualification evidence",
+  "recordedAt": "2026-11-18T00:00:00Z",
+  "sites": [
+    {
+      "id": "site_msk"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node_msk01",
+      "siteId": "site_msk",
+      "labels": {
+        "environment": "pilot"
+      },
+      "nodeGroupIds": [],
+      "qualified": true
+    }
+  ],
+  "groups": [
+    "grp_AbCdEf123"
+  ],
+  "inputs": [
+    {
+      "kind": "component_profile",
+      "id": "profile_nginx_waf_001",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "siteId": "site_msk",
+      "state": "published",
+      "baseExceptionCount": 0
+    },
+    {
+      "kind": "certificate",
+      "id": "cert_portal_v1",
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "siteId": "site_msk",
+      "state": "published",
+      "baseExceptionCount": 0
+    },
+    {
+      "kind": "waf_policy",
+      "id": "waf_balanced_v1",
+      "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "siteId": "site_msk",
+      "state": "published",
+      "baseExceptionCount": 0
+    }
+  ]
+}

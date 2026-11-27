@@ -1,0 +1,11 @@
+{
+  "id": "review_example_1",
+  "purpose": "draft_review",
+  "previewId": "zone_preview_example_1",
+  "previewDigest": "sha256:c4d0044351f9e41374e8e5e82bf7a73efc603c8a87092cdab87b094d3eedbc63",
+  "authorId": "user_zone_author",
+  "reviewerId": "user_independent_reviewer",
+  "createdAt": "2026-11-18T16:00:00Z",
+  "expiresAt": "2026-11-18T16:30:00Z",
+  "status": "current"
+}

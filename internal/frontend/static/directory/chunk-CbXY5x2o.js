@@ -1,0 +1,1 @@
+import{_ as I,ft as sf,h as He,yt as x}from"./main-IIQELA2N.js";function w(t){t||(t=I(He));let i=new x(e=>{if(t.destroyed){e.next();return}return t.onDestroy(e.next.bind(e))});return e=>e.pipe(sf(i))}export{w as t};

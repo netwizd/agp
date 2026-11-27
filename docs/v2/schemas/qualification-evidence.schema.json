@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP accepted WAF qualification evidence v1alpha1",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.waf-qualification/v1alpha1"
+    },
+    "profileDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "tupleDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "corpusDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "harnessDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "platform": {
+      "$ref": "release-manifest.schema.json#/properties/signed/properties/platform"
+    },
+    "hostKernel": {
+      "type": "string",
+      "minLength": 1
+    },
+    "startedAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "completedAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "passed": {
+            "const": true
+          }
+        },
+        "required": [
+          "id",
+          "passed"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true
+    },
+    "rendererDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "nativeReportDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "profileDigest",
+    "tupleDigest",
+    "corpusDigest",
+    "harnessDigest",
+    "platform",
+    "hostKernel",
+    "startedAt",
+    "completedAt",
+    "checks",
+    "rendererDigest",
+    "nativeReportDigest"
+  ],
+  "additionalProperties": false,
+  "description": "Shape of accepted signed qualification metadata. The repository verifies the exact RequiredNativeChecks whitelist, timestamps, profile/tuple/platform and complete signed closure including corpus, harness, Go renderer binary and raw native report. Structural validity alone grants no trust; a raw native harness report is a separate document."
+}

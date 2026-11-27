@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP global Configuration snapshot v1alpha2 / fleet-10k",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.config/v1alpha2"
+    },
+    "kind": {
+      "const": "Configuration"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "gateways": {
+      "type": "array",
+      "items": {
+        "$ref": "gateway.schema.json"
+      },
+      "minItems": 0,
+      "maxItems": 10000
+    },
+    "profileAssignments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "profileRevisionId": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "scopeType": {
+            "enum": [
+              "global",
+              "site",
+              "node_group",
+              "node",
+              "route"
+            ]
+          },
+          "scopeId": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          }
+        },
+        "required": [
+          "id",
+          "profileRevisionId",
+          "scopeType"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "scopeType": {
+                  "const": "global"
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "scopeId"
+                ]
+              }
+            },
+            "else": {
+              "required": [
+                "scopeId"
+              ]
+            }
+          }
+        ]
+      },
+      "minItems": 0,
+      "maxItems": 20000
+    },
+    "capacityProfile": {
+      "const": "fleet-10k"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "gateways",
+    "profileAssignments",
+    "capacityProfile"
+  ],
+  "additionalProperties": false,
+  "description": "Accepted TARGET capacity profile. 64 MiB UTF-8 and 100000 total routes are semantic limits checked before allocation; this schema does not certify runtime capacity. Gateway objects retain their v1alpha1 structure. Fleet does not raise the 100 secret versions per node/task limit."
+}

@@ -4,21 +4,25 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AGP</title>
+    <link rel="icon" type="image/png" href="/nlgate-icon.png" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <div class="app-shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-mark" id="brandMark">A</div>
+          <div class="brand-mark company-logo" id="brandMark"><img src="/nlgate-logo.png" alt="НЛГЕЙТ" width="150" height="47" /></div>
           <div>
             <div class="brand-title" id="brandTitle">AGP</div>
             <div class="brand-subtitle" id="brandSubtitle">Auth Gateway Portal</div>
           </div>
         </div>
         <nav class="nav">
-          <button class="nav-link active" data-view="portal">Портал</button>
-          <button class="nav-link" data-view="admin">Администрирование</button>
+          <button class="nav-link hidden" data-view="portal">Портал</button>
+          <button class="nav-link hidden" data-view="admin">Администрирование</button>
+          <a class="nav-link hidden" id="managementLink" rel="noopener noreferrer">Управление AGP</a>
+          <a class="nav-link hidden" id="configurationLink" href="/config-ui/">Конфигурации v2</a>
+          <a class="nav-link hidden" id="directoryLink" href="/directory-ui/">Корпоративные каталоги</a>
         </nav>
         <div class="session-panel" id="sessionPanel"></div>
       </aside>
@@ -30,16 +34,24 @@
             <p id="pageSubtitle">Доступные внутренние ресурсы</p>
           </div>
           <div class="topbar-actions">
-            <button class="secondary" id="showDownloadsButton" type="button">Скачать</button>
+            <button class="secondary hidden" id="showDownloadsButton" type="button">Скачать</button>
             <button class="secondary hidden" id="helpButton" type="button">Помощь</button>
             <span class="identity-badge hidden" id="identityBadge"></span>
             <button class="secondary hidden" id="logoutButton">Выйти</button>
           </div>
         </section>
 
-        <section class="login-view" id="loginView">
+        <section class="content" id="runtimeStatusView" aria-live="polite">
+          <div class="panel runtime-status-panel">
+            <h2 id="runtimeStatusTitle">Загрузка</h2>
+            <p id="runtimeStatusMessage">Проверяем режим портала и активную сессию…</p>
+            <button class="hidden" id="retryBootstrapButton" type="button">Повторить попытку</button>
+          </div>
+        </section>
+
+        <section class="login-view hidden" id="loginView">
           <form class="login-form" id="loginForm">
-            <h2>Вход</h2>
+            <h2 id="loginTitle">Вход</h2>
             <label>
               Логин
               <input name="username" autocomplete="username" required />
@@ -49,7 +61,7 @@
               <input name="password" type="password" autocomplete="current-password" required />
             </label>
             <button type="submit">Войти</button>
-            <div class="form-error" id="loginError"></div>
+            <div class="form-error" id="loginError" role="alert"></div>
           </form>
           <details class="panel public-downloads-panel downloads-disclosure" id="downloadsLoginPanel">
             <summary>Файлы для скачивания</summary>
@@ -83,7 +95,7 @@
         <section class="content hidden" id="accessDeniedView">
           <section class="panel access-denied-panel">
             <h2>Доступ запрещен</h2>
-            <p class="muted">
+            <p class="muted" id="accessDeniedMessage">
               Ресурс не найден или у вашей учетной записи нет разрешения на вход. Для безопасности портал не раскрывает,
               существует ли запрошенная точка входа.
             </p>
@@ -237,6 +249,7 @@
               <div class="section-header">
                 <h2>Пользователи</h2>
               </div>
+              <p class="muted hidden" id="userLifecycleNotice">В этом профиле приглашения и согласование новых административных прав пока недоступны. Можно изменять профиль пользователя и отзывать доступ.</p>
               <form class="compact-form" id="userForm">
                 <input name="username" placeholder="Логин" required />
                 <input name="display_name" placeholder="Отображаемое имя" />

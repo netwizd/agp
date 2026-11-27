@@ -14,8 +14,10 @@ import (
 )
 
 type Prober struct {
-	Timeout time.Duration
-	Policy  NetworkPolicy
+	Timeout     time.Duration
+	Policy      NetworkPolicy
+	lookupHost  func(context.Context, string) ([]string, error)
+	dialContext func(context.Context, string, string) (net.Conn, error)
 }
 
 type NetworkPolicy struct {
@@ -69,30 +71,51 @@ func (p Prober) ProbeResource(ctx context.Context, resource domain.ResourceDetai
 		InternalURL: resource.InternalURL,
 	}
 
-	ips, dnsResult := resolveHost(ctx, host)
+	lookup := p.lookupHost
+	if lookup == nil {
+		lookup = net.DefaultResolver.LookupHost
+	}
+	ips, dnsResult := resolveHostWith(ctx, host, lookup)
 	result.DNS = dnsResult
-	if dnsResult.OK {
-		if err := p.Policy.Allows(ips); err != nil {
-			result.TCP = domain.CheckResult{
-				OK:       false,
-				Target:   net.JoinHostPort(host, port),
-				Detail:   err.Error(),
-				Duration: 0,
-			}
-			result.HTTP = domain.CheckResult{
-				OK:       false,
-				Target:   parsed.String(),
-				Detail:   "skipped because diagnostics network policy blocked the target",
-				Duration: 0,
-			}
-			result.TotalDuration = time.Since(start)
-			return result, nil
+	policyErr := p.Policy.Allows(ips)
+	if !dnsResult.OK || policyErr != nil {
+		detail := "skipped because DNS resolution failed"
+		if dnsResult.OK {
+			detail = policyErr.Error()
 		}
+		result.TCP = domain.CheckResult{Target: net.JoinHostPort(host, port), Detail: detail}
+		result.HTTP = domain.CheckResult{Target: parsed.String(), Detail: "skipped because DNS or diagnostics network policy blocked the target"}
+		result.TotalDuration = time.Since(start)
+		return result, nil
 	}
 
-	result.TCP = checkTCP(ctx, net.JoinHostPort(host, port), timeout)
+	dial := p.dialContext
+	if dial == nil {
+		dial = (&net.Dialer{Timeout: timeout}).DialContext
+	}
+	// Both probes use only this validated resolution. Keep the URL authority intact
+	// so HTTP Host and HTTPS certificate verification/SNI still use the hostname.
+	pinnedDial := func(ctx context.Context, network, address string) (net.Conn, error) {
+		dialHost, dialPort, err := net.SplitHostPort(address)
+		if err != nil || !strings.EqualFold(dialHost, host) || dialPort != port {
+			return nil, fmt.Errorf("diagnostics dial target differs from validated authority")
+		}
+		var lastErr error
+		for _, ip := range ips {
+			conn, err := dial(ctx, network, net.JoinHostPort(ip.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+			lastErr = err
+			if ctx.Err() != nil {
+				break
+			}
+		}
+		return nil, lastErr
+	}
+	result.TCP = checkTCP(ctx, net.JoinHostPort(host, port), pinnedDial)
 	if result.TCP.OK {
-		result.HTTP = checkHTTP(ctx, parsed.String(), timeout)
+		result.HTTP = checkHTTP(ctx, parsed.String(), timeout, pinnedDial)
 	} else {
 		result.HTTP = domain.CheckResult{
 			OK:     false,
@@ -110,8 +133,12 @@ func checkDNS(ctx context.Context, host string) domain.CheckResult {
 }
 
 func resolveHost(ctx context.Context, host string) ([]net.IP, domain.CheckResult) {
+	return resolveHostWith(ctx, host, net.DefaultResolver.LookupHost)
+}
+
+func resolveHostWith(ctx context.Context, host string, lookup func(context.Context, string) ([]string, error)) ([]net.IP, domain.CheckResult) {
 	start := time.Now()
-	addrs, err := net.DefaultResolver.LookupHost(ctx, host)
+	addrs, err := lookup(ctx, host)
 	if err != nil {
 		return nil, domain.CheckResult{
 			OK:       false,
@@ -127,7 +154,7 @@ func resolveHost(ctx context.Context, host string) ([]net.IP, domain.CheckResult
 		}
 	}
 	return ips, domain.CheckResult{
-		OK:       true,
+		OK:       len(ips) > 0,
 		Target:   host,
 		Detail:   fmt.Sprintf("%d address(es): %v", len(addrs), addrs),
 		Duration: time.Since(start),
@@ -179,10 +206,9 @@ func cidrsContain(networks []*net.IPNet, ip net.IP) bool {
 	return false
 }
 
-func checkTCP(ctx context.Context, address string, timeout time.Duration) domain.CheckResult {
+func checkTCP(ctx context.Context, address string, dial func(context.Context, string, string) (net.Conn, error)) domain.CheckResult {
 	start := time.Now()
-	dialer := net.Dialer{Timeout: timeout}
-	conn, err := dialer.DialContext(ctx, "tcp", address)
+	conn, err := dial(ctx, "tcp", address)
 	if err != nil {
 		return domain.CheckResult{
 			OK:       false,
@@ -200,10 +226,19 @@ func checkTCP(ctx context.Context, address string, timeout time.Duration) domain
 	}
 }
 
-func checkHTTP(ctx context.Context, rawURL string, timeout time.Duration) domain.CheckResult {
+func checkHTTP(ctx context.Context, rawURL string, timeout time.Duration, dial func(context.Context, string, string) (net.Conn, error)) domain.CheckResult {
 	start := time.Now()
+	transport := &http.Transport{
+		Proxy:                 nil,
+		DialContext:           dial,
+		TLSHandshakeTimeout:   timeout,
+		ResponseHeaderTimeout: timeout,
+		DisableKeepAlives:     true,
+	}
+	defer transport.CloseIdleConnections()
 	client := http.Client{
-		Timeout: timeout,
+		Timeout:   timeout,
+		Transport: transport,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},

@@ -1,0 +1,31 @@
+{
+  "apiVersion": "agp.sbom/v1alpha1",
+  "files": [
+    {
+      "path": "lib/ld-linux-x86-64.so.2",
+      "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "license": "TEST-ONLY",
+      "unexpected": true
+    },
+    {
+      "path": "bin/nginx",
+      "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "license": "TEST-ONLY"
+    },
+    {
+      "path": "modules/ngx_http_modsecurity_module.so",
+      "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "license": "TEST-ONLY"
+    },
+    {
+      "path": "share/modsecurity/unicode.mapping",
+      "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "license": "TEST-ONLY"
+    },
+    {
+      "path": "share/crs/rules/REQUEST-901-INITIALIZATION.conf",
+      "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "license": "TEST-ONLY"
+    }
+  ]
+}

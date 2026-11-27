@@ -92,8 +92,9 @@ p {
 
 .brand {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .brand-mark {
@@ -112,6 +113,20 @@ p {
   font-size: 18px;
 }
 
+.brand-mark.company-logo {
+  width: 174px;
+  height: 64px;
+  padding: 8px 12px;
+  background: #182238;
+}
+
+.company-logo img {
+  display: block;
+  width: 150px;
+  height: auto;
+  max-width: 100%;
+}
+
 .brand-subtitle,
 .muted {
   color: var(--muted);
@@ -123,6 +138,10 @@ p {
 }
 
 .nav-link {
+  display: block;
+  text-decoration: none;
+  padding: 10px 14px;
+  border-radius: 6px;
   width: 100%;
   text-align: left;
   background: transparent;
@@ -206,6 +225,17 @@ p {
   padding: 24px;
   display: grid;
   gap: 16px;
+}
+
+[data-runtime-mode="management"] .login-view {
+  grid-template-columns: minmax(280px, 420px);
+}
+
+.runtime-status-panel {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  max-width: 640px;
 }
 
 .public-downloads-panel {
@@ -746,4 +776,8 @@ input:disabled {
     justify-content: flex-start;
     flex-wrap: wrap;
   }
+}
+
+.snippet a {
+  color: #8ec5ff;
 }

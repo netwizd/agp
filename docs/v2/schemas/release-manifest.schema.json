@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP signed release manifest v1alpha1",
+  "type": "object",
+  "properties": {
+    "signed": {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "const": "agp.release/v1alpha1"
+        },
+        "releaseId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "sequence": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "createdAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "platform": {
+          "type": "object",
+          "properties": {
+            "os": {
+              "type": "string",
+              "enum": [
+                "ubuntu"
+              ]
+            },
+            "osVersion": {
+              "type": "string",
+              "enum": [
+                "24.04"
+              ]
+            },
+            "arch": {
+              "type": "string",
+              "enum": [
+                "amd64"
+              ]
+            }
+          },
+          "required": [
+            "os",
+            "osVersion",
+            "arch"
+          ],
+          "additionalProperties": false
+        },
+        "compatibilityProfile": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "digest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            }
+          },
+          "required": [
+            "id",
+            "digest"
+          ],
+          "additionalProperties": false
+        },
+        "minimumAgentProtocol": {
+          "const": "agp.task/v1alpha1"
+        },
+        "securityFloor": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256,
+                "pattern": "^objects/[0-9a-f]{64}$"
+              },
+              "length": {
+                "$ref": "shared.schema.json#/$defs/UInt63"
+              },
+              "sha256": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "mediaType": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "path",
+              "length",
+              "sha256",
+              "mediaType"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 1000
+        },
+        "dependencyClosureDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "sbomDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "releaseId",
+        "sequence",
+        "createdAt",
+        "expiresAt",
+        "platform",
+        "compatibilityProfile",
+        "minimumAgentProtocol",
+        "securityFloor",
+        "artifacts",
+        "dependencyClosureDigest",
+        "sbomDigest"
+      ],
+      "additionalProperties": false
+    },
+    "signatures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "keyId": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "algorithm": {
+            "const": "ed25519"
+          },
+          "sig": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 88,
+            "pattern": "^[A-Za-z0-9+/]{86}==$"
+          }
+        },
+        "required": [
+          "keyId",
+          "algorithm",
+          "sig"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 8
+    }
+  },
+  "required": [
+    "signed",
+    "signatures"
+  ],
+  "additionalProperties": false
+}

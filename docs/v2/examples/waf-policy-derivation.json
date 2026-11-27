@@ -1,0 +1,6 @@
+{
+  "gatewayId": "gw_api",
+  "sourceConfigRevisionId": "config_7",
+  "zoneRevisionId": "zone_rev_7",
+  "basePolicyRevisionId": "waf_api_v7"
+}

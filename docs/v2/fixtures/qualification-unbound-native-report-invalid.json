@@ -1,0 +1,74 @@
+{
+  "apiVersion": "agp.waf-qualification/v1alpha1",
+  "profileDigest": "sha256:5108e42615fa8fd2200955949114e224f905b5dfdd4f1bb8fd2df955b9feeeda",
+  "tupleDigest": "sha256:c00fa9806395e873cc22a057b03bd5f7ce799af024eb27f3bc8085e15040e730",
+  "corpusDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "harnessDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "platform": {
+    "os": "ubuntu",
+    "osVersion": "24.04",
+    "arch": "amd64"
+  },
+  "hostKernel": "synthetic-contract-only",
+  "startedAt": "2026-11-18T12:00:00Z",
+  "completedAt": "2026-11-18T12:01:00Z",
+  "checks": [
+    {
+      "id": "nginx_config_valid",
+      "passed": true
+    },
+    {
+      "id": "benign_allow",
+      "passed": true
+    },
+    {
+      "id": "detection_logs_attack",
+      "passed": true
+    },
+    {
+      "id": "blocking_query",
+      "passed": true
+    },
+    {
+      "id": "blocking_urlencoded",
+      "passed": true
+    },
+    {
+      "id": "blocking_json",
+      "passed": true
+    },
+    {
+      "id": "blocking_multipart",
+      "passed": true
+    },
+    {
+      "id": "response_body",
+      "passed": true
+    },
+    {
+      "id": "neighbour_isolation",
+      "passed": true
+    },
+    {
+      "id": "invalid_config_rejected",
+      "passed": true
+    },
+    {
+      "id": "raw_directive_rejected",
+      "passed": true
+    },
+    {
+      "id": "expired_exception_rejected",
+      "passed": true
+    },
+    {
+      "id": "threshold_effect",
+      "passed": true
+    },
+    {
+      "id": "paranoia_effect",
+      "passed": true
+    }
+  ],
+  "rendererDigest": "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+}

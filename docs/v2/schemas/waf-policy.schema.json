@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP immutable WAF policy v1alpha1",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.waf/v1alpha1"
+    },
+    "kind": {
+      "const": "WafPolicy"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "siteId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "siteId"
+      ],
+      "additionalProperties": false
+    },
+    "spec": {
+      "type": "object",
+      "properties": {
+        "engine": {
+          "const": "modsecurity"
+        },
+        "rulesetVersionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "paranoiaLevel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        "inboundAnomalyThreshold": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "outboundAnomalyThreshold": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "exceptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              },
+              "routeId": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              },
+              "ruleIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 6,
+                  "maxLength": 9,
+                  "pattern": "^[0-9]{6,9}$"
+                },
+                "minItems": 1,
+                "maxItems": 50,
+                "uniqueItems": true
+              },
+              "match": {
+                "type": "object",
+                "properties": {
+                  "field": {
+                    "type": "string",
+                    "enum": [
+                      "query_arg",
+                      "header",
+                      "cookie",
+                      "body_field"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[A-Za-z0-9_.-]+$"
+                  }
+                },
+                "required": [
+                  "field",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              "ownerId": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              },
+              "reason": {
+                "$ref": "shared.schema.json#/$defs/Reason"
+              },
+              "reviewAt": {
+                "$ref": "shared.schema.json#/$defs/UtcTime"
+              },
+              "expiresAt": {
+                "$ref": "shared.schema.json#/$defs/UtcTime"
+              }
+            },
+            "required": [
+              "id",
+              "routeId",
+              "ruleIds",
+              "match",
+              "ownerId",
+              "reason",
+              "reviewAt",
+              "expiresAt"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 0,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "engine",
+        "rulesetVersionId",
+        "paranoiaLevel",
+        "inboundAnomalyThreshold",
+        "outboundAnomalyThreshold",
+        "exceptions"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false
+}

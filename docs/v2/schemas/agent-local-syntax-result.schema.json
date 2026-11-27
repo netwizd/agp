@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP standalone local syntax result (not TaskReceipt)",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.agent-local-syntax-result/v1alpha1"
+    },
+    "id": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "requestId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "authorityEpoch": {
+      "allOf": [
+        {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        {
+          "not": {
+            "const": "0"
+          }
+        }
+      ]
+    },
+    "nodeDeploymentSequence": {
+      "const": "0"
+    },
+    "requestDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "capabilityDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "policyDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "pins": {
+      "type": "object",
+      "properties": {
+        "manifestDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "profileDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "tupleDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "evidenceDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "rendererDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        }
+      },
+      "required": [
+        "manifestDigest",
+        "profileDigest",
+        "tupleDigest",
+        "evidenceDigest",
+        "rendererDigest"
+      ],
+      "additionalProperties": false
+    },
+    "state": {
+      "enum": [
+        "validated",
+        "rejected",
+        "failed"
+      ]
+    },
+    "nativeSyntaxOnly": {
+      "const": true
+    },
+    "executionLocation": {
+      "const": "local_process"
+    },
+    "isolation": {
+      "const": "unprivileged_private_workspace"
+    },
+    "createdAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "recordedAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "errorCode": {
+      "type": "string",
+      "description": "Fixed safe outcome or staging code; never native output, a path or request content.",
+      "pattern": "^(native_syntax_rejected|precondition_changed|operation_unsupported|validation_failed|(journal_head_unavailable|resource_limits_required|execution_identity_rejected|workspace_parent_rejected|workspace_create_failed|runtime_directory_failed|runtime_stage_failed|renderer_stage_failed|input_stage_failed|config_stage_failed|workspace_owner_failed|rendered_policy_stage_failed|rendered_policy_owner_failed)(_(permission|space|exists|file_limit|quota|descriptors|io|memory|readonly|short_write))?)$"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "id",
+    "requestId",
+    "authorityEpoch",
+    "nodeDeploymentSequence",
+    "requestDigest",
+    "capabilityDigest",
+    "policyDigest",
+    "pins",
+    "state",
+    "nativeSyntaxOnly",
+    "executionLocation",
+    "isolation",
+    "createdAt",
+    "recordedAt"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "validated"
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "errorCode"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "errorCode"
+        ]
+      }
+    }
+  ]
+}

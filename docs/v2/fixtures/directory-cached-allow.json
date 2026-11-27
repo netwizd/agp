@@ -1,0 +1,42 @@
+{
+  "apiVersion": "agp.identity/v1alpha1",
+  "kind": "DirectoryProvider",
+  "metadata": {
+    "id": "dir_corp",
+    "versionId": "dirver_1",
+    "securityGuardId": "guard_dir_corp",
+    "securityGuardVersion": "1"
+  },
+  "spec": {
+    "forestGuid": "00000000-0000-0000-0000-000000000001",
+    "domainDns": "corp.example.net",
+    "transport": "ldaps",
+    "endpoints": [
+      {
+        "host": "dc01.corp.example.net",
+        "port": 636
+      }
+    ],
+    "userBaseDns": [
+      "OU=People,DC=corp,DC=example,DC=net"
+    ],
+    "groupBaseDns": [
+      "OU=Groups,DC=corp,DC=example,DC=net"
+    ],
+    "bindDn": "CN=agp-reader,OU=Service,DC=corp,DC=example,DC=net",
+    "bindSecretVersionId": "sec_ad_reader_1",
+    "caSecretVersionId": "sec_ad_ca_1",
+    "loginAttribute": "userPrincipalName",
+    "provisioning": "preprovisioned",
+    "groupResolution": "token_groups_security",
+    "accountCheck": "cached_allow",
+    "operationTimeoutSeconds": 3,
+    "maximumGroups": 2048,
+    "groupMappings": [
+      {
+        "groupObjectGuid": "00000000-0000-0000-0000-000000000002",
+        "accessGroupId": "grp_portal"
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "apiVersion": "agp.helper-execution-receipt/v1alpha1",
+  "purpose": "local_execution_outcome",
+  "receiptId": "receipt_fixture",
+  "receiptSequence": "1",
+  "nodeId": "node_fixture",
+  "taskId": "task_fixture",
+  "requestDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "nodeDeploymentSequence": "9",
+  "active": {
+    "baseline": {
+      "revisionId": "revision_fixture",
+      "bundleDigest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "nodeDeploymentSequence": "9"
+    },
+    "generationId": "generation_fixture",
+    "treeDigest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "state": "succeeded",
+  "recoveryRequired": false,
+  "recordedAt": "2026-11-25T00:00:00Z",
+  "keyId": "helper_fixture",
+  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+}

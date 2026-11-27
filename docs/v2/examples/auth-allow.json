@@ -1,0 +1,9 @@
+{
+  "decision": "allow",
+  "reasonCode": "allowed",
+  "userId": "usr_editor",
+  "groupIds": [
+    "grp_AbCdEf123"
+  ],
+  "securitySequence": "91"
+}

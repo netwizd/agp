@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP component profile v1alpha1",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.component-profile/v1alpha1"
+    },
+    "id": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "platform": {
+      "$ref": "release-manifest.schema.json#/properties/signed/properties/platform"
+    },
+    "tuple": {
+      "type": "object",
+      "properties": {
+        "nginx": {
+          "type": "string",
+          "minLength": 1
+        },
+        "connector": {
+          "type": "string",
+          "minLength": 1
+        },
+        "libmodsecurity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "crs": {
+          "type": "string",
+          "minLength": 1
+        },
+        "buildFlags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^[^\\u0000\\r\\n]+$"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "abiDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        }
+      },
+      "required": [
+        "nginx",
+        "connector",
+        "libmodsecurity",
+        "crs",
+        "buildFlags",
+        "abiDigest"
+      ],
+      "additionalProperties": false
+    },
+    "rulesetVersionId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "format": "agp-relativepath"
+          },
+          "digest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          }
+        },
+        "required": [
+          "path",
+          "digest"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 1000
+    },
+    "loaderPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "format": "agp-relativepath"
+    },
+    "nginxPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "format": "agp-relativepath"
+    },
+    "modulePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "format": "agp-relativepath"
+    },
+    "unicodePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "format": "agp-relativepath"
+    },
+    "rulesPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "format": "agp-relativepath"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "id",
+    "platform",
+    "tuple",
+    "rulesetVersionId",
+    "files",
+    "loaderPath",
+    "nginxPath",
+    "modulePath",
+    "unicodePath",
+    "rulesPath"
+  ],
+  "additionalProperties": false,
+  "description": "Closed repository metadata. Runtime verification also requires unique file paths, complete CAS objects, required loader/nginx/module/unicode files and a nonempty rules subtree. A profile alone is not native qualification evidence."
+}

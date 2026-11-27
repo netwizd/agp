@@ -5,14 +5,38 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/netwizd/agp/internal/domain"
+	"github.com/netwizd/agp/internal/origin"
 )
 
 type Config struct {
 	HTTPAddr                 string
 	PortalHost               string
+	ManagementOrigin         string
+	SecureProfile            bool
+	ConfigurationEnabled     bool
+	PlanReviewKeyID          string
+	PlanReviewKeyFile        string
+	LoginOrigin              string
+	MFAKeyFile               string
+	AuthMTLSAddr             string
+	AuthMTLSCertFile         string
+	AuthMTLSKeyFile          string
+	AuthMTLSClientCAFile     string
+	AgentMTLSAddr            string
+	AgentMTLSCertFile        string
+	AgentMTLSKeyFile         string
+	AgentMTLSClientCAFile    string
+	AgentRegistryFile        string
+	NodeIdentityConfig       string
+	EnrollmentTLSAddr        string
+	EnrollmentTLSCertFile    string
+	EnrollmentTLSKeyFile     string
 	DatabaseDriver           string
 	DatabasePath             string
 	DatabaseDSN              string
@@ -51,6 +75,26 @@ func Load() (Config, error) {
 	cfg := Config{
 		HTTPAddr:                 envString("AGP_HTTP_ADDR", "127.0.0.1:8080"),
 		PortalHost:               envString("AGP_PORTAL_HOST", "portal.company.ru"),
+		ManagementOrigin:         envString("AGP_MANAGEMENT_ORIGIN", ""),
+		SecureProfile:            envBool("AGP_SECURE_PROFILE", false),
+		ConfigurationEnabled:     envBool("AGP_CONFIGURATION_ENABLED", false),
+		PlanReviewKeyID:          envString("AGP_PLAN_REVIEW_KEY_ID", ""),
+		PlanReviewKeyFile:        envString("AGP_PLAN_REVIEW_KEY_FILE", ""),
+		LoginOrigin:              envString("AGP_LOGIN_ORIGIN", ""),
+		MFAKeyFile:               envString("AGP_MFA_KEYRING_FILE", envString("AGP_MFA_KEY_FILE", "")),
+		AuthMTLSAddr:             envString("AGP_AUTH_MTLS_ADDR", "127.0.0.1:8444"),
+		AuthMTLSCertFile:         envString("AGP_AUTH_MTLS_CERT_FILE", ""),
+		AuthMTLSKeyFile:          envString("AGP_AUTH_MTLS_KEY_FILE", ""),
+		AuthMTLSClientCAFile:     envString("AGP_AUTH_MTLS_CLIENT_CA_FILE", ""),
+		AgentMTLSAddr:            envString("AGP_AGENT_MTLS_ADDR", ""),
+		AgentMTLSCertFile:        envString("AGP_AGENT_MTLS_CERT_FILE", ""),
+		AgentMTLSKeyFile:         envString("AGP_AGENT_MTLS_KEY_FILE", ""),
+		AgentMTLSClientCAFile:    envString("AGP_AGENT_MTLS_CLIENT_CA_FILE", ""),
+		AgentRegistryFile:        envString("AGP_AGENT_REGISTRY_FILE", ""),
+		NodeIdentityConfig:       envString("AGP_NODE_IDENTITY_CONFIG", ""),
+		EnrollmentTLSAddr:        envString("AGP_ENROLLMENT_TLS_ADDR", ""),
+		EnrollmentTLSCertFile:    envString("AGP_ENROLLMENT_TLS_CERT_FILE", ""),
+		EnrollmentTLSKeyFile:     envString("AGP_ENROLLMENT_TLS_KEY_FILE", ""),
 		DatabaseDriver:           envString("AGP_DATABASE_DRIVER", "postgres"),
 		DatabasePath:             envString("AGP_DATABASE_PATH", "./agp.db"),
 		DatabaseDSN:              envString("AGP_DATABASE_DSN", "postgres://agp:agp@127.0.0.1:5432/agp?sslmode=disable"),
@@ -129,6 +173,21 @@ func Load() (Config, error) {
 	}
 	if cfg.DownloadMaxBytes <= 0 {
 		return Config{}, errors.New("AGP_DOWNLOAD_MAX_BYTES must be positive")
+	}
+	if err := cfg.ValidateSecure(); err != nil {
+		return Config{}, err
+	}
+	if file := os.Getenv("AGP_EMAIL_CONFIG_FILE"); file != "" && (!cfg.SecureProfile || !filepath.IsAbs(file) || filepath.Clean(file) != file) {
+		return Config{}, errors.New("AGP_EMAIL_CONFIG_FILE requires the secure profile and an absolute protected configuration path")
+	}
+	if file := os.Getenv("AGP_OIDC_CONNECTOR_FILE"); file != "" && (!cfg.SecureProfile || !filepath.IsAbs(file) || filepath.Clean(file) != file) {
+		return Config{}, errors.New("AGP_OIDC_CONNECTOR_FILE requires the secure profile and an absolute protected configuration path")
+	}
+	if err := cfg.ValidateManagement(); err != nil {
+		return Config{}, err
+	}
+	if err := cfg.ValidateAgent(); err != nil {
+		return Config{}, err
 	}
 	return cfg, nil
 }
@@ -213,4 +272,86 @@ func envDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return parsed
+}
+
+func (cfg Config) ValidateManagement() error {
+	if cfg.ManagementOrigin == "" {
+		return nil
+	}
+	if _, err := origin.HTTPS(cfg.ManagementOrigin); err != nil {
+		return fmt.Errorf("AGP_MANAGEMENT_ORIGIN: %w", err)
+	}
+	if !cfg.CookieSecure {
+		return errors.New("AGP_COOKIE_SECURE must be true with AGP_MANAGEMENT_ORIGIN")
+	}
+	managementHost, _ := origin.Hostname(strings.TrimPrefix(cfg.ManagementOrigin, "https://"))
+	portalHost, err := origin.Hostname(cfg.PortalHost)
+	if err != nil {
+		return fmt.Errorf("AGP_PORTAL_HOST: %w", err)
+	}
+	if managementHost == portalHost {
+		return errors.New("management and portal must use different hostnames")
+	}
+	if cfg.SessionCookieName == domain.ManagementSessionCookieName || cfg.SessionCookieName == domain.ManagementCSRFCookieName || cfg.CSRFCookieName == domain.ManagementSessionCookieName || cfg.CSRFCookieName == domain.ManagementCSRFCookieName {
+		return errors.New("legacy cookies must not use reserved management cookie names")
+	}
+	return nil
+}
+
+func (cfg Config) SessionProfile() domain.SessionProfile {
+	portalHost := cfg.PortalHost
+	if normalized, err := origin.Authority(portalHost); err == nil {
+		portalHost = normalized
+	}
+	return domain.SessionProfile{SecureProfile: cfg.SecureProfile, LoginOrigin: cfg.LoginOrigin, PortalHost: portalHost, ManagementOrigin: cfg.ManagementOrigin, SessionCookieName: cfg.SessionCookieName, CSRFCookieName: cfg.CSRFCookieName}
+}
+
+func (cfg Config) ValidateResourceHost(host string) error {
+	if cfg.ManagementOrigin == "" {
+		return nil
+	}
+	managementHost, _ := origin.Hostname(strings.TrimPrefix(cfg.ManagementOrigin, "https://"))
+	loginHost, _ := origin.Hostname(strings.TrimPrefix(cfg.LoginOrigin, "https://"))
+	resourceHost, err := origin.Hostname(host)
+	if err != nil {
+		return fmt.Errorf("invalid resource hostname: %w", err)
+	}
+	if resourceHost == managementHost || (cfg.SecureProfile && resourceHost == loginHost) {
+		return errors.New("resource hostname is reserved for management")
+	}
+	return nil
+}
+
+func (cfg Config) ValidateSecure() error {
+	if (cfg.PlanReviewKeyID == "") != (cfg.PlanReviewKeyFile == "") {
+		return errors.New("plan review signing requires both key ID and private key file")
+	}
+	if cfg.PlanReviewKeyFile != "" && (!cfg.ConfigurationEnabled || !cfg.SecureProfile) {
+		return errors.New("plan review signing requires the secure configuration profile")
+	}
+	if cfg.ConfigurationEnabled && !cfg.SecureProfile {
+		return errors.New("AGP_CONFIGURATION_ENABLED requires AGP_SECURE_PROFILE")
+	}
+	if !cfg.SecureProfile {
+		return nil
+	}
+	if cfg.DatabaseDriver != "postgres" {
+		return errors.New("secure profile requires PostgreSQL")
+	}
+	if cfg.ManagementOrigin == "" || cfg.LoginOrigin == "" || !cfg.CookieSecure {
+		return errors.New("secure profile requires secure management and login origins")
+	}
+	if _, err := origin.HTTPS(cfg.LoginOrigin); err != nil {
+		return fmt.Errorf("AGP_LOGIN_ORIGIN: %w", err)
+	}
+	loginHost, _ := origin.Hostname(strings.TrimPrefix(cfg.LoginOrigin, "https://"))
+	managementHost, _ := origin.Hostname(strings.TrimPrefix(cfg.ManagementOrigin, "https://"))
+	portalHost, err := origin.Hostname(cfg.PortalHost)
+	if err != nil || loginHost == managementHost || loginHost == portalHost {
+		return errors.New("login, management and portal/app hostnames must differ")
+	}
+	if cfg.MFAKeyFile == "" || cfg.AuthMTLSAddr == "" || cfg.AuthMTLSCertFile == "" || cfg.AuthMTLSKeyFile == "" || cfg.AuthMTLSClientCAFile == "" {
+		return errors.New("secure profile requires external MFA keyring and real Auth mTLS listener configuration")
+	}
+	return nil
 }

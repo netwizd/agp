@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP approved immutable OIDC to AD association",
+  "$ref": "#/$defs/LinkView",
+  "$defs": {
+    "LinkView": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "providerId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "description": "Exact case-sensitive issuer subject; never trim, case-fold or Unicode-normalize. No email/UPN matching. Service enforces valid UTF-8, no control characters and at most 255 UTF-8 bytes."
+        },
+        "securityGuardId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "revision": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "configuration": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LinkVersion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "providerId",
+        "subject",
+        "securityGuardId",
+        "revision",
+        "enabled",
+        "configuration"
+      ],
+      "additionalProperties": false
+    },
+    "LinkVersion": {
+      "type": "object",
+      "description": "Immutable association content. contentDigest is SHA-256 of JCS of this object excluding contentDigest itself. The version is staged before approval and becomes active only through the exact authorized LinkChange projection.",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "linkId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "securityGuardVersion": {
+          "allOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            {
+              "not": {
+                "const": "0"
+              }
+            }
+          ]
+        },
+        "directoryIdentityId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "principalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "contentDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        }
+      },
+      "required": [
+        "id",
+        "linkId",
+        "securityGuardVersion",
+        "directoryIdentityId",
+        "principalId",
+        "contentDigest"
+      ],
+      "additionalProperties": false
+    },
+    "LinkChange": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "providerVersionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "providerGuardVersion": {
+          "allOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            {
+              "not": {
+                "const": "0"
+              }
+            }
+          ]
+        },
+        "linkId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "versionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "contentDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "guardId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "previousGuardVersion": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "nextGuardVersion": {
+          "allOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            {
+              "not": {
+                "const": "0"
+              }
+            }
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "description": "Exact case-sensitive issuer subject; never trim, case-fold or Unicode-normalize. No email/UPN matching. Service enforces valid UTF-8, no control characters and at most 255 UTF-8 bytes."
+        },
+        "directoryIdentityId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "directoryProviderVersionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "directoryAuthenticatorVersion": {
+          "allOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            {
+              "not": {
+                "const": "0"
+              }
+            }
+          ]
+        },
+        "targetPrincipalId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "expectedSecurityVersion": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "expectedRowVersion": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "expectedAuthorityEpoch": {
+          "allOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            {
+              "not": {
+                "const": "0"
+              }
+            }
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "providerId",
+        "providerVersionId",
+        "providerGuardVersion",
+        "linkId",
+        "versionId",
+        "contentDigest",
+        "guardId",
+        "previousGuardVersion",
+        "nextGuardVersion",
+        "subject",
+        "directoryIdentityId",
+        "directoryProviderVersionId",
+        "directoryAuthenticatorVersion",
+        "targetPrincipalId",
+        "expectedSecurityVersion",
+        "expectedRowVersion",
+        "expectedAuthorityEpoch",
+        "enabled",
+        "expiresAt",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "description": "Server-owned immutable intent. JCS requestDigest covers every field including enabled/target. Subject and provider never change for a link. Enabled target is resolved only from a current existing DirectoryIdentity. Stable guard is a reserved service subject, independent of target; floor uses guardId/guardId. Every initial link, successor/relink, disable and re-enable requires distinct human approval, fresh primary+MFA and current actor permissions/epoch/floors before barrier -> durable guard floor -> exact CAS projection. Enabled=true additionally requires current target/provider/directory/principal floors and bounded live AD proof collected outside the DB writer and revalidated against the final current journal head. Enabled=false cannot change the target and does not depend on a successful live read of that target. Deny journal never materializes a positive link."
+    },
+    "LinkCreate": {
+      "type": "object",
+      "properties": {
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "description": "Exact case-sensitive issuer subject; never trim, case-fold or Unicode-normalize. No email/UPN matching. Service enforces valid UTF-8, no control characters and at most 255 UTF-8 bytes."
+        },
+        "directoryIdentityId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "subject",
+        "directoryIdentityId",
+        "expiresAt",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "LinkSuccessor": {
+      "type": "object",
+      "properties": {
+        "directoryIdentityId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      },
+      "required": [
+        "directoryIdentityId",
+        "enabled",
+        "expiresAt",
+        "reason"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

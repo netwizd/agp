@@ -8,3 +8,11 @@ bin/
 dist/
 coverage.out
 tmp/
+
+# Local build/test workspaces and frontend dependencies
+.tmp*
+.cyclequal*
+node_modules/
+.angular/
+__pycache__/
+*.py[cod]

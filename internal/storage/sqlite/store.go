@@ -166,10 +166,15 @@ WHERE username = ?`, username)
 }
 
 func (s *Store) CreateSession(ctx context.Context, session domain.Session) error {
-	_, err := s.db.ExecContext(ctx, `
-INSERT INTO sessions(id, user_id, token_hash, csrf_hash, ip, user_agent, expires_at, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		session.ID, session.UserID, session.TokenHash, session.CSRFHash, session.IP, session.UserAgent, session.ExpiresAt, session.CreatedAt)
+	var err error
+	session, err = storage.NormalizeSessionAudience(session)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `
+INSERT INTO sessions(id, user_id, token_hash, csrf_hash, ip, user_agent, expires_at, created_at, audience, audience_origin)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		session.ID, session.UserID, session.TokenHash, session.CSRFHash, session.IP, session.UserAgent, session.ExpiresAt, session.CreatedAt, session.Audience, session.AudienceOrigin)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
@@ -179,7 +184,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 func (s *Store) FindSessionByTokenHash(ctx context.Context, tokenHash string) (*domain.SessionContext, error) {
 	row := s.db.QueryRowContext(ctx, `
 SELECT
-    s.id, s.user_id, s.token_hash, s.csrf_hash, s.ip, s.user_agent, s.expires_at, s.created_at,
+    s.id, s.user_id, s.token_hash, s.csrf_hash, s.ip, s.user_agent, s.expires_at, s.created_at, s.audience, s.audience_origin,
     u.id, u.username, u.display_name, u.is_admin, u.blocked_at, u.created_at, u.updated_at
 FROM sessions s
 JOIN users u ON u.id = s.user_id
@@ -198,6 +203,8 @@ WHERE s.token_hash = ?
 		&session.UserAgent,
 		&session.ExpiresAt,
 		&session.CreatedAt,
+		&session.Audience,
+		&session.AudienceOrigin,
 		&session.User.ID,
 		&session.User.Username,
 		&session.User.DisplayName,

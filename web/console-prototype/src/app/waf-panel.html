@@ -1,0 +1,160 @@
+@if (resource(); as selected) {
+  <section class="resource-context" aria-label="Область настройки WAF">
+    <div class="resource-picker">
+      <span class="eyebrow">Область настройки</span>
+      <label for="waf-resource">Ресурс <agp-help topicId="waf_policy" (manual)="manual.emit($event)" /></label>
+      <select id="waf-resource" [value]="selectedId()" (change)="chooseResource($event)">
+        @for (item of resources(); track item.id) { <option [value]="item.id" [selected]="item.id === selectedId()">{{ item.name }}</option> }
+      </select>
+      <p class="context-domain">{{ selected.domain }} <span>· {{ routeId() }}</span></p>
+    </div>
+    <div class="active-summary">
+      <span class="eyebrow"><span class="status-dot"></span> Действующая конфигурация · пример</span>
+      <div class="active-summary-line"><strong>{{ modeLabel(active()!.mode) }}</strong><span class="badge neutral">{{ selected.revision }}</span></div>
+      <p>{{ active()!.mode === 'detection' ? 'WAF регистрирует срабатывания. Блокировка по WAF выключена.' : 'WAF отклоняет запросы при достижении порога anomaly score.' }}</p>
+      <div class="node-list"><agp-icon name="server" /><span>{{ selected.nodes.join(' · ') }}</span></div>
+    </div>
+    <div class="workflow-hint">
+      <agp-icon name="changes" />
+      <div><strong>Изменения проходят проверку</strong><p>Черновик → diff → проверка → согласование. Сохранение формы не меняет защиту.</p></div>
+    </div>
+  </section>
+
+  @if (expiredActiveExceptions().length) {
+    <div class="callout danger" role="alert"><agp-icon name="lock" /><div><strong>Доступ закрыт: действующее исключение просрочено</strong><p>Затронут маршрут {{ routeId() }}. Нужна применённая редакция с удалением или согласованным продлением. CRS самостоятельно не удаляет исключение по времени.</p></div></div>
+  }
+
+  <div class="tabs" role="tablist" aria-label="Настройки WAF" (keydown)="tabKeydown($event)">
+    <button id="waf-tab-policy" type="button" role="tab" [attr.aria-selected]="tab() === 'policy'" [attr.tabindex]="tab() === 'policy' ? 0 : -1" aria-controls="waf-policy-panel" [class.active]="tab() === 'policy'" (click)="tab.set('policy')"><agp-icon name="shield" />Политика</button>
+    <button id="waf-tab-events" type="button" role="tab" [attr.aria-selected]="tab() === 'events'" [attr.tabindex]="tab() === 'events' ? 0 : -1" aria-controls="waf-events-panel" [class.active]="tab() === 'events'" (click)="tab.set('events')"><agp-icon name="activity" />Срабатывания<span class="tab-count">{{ events().length }}</span></button>
+    <button id="waf-tab-exceptions" type="button" role="tab" [attr.aria-selected]="tab() === 'exceptions'" [attr.tabindex]="tab() === 'exceptions' ? 0 : -1" aria-controls="waf-exceptions-panel" [class.active]="tab() === 'exceptions'" (click)="tab.set('exceptions')"><agp-icon name="filter" />Исключения<span class="tab-count">{{ exceptions().length }}</span></button>
+  </div>
+
+  <div class="feedback" aria-live="polite" aria-atomic="true">
+    @if (notice()) { <p class="notice"><agp-icon name="check" />{{ notice() }}</p> }
+    @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+  </div>
+
+  <div id="waf-policy-panel" role="tabpanel" aria-labelledby="waf-tab-policy" [hidden]="tab() !== 'policy'">
+    <div class="policy-grid">
+      <form class="card policy-editor" [formGroup]="form" (ngSubmit)="saveDraft()">
+        <div class="card-heading"><div><h2>Как WAF обрабатывает запросы <agp-help topicId="waf_mode" (manual)="manual.emit($event)" /></h2><p>Настраиваемая редакция для {{ selected.name }}.</p></div><span class="badge" [class.info]="stage() === 'validated'" [class.warning]="stage() === 'pending'">{{ stageLabel(stage()) }}</span></div>
+        <fieldset class="mode-options" [disabled]="stage() === 'pending'">
+          <legend class="sr-only">Режим WAF в назначении ресурса</legend>
+          <label class="mode-card" [class.selected]="form.controls.mode.value === 'detection'">
+            <input type="radio" formControlName="mode" value="detection" />
+            <span><strong>Наблюдение</strong><span>Записывает срабатывания.<br />Не блокирует запросы по WAF.</span><small>Для анализа и настройки ложных срабатываний</small></span>
+            <agp-icon name="activity" />
+          </label>
+          <label class="mode-card" [class.selected]="form.controls.mode.value === 'blocking'">
+            <input type="radio" formControlName="mode" value="blocking" />
+            <span><strong>Блокировка</strong><span>Отклоняет запросы, если суммарный anomaly score достиг порога.</span><small>Включайте после анализа срабатываний</small></span>
+            <agp-icon name="shield" />
+          </label>
+        </fieldset>
+        <p class="independence-note"><agp-icon name="lock" />Проверки AD, групп доступа и 2FA работают независимо от режима WAF.</p>
+
+        <div class="section-divider"></div>
+        <div class="section-heading"><div><h3>Движок и набор правил <agp-help topicId="waf_policy" (manual)="manual.emit($event)" /></h3><p>Закреплённый профиль демонстрационного стенда.</p></div><span class="badge neutral">Только чтение</span></div>
+        <div class="engine-grid"><div><span class="field-caption">Движок</span><strong>ModSecurity</strong></div><div><span class="field-caption">Набор правил</span><strong>OWASP CRS · профиль стенда</strong><code>crs_qualified_001</code></div></div>
+        <p class="small-copy">Макет не подтверждает версию или совместимость установленного Nginx, модуля и CRS. В рабочем AGP проверяется полный закреплённый комплект.</p>
+        <div class="capability-list" aria-label="Примеры категорий правил"><span>SQL injection</span><span>XSS</span><span>Path traversal</span><span>HTTP protocol</span></div>
+        <p class="small-copy categories-note">Категории объединяют правила по типам проверок. Для ложных срабатываний используйте узкие исключения.</p>
+
+        <details class="advanced-settings">
+          <summary>Тонкая настройка правил и порогов <span>PL 1–4 · anomaly score</span></summary>
+          <div class="advanced-content">
+            <div class="field"><label for="waf-paranoia">Уровень paranoia <agp-help topicId="waf_paranoia" (manual)="manual.emit($event)" /></label><select id="waf-paranoia" formControlName="paranoiaLevel" aria-describedby="waf-paranoia-description"><option [ngValue]="1">1 · базовый</option><option [ngValue]="2">2 · повышенный</option><option [ngValue]="3">3 · строгий</option><option [ngValue]="4">4 · максимальный</option></select><p id="waf-paranoia-description" class="field-hint">Выше уровень — больше проверок и риск ложных срабатываний. Базовый уровень — 1.</p></div>
+            <div class="threshold-grid">
+              <div class="field"><label for="waf-inbound">Порог запросов <agp-help topicId="waf_thresholds" (manual)="manual.emit($event)" /></label><input id="waf-inbound" type="number" min="1" max="100" step="1" formControlName="inboundAnomalyThreshold" [attr.aria-invalid]="invalid('inboundAnomalyThreshold')" aria-describedby="waf-threshold-description" />@if (invalid('inboundAnomalyThreshold')) { <p class="field-error">Целое число от 1 до 100.</p> }</div>
+              <div class="field"><label for="waf-outbound">Порог ответов <agp-help topicId="waf_thresholds" (manual)="manual.emit($event)" /></label><input id="waf-outbound" type="number" min="1" max="100" step="1" formControlName="outboundAnomalyThreshold" [attr.aria-invalid]="invalid('outboundAnomalyThreshold')" aria-describedby="waf-threshold-description" />@if (invalid('outboundAnomalyThreshold')) { <p class="field-error">Целое число от 1 до 100.</p> }</div>
+            </div>
+            <p id="waf-threshold-description" class="field-hint">В блокирующем режиме запрос отклоняется при score ≥ порога. Более высокий порог ослабляет блокировку. Score — сумма весов правил, а не число атак и не вероятность угрозы.</p>
+          </div>
+        </details>
+        <div class="editor-footer"><p>{{ hasPolicyChanges() ? 'Есть изменения относительно действующей конфигурации' : 'Редакция совпадает с действующей конфигурацией' }}</p><button class="button primary" type="submit" [disabled]="!hasPolicyChanges() || savedIsCurrent() || stage() === 'pending'"><agp-icon name="check" />Сохранить черновик</button></div>
+      </form>
+
+      <aside class="card draft-preview" aria-label="Предпросмотр изменения">
+        <div class="card-heading"><div><h2>Что изменится <agp-help topicId="revision_apply" (manual)="manual.emit($event)" /></h2><p>Изменения применяются отдельным планом.</p></div></div>
+        <div class="target-preview"><span class="field-caption">Точное назначение</span><strong>{{ selected.name }}</strong><span>{{ selected.domain }}</span><code>{{ routeId() }}</code><div class="target-nodes">@for (node of saved()?.nodes ?? selected.nodes; track node) { <span><agp-icon name="server" />{{ node }}</span> }</div><p>Базовая ревизия <strong>{{ saved()?.baseRevision ?? selected.revision }}</strong></p></div>
+        @if (differences().length) {
+          <div class="diff-list" aria-label="Смысловая разница">@for (item of differences(); track item.label) { <div class="diff-item"><strong>{{ item.label }}</strong><div class="diff-before"><span aria-label="Было">−</span>{{ item.before }}</div><div class="diff-after"><span aria-label="Будет">+</span>{{ item.after }}</div></div> }</div>
+          <p class="copy-policy-note">Будет создана отдельная редакция политики для этого ресурса и изменено его назначение. Другие ресурсы не затрагиваются.</p>
+        } @else {
+          <div class="empty-diff"><agp-icon name="changes" /><strong>Сначала настройте политику</strong><p>Здесь появятся режим, пороги и исключения, которые отличаются от действующих.</p></div>
+        }
+        @if (saved(); as draft) {
+          <div class="snapshot-summary"><span class="field-caption">Сохранённый снимок · {{ draft.id }}</span><code>{{ draft.gatewayBinding.policyRef }}</code><p>Режим в назначении: <strong>{{ modeLabel(draft.gatewayBinding.mode) }}</strong>. Политика: PL {{ draft.policy.spec.paranoiaLevel }}, пороги {{ draft.policy.spec.inboundAnomalyThreshold }}/{{ draft.policy.spec.outboundAnomalyThreshold }}.</p><span class="badge" [class.warning]="stage() === 'pending'">{{ stageLabel(stage()) }}</span></div>
+          @if (!savedIsCurrent()) { <p class="warning-copy">Форма изменилась после сохранения. Сохраните её и проверьте заново.</p> }
+          @if (stage() === 'pending') {
+            <p class="small-copy">Снимок зафиксирован и доступен только для чтения. Действующая защита не менялась.</p><button type="button" class="button secondary full-width" (click)="startSuccessor()">Создать новую редакцию</button>
+          } @else {
+            <ol class="workflow-steps"><li class="done">Сохранить черновик</li><li [class.done]="stage() === 'validated'">Проверить локально</li><li>Согласовать другим инженером</li><li>Применить план и проверить узлы</li></ol>
+            <button type="button" class="button secondary full-width" [disabled]="stage() !== 'draft' || !savedIsCurrent()" (click)="validateDraft()"><agp-icon name="check" />Проверить черновик</button>
+            <button type="button" class="button primary full-width" [disabled]="stage() !== 'validated' || !savedIsCurrent()" (click)="requestApproval()">Отправить на согласование<agp-icon name="arrow" /></button>
+            <p class="small-copy">В макете выполняется только локальная проверка. Кнопки не вызывают API и не меняют WAF на узлах.</p>
+          }
+        }
+      </aside>
+    </div>
+  </div>
+
+  <section id="waf-events-panel" role="tabpanel" aria-labelledby="waf-tab-events" [hidden]="tab() !== 'events'" class="card events-card">
+    <div class="card-heading"><div><h2>Срабатывания · {{ selected.name }} <agp-help topicId="waf_events" (manual)="manual.emit($event)" /></h2><p>Подготовленные события, без тела запроса, cookies и значений параметров.</p></div><span class="badge neutral">Данные примера</span></div>
+    <div class="event-toolbar"><div class="search-box"><agp-icon name="search" /><label for="waf-event-search" class="sr-only">Найти событие по правилу, пути или категории</label><input id="waf-event-search" type="search" placeholder="ID правила, путь, категория…" [value]="eventSearch()" (input)="eventSearch.set(value($event))" /></div><span>Только {{ selected.domain }} · {{ filteredEvents().length }} из {{ events().length }}</span></div>
+    <p class="event-mode-note">События относятся к действующему режиму <strong>«{{ modeLabel(active()!.mode) }}»</strong>. Переключение режима в черновике не меняет их результат.</p>
+    @if (filteredEvents().length) {
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Таблица срабатываний WAF"><table><thead><tr><th>Время · UTC</th><th>Правило и категория</th><th>Запрос</th><th>Score</th><th>Результат</th><th><span class="sr-only">Подробнее</span></th></tr></thead><tbody>
+      @for (event of filteredEvents(); track event.id) {
+        <tr><td>{{ dateLabel(event.occurredAt).replace(' UTC', '') }}</td><td><strong>{{ event.ruleId }}</strong><span class="table-subtitle">{{ event.category }}</span></td><td><code>{{ event.method }} {{ event.path }}</code><span class="table-subtitle">{{ event.match.field }} · {{ event.match.name }}</span></td><td><span class="score-badge">{{ event.requestScore }}</span></td><td><span class="event-outcome" [class.blocked]="event.outcome === 'blocked'">{{ eventOutcome(event) }}</span></td><td><button type="button" class="text-button" [attr.aria-expanded]="expandedEvent() === event.id" [attr.aria-controls]="'detail-' + event.id" (click)="expandedEvent.set(expandedEvent() === event.id ? null : event.id)">{{ expandedEvent() === event.id ? 'Свернуть' : 'Подробнее' }}</button></td></tr>
+        @if (expandedEvent() === event.id) {
+          <tr class="event-detail-row"><td colspan="6"><div class="event-detail" [id]="'detail-' + event.id"><div><span class="field-caption">Событие</span><code>{{ event.id }}</code><p>{{ selected.domain }} · {{ event.routeId }}</p><p>Ревизия <strong>{{ event.revision }}</strong> · режим <strong>{{ modeLabel(event.mode) }}</strong> · порог запросов <strong>{{ event.inboundThreshold }}</strong>.</p><p>Правило {{ event.ruleId }}; суммарный score запроса {{ event.requestScore }}. {{ eventOutcome(event) }}.</p><p>Значения полей и исходный payload скрыты и не копируются в исключение.</p></div><button type="button" class="button secondary" [disabled]="stage() === 'pending'" (click)="openException(event)"><agp-icon name="filter" />Создать узкое исключение</button></div></td></tr>
+        }
+      }
+      </tbody></table></div>
+    } @else { <div class="empty-state"><agp-icon name="search" /><h3>Совпадений нет</h3><p>Измените запрос. Поиск ограничен событиями выбранного ресурса.</p><button type="button" class="button secondary" (click)="eventSearch.set('')">Сбросить поиск</button></div> }
+  </section>
+
+  <section id="waf-exceptions-panel" role="tabpanel" aria-labelledby="waf-tab-exceptions" [hidden]="tab() !== 'exceptions'">
+    <div class="card exceptions-card">
+      <div class="card-heading"><div><h2>Узкие исключения <agp-help topicId="waf_exceptions" (manual)="manual.emit($event)" /></h2><p>Только указанные правила, маршрут и поле. Остальные проверки продолжают работать.</p></div><button type="button" class="button secondary" [disabled]="stage() === 'pending' || exceptions().length >= 100" (click)="openException()"><agp-icon name="plus" />Добавить исключение</button></div>
+      <div class="callout subtle"><agp-icon name="clock" /><p>У каждого исключения есть владелец, причина, срок пересмотра и окончание. До окончания AGP должен применить удаление; при просроченном исключении в активной ревизии доступ к затронутому маршруту закрывается.</p></div>
+      @if (!exceptions().length && !removedExceptions().length) { <div class="empty-state"><agp-icon name="shield" /><h3>Исключений нет</h3><p>Начните со срабатывания и подтвердите ложное срабатывание перед созданием исключения.</p></div> }
+      <div class="exception-list">
+        @for (item of exceptions(); track item.id) {
+          <article class="exception-item"><div class="exception-top"><div><span class="badge" [class.success]="isActiveException(item.id)" [class.info]="!isActiveException(item.id)">{{ isActiveException(item.id) ? 'Действует · пример' : 'Предложено в редакции' }}</span>@if (expired(item)) { <span class="badge warning">Просрочено</span> }@if (reviewOverdue(item)) { <span class="badge warning">Нужен пересмотр</span> }<h3>{{ item.ruleIds.join(', ') }} <span>· {{ item.match.field }} / {{ item.match.name }}</span></h3></div><button type="button" class="text-button" [disabled]="stage() === 'pending'" (click)="removeException(item.id)">{{ isActiveException(item.id) ? 'Подготовить удаление' : 'Убрать из редакции' }}</button></div><p>{{ item.reason }}</p><div class="exception-meta"><span>Маршрут <code>{{ item.routeId }}</code></span><span>Владелец <code>{{ item.ownerId }}</code></span><span>Пересмотр {{ dateLabel(item.reviewAt) }}</span><span>Окончание {{ dateLabel(item.expiresAt) }}</span></div></article>
+        }
+        @for (item of removedExceptions(); track item.id) {
+          <article class="exception-item removed"><div class="exception-top"><div><span class="badge warning">Удаление в новой редакции</span><h3>{{ item.ruleIds.join(', ') }} · {{ item.match.field }} / {{ item.match.name }}</h3></div><button type="button" class="text-button" [disabled]="stage() === 'pending'" (click)="restoreException(item)">Отменить удаление</button></div><p>В действующей политике исключение остаётся до применения согласованной редакции.</p></article>
+        }
+      </div>
+      @if (hasPolicyChanges()) { <div class="exception-draft-footer"><span>Изменения исключений входят в общий черновик политики.</span><button type="button" class="button secondary" (click)="tab.set('policy')">Показать diff и сохранить<agp-icon name="arrow" /></button></div> }
+    </div>
+
+    @if (exceptionOpen()) {
+      <form class="card exception-editor" [formGroup]="exceptionForm" (ngSubmit)="addException()" #exceptionEditor tabindex="-1" aria-label="Новое узкое исключение">
+        <div class="card-heading"><div><h2>Новое исключение <agp-help topicId="waf_exceptions" (manual)="manual.emit($event)" /></h2><p>Добавится в редактируемую политику. Не вступает в силу сразу.</p></div><span class="badge info">Предложение</span></div>
+        <div class="exception-scope"><span>Ресурс <strong>{{ selected.name }}</strong></span><span>Маршрут <code>{{ routeId() }}</code></span><span>Владелец <code>usr_engineer_demo</code></span></div>
+        <div class="exception-form-grid">
+          <div class="field full-span"><label for="exception-rules">ID правил <agp-help topicId="waf_exceptions" (manual)="manual.emit($event)" /></label><input id="exception-rules" formControlName="ruleIds" placeholder="942100, 941100" [attr.aria-invalid]="exceptionInvalid('ruleIds')" aria-describedby="exception-rules-hint" /><p id="exception-rules-hint" class="field-hint">От 1 до 50 уникальных ID через запятую, каждый из 6–9 цифр. Глобальное отключение правил недоступно.</p>@if (exceptionInvalid('ruleIds')) { <p class="field-error">Укажите уникальные ID правил из 6–9 цифр.</p> }</div>
+          <div class="field"><label for="exception-field">Где проверять</label><select id="exception-field" formControlName="field">@for (field of matchFields; track field.value) { <option [value]="field.value">{{ field.label }}</option> }</select></div>
+          <div class="field"><label for="exception-name">Точное имя поля</label><input id="exception-name" formControlName="name" [attr.aria-invalid]="exceptionInvalid('name')" aria-describedby="exception-name-hint" /><p id="exception-name-hint" class="field-hint">Латинские буквы, цифры, точка, «_» и «-». Без regex и масок.</p>@if (exceptionInvalid('name')) { <p class="field-error">Укажите буквальное имя, максимум 128 символов.</p> }</div>
+          <div class="field full-span"><label for="exception-reason">Причина и подтверждение ложного срабатывания</label><textarea id="exception-reason" formControlName="reason" rows="3" maxlength="1024" placeholder="Какой запрос приложения проверен и почему исключение необходимо" [attr.aria-invalid]="exceptionInvalid('reason')"></textarea>@if (exceptionInvalid('reason')) { <p class="field-error">Причина — от 8 до 1024 символов после удаления пробелов по краям.</p> }</div>
+          <div class="field"><label for="exception-review">Пересмотреть до · UTC <agp-help topicId="waf_exceptions" (manual)="manual.emit($event)" /></label><input id="exception-review" type="datetime-local" step="60" formControlName="reviewAt" aria-describedby="exception-times-hint" /></div>
+          <div class="field"><label for="exception-expires">Окончание · UTC</label><input id="exception-expires" type="datetime-local" step="60" formControlName="expiresAt" aria-describedby="exception-times-hint" /></div>
+          <p id="exception-times-hint" class="field-hint full-span">Оба времени указаны в UTC (+00:00). Пересмотр — в будущем, окончание — позже пересмотра.</p>
+          @if (exceptionForm.hasError('timeWindow') && (exceptionForm.controls.reviewAt.touched || exceptionForm.controls.expiresAt.touched)) { <p class="field-error full-span">Проверьте даты: сейчас &lt; пересмотр &lt; окончание.</p> }
+        </div>
+        <div class="impact-preview"><strong>Область воздействия</strong><p>В маршруте <code>{{ routeId() }}</code> для {{ fieldLabel(exceptionForm.controls.field.value) }} с именем <code>{{ exceptionForm.controls.name.value || '…' }}</code> не будут применяться только перечисленные правила. Настройка требует проверки и независимого согласования.</p></div>
+        <div class="exception-form-actions"><button type="button" class="button secondary" (click)="cancelException()">Отмена</button><button type="submit" class="button primary">Добавить в редакцию</button></div>
+      </form>
+    }
+  </section>
+} @else {
+  <div class="card empty-state"><agp-icon name="shield" /><h2>Нет доступных ресурсов</h2><p>Для настройки WAF сначала добавьте HTTP-ресурс и его маршрут.</p></div>
+}
+
+<dialog #discardDialog class="discard-dialog" (cancel)="cancelDiscard(); $event.preventDefault()" aria-labelledby="waf-discard-title" aria-describedby="waf-discard-description">
+  <h2 id="waf-discard-title">Отбросить несохранённые изменения?</h2><p id="waf-discard-description">Последний сохранённый черновик останется доступен. Изменения формы и незавершённое исключение будут потеряны.</p><div class="dialog-actions"><button type="button" class="button secondary" (click)="cancelDiscard()" autofocus>Продолжить редактирование</button><button type="button" class="button primary" (click)="confirmDiscard()">Отбросить изменения</button></div>
+</dialog>

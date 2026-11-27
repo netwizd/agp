@@ -1,0 +1,6 @@
+{
+  "id": "nrev_example",
+  "nodeId": "node_pilot",
+  "kind": "revoke_node",
+  "state": "applied"
+}

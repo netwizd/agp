@@ -10,17 +10,32 @@ import (
 
 	"github.com/netwizd/agp/internal/authz"
 	"github.com/netwizd/agp/internal/config"
+	"github.com/netwizd/agp/internal/configuration"
 	"github.com/netwizd/agp/internal/frontend"
+	"github.com/netwizd/agp/internal/identity"
+	"github.com/netwizd/agp/internal/inventory"
+	"github.com/netwizd/agp/internal/nodeidentity"
+	"github.com/netwizd/agp/internal/rolloutexecution"
 	"github.com/netwizd/agp/internal/storage"
 	"github.com/netwizd/agp/internal/version"
 )
 
 type Server struct {
-	cfg                config.Config
-	store              storage.Store
-	logger             *slog.Logger
-	loginLimiter       *rateLimiter
-	diagnosticsLimiter *rateLimiter
+	configuration       *configuration.Service
+	identity            *identity.Service
+	directory           *identity.DirectoryService
+	oidc                *identity.OIDCService
+	email               *identity.EmailService
+	inventory           *inventory.Service
+	nodeIdentity        *nodeidentity.Service
+	execution           *rolloutexecution.Service
+	executionBaselines  ExecutionBaselines
+	enrollmentAdmission *enrollmentAdmission
+	cfg                 config.Config
+	store               storage.Store
+	logger              *slog.Logger
+	loginLimiter        *rateLimiter
+	diagnosticsLimiter  *rateLimiter
 }
 
 func NewServer(cfg config.Config, store storage.Store, logger *slog.Logger) *Server {
@@ -34,11 +49,12 @@ func NewServer(cfg config.Config, store storage.Store, logger *slog.Logger) *Ser
 		cfg.DiagnosticsDenyCIDRs = append([]string(nil), config.DefaultDiagnosticsDenyCIDRs...)
 	}
 	return &Server{
-		cfg:                cfg,
-		store:              store,
-		logger:             logger,
-		loginLimiter:       newRateLimiter(cfg.LoginRateLimitMax, cfg.LoginRateLimitWind),
-		diagnosticsLimiter: newRateLimiter(cfg.DiagnosticsRateLimitMax, cfg.DiagnosticsRateLimitWind),
+		cfg:                 cfg,
+		store:               store,
+		logger:              logger,
+		loginLimiter:        newRateLimiter(cfg.LoginRateLimitMax, cfg.LoginRateLimitWind),
+		diagnosticsLimiter:  newRateLimiter(cfg.DiagnosticsRateLimitMax, cfg.DiagnosticsRateLimitWind),
+		enrollmentAdmission: newEnrollmentAdmission(),
 	}
 }
 
@@ -48,10 +64,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /readyz", s.ready)
 	mux.HandleFunc("GET /metrics", s.metrics)
 	mux.HandleFunc("GET /api/v1/version", s.version)
+	for _, method := range []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"} {
+		mux.HandleFunc(method+" /agent/", func(w http.ResponseWriter, _ *http.Request) { writeError(w, http.StatusNotFound, "not_found") })
+	}
 	mux.HandleFunc("POST /api/v1/auth/login", s.login)
 	mux.HandleFunc("POST /api/v1/auth/logout", s.withSession(s.requireCSRF(s.logout)))
 	mux.HandleFunc("GET /api/v1/me", s.withSession(s.me))
 	mux.HandleFunc("GET /api/v1/resources", s.withSession(s.resources))
+	mux.HandleFunc("GET /api/v1/public/runtime", s.publicRuntime)
 	mux.HandleFunc("GET /api/v1/public/settings", s.publicPortalSettings)
 	mux.HandleFunc("GET /api/v1/public/downloads", s.publicDownloads)
 	mux.HandleFunc("GET /downloads/{id}", s.downloadPublicFile)
@@ -84,8 +104,16 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/admin/audit", s.withPermission(authz.PermAuditRead, s.adminListAudit))
 	mux.HandleFunc("GET /api/v1/admin/audit/export", s.withPermission(authz.PermAuditExport, s.adminExportAudit))
 	mux.HandleFunc("GET /auth/request", s.authRequest)
+	s.configurationRoutes(mux)
+	s.inventoryRoutes(mux)
+	s.nodeIdentityRoutes(mux)
+	s.directoryRoutes(mux)
+	s.oidcRoutes(mux)
+	s.lifecycleRoutes(mux)
+	s.roleRoutes(mux)
+	s.emailRoutes(mux)
 	mux.Handle("GET /", frontend.Handler())
-	return s.securityHeaders(s.recoverPanic(mux))
+	return s.securityHeaders(s.recoverPanic(s.originBoundary(mux)))
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {

@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP direct AD DS provider configuration",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.identity/v1alpha1"
+    },
+    "kind": {
+      "const": "DirectoryProvider"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "versionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "securityGuardId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "securityGuardVersion": {
+          "allOf": [
+            {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            {
+              "not": {
+                "const": "0"
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "versionId",
+        "securityGuardId",
+        "securityGuardVersion"
+      ],
+      "additionalProperties": false
+    },
+    "spec": {
+      "type": "object",
+      "properties": {
+        "forestGuid": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "domainDns": {
+          "type": "string",
+          "format": "agp-hostname",
+          "maxLength": 253
+        },
+        "transport": {
+          "type": "string",
+          "enum": [
+            "ldaps",
+            "starttls"
+          ]
+        },
+        "endpoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "format": "agp-hostname",
+                "maxLength": 253
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              }
+            },
+            "required": [
+              "host",
+              "port"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "userBaseDns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true
+        },
+        "groupBaseDns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true
+        },
+        "bindDn": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "bindSecretVersionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "caSecretVersionId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "loginAttribute": {
+          "type": "string",
+          "enum": [
+            "userPrincipalName",
+            "sAMAccountName"
+          ]
+        },
+        "provisioning": {
+          "type": "string",
+          "enum": [
+            "preprovisioned",
+            "jit_unprivileged"
+          ]
+        },
+        "groupResolution": {
+          "const": "token_groups_security"
+        },
+        "accountCheck": {
+          "const": "live_each_allow"
+        },
+        "operationTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3
+        },
+        "maximumGroups": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 2048
+        },
+        "groupMappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "groupObjectGuid": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "accessGroupId": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              }
+            },
+            "required": [
+              "groupObjectGuid",
+              "accessGroupId"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 0,
+          "maxItems": 2000,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "forestGuid",
+        "domainDns",
+        "transport",
+        "endpoints",
+        "userBaseDns",
+        "groupBaseDns",
+        "bindDn",
+        "bindSecretVersionId",
+        "caSecretVersionId",
+        "loginAttribute",
+        "provisioning",
+        "groupResolution",
+        "accountCheck",
+        "operationTimeoutSeconds",
+        "maximumGroups",
+        "groupMappings"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,16 @@
+{
+  "apiVersion": "agp.profile/v1alpha1",
+  "kind": "PolicyProfile",
+  "metadata": {
+    "id": "prof_site_msk",
+    "name": "Базовая защита площадки",
+    "siteId": "site_msk"
+  },
+  "spec": {
+    "level": "site",
+    "overrides": {},
+    "lockedFields": [
+      "requireMfa"
+    ]
+  }
+}

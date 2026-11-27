@@ -9,6 +9,7 @@ import (
 	"text/template"
 
 	"github.com/netwizd/agp/internal/domain"
+	"github.com/netwizd/agp/internal/origin"
 )
 
 type Recommendation struct {
@@ -26,6 +27,28 @@ type Bundle struct {
 }
 
 func GenerateResourceServer(resource domain.ResourceDetail, portalHost string) (*Recommendation, error) {
+	return GenerateResourceServerForProfile(resource, portalHost, "")
+}
+
+func GenerateResourceServerForProfile(resource domain.ResourceDetail, portalHost, managementOrigin string) (*Recommendation, error) {
+	if managementOrigin != "" {
+		if _, err := origin.HTTPS(managementOrigin); err != nil {
+			return nil, err
+		}
+		managementHost, _ := origin.Hostname(strings.TrimPrefix(managementOrigin, "https://"))
+		resourceHost, err := origin.Hostname(resource.PublicHost)
+		if err != nil {
+			return nil, err
+		}
+		portalHostname, err := origin.Hostname(portalHost)
+		if err != nil {
+			return nil, err
+		}
+		if resourceHost == managementHost || portalHostname == managementHost {
+			return nil, fmt.Errorf("management hostname cannot host portal or applications")
+		}
+	}
+
 	warnings := make([]string, 0)
 	publicHost, err := normalizeHost(resource.PublicHost)
 	if err != nil {
@@ -84,6 +107,31 @@ func GenerateResourceServer(resource domain.ResourceDetail, portalHost string) (
 }
 
 func GenerateBundle(resources []domain.ResourceDetail, portalHost string) (*Bundle, error) {
+	return GenerateBundleForProfile(resources, portalHost, "")
+}
+
+func GenerateBundleForProfile(resources []domain.ResourceDetail, portalHost, managementOrigin string) (*Bundle, error) {
+	portalAuthority := portalHost
+	portalPort := "443"
+	if managementOrigin != "" {
+		if _, err := origin.HTTPS(managementOrigin); err != nil {
+			return nil, err
+		}
+		var err error
+		portalAuthority, err = origin.Authority(portalHost)
+		if err != nil {
+			return nil, err
+		}
+		portalURL, _ := url.Parse("https://" + portalAuthority)
+		if portalURL.Port() != "" {
+			portalPort = portalURL.Port()
+		}
+		managementHost, _ := origin.Hostname(strings.TrimPrefix(managementOrigin, "https://"))
+		if portalURL.Hostname() == managementHost {
+			return nil, fmt.Errorf("management and portal hostnames must differ")
+		}
+	}
+
 	warnings := make([]string, 0)
 	portalHost, err := normalizeHost(portalHost)
 	if err != nil {
@@ -91,12 +139,17 @@ func GenerateBundle(resources []domain.ResourceDetail, portalHost string) (*Bund
 	}
 
 	var out bytes.Buffer
-	if err := bundleHeaderTemplate.Execute(&out, map[string]any{"PortalHost": portalHost}); err != nil {
+	viewData := map[string]any{"PortalHost": portalHost, "PortalAuthority": portalAuthority, "PortalPort": portalPort, "ManagementEnabled": managementOrigin != ""}
+	if err := bundleHeaderTemplate.Execute(&out, viewData); err != nil {
 		return nil, fmt.Errorf("render nginx portal server: %w", err)
 	}
 	var legacyServers []string
+	resourcePortalHost := portalHost
+	if managementOrigin != "" {
+		resourcePortalHost = portalAuthority
+	}
 	for _, resource := range resources {
-		recommendation, err := GenerateResourceServer(resource, portalHost)
+		recommendation, err := GenerateResourceServerForProfile(resource, resourcePortalHost, managementOrigin)
 		if err != nil {
 			return nil, fmt.Errorf("render resource %s: %w", resource.ID, err)
 		}
@@ -112,12 +165,22 @@ func GenerateBundle(resources []domain.ResourceDetail, portalHost string) (*Bund
 		out.WriteString("\n")
 		out.WriteString(indent(recommendation.Snippet, "    "))
 	}
-	if err := bundlePortalFallbackTemplate.Execute(&out, nil); err != nil {
+	if err := bundlePortalFallbackTemplate.Execute(&out, viewData); err != nil {
 		return nil, fmt.Errorf("render nginx portal fallback: %w", err)
 	}
 	for _, server := range legacyServers {
 		out.WriteString("\n\n")
 		out.WriteString(server)
+	}
+	if managementOrigin != "" {
+		managementURL, _ := url.Parse(managementOrigin)
+		port := managementURL.Port()
+		if port == "" {
+			port = "443"
+		}
+		if err := managementServerTemplate.Execute(&out, map[string]any{"Host": managementURL.Hostname(), "Authority": managementURL.Host, "Port": port}); err != nil {
+			return nil, fmt.Errorf("render management server: %w", err)
+		}
 	}
 	return &Bundle{
 		PortalHost: portalHost,
@@ -225,7 +288,7 @@ upstream agp_backend {
 }
 
 server {
-    listen 443 ssl;
+    listen {{ .PortalPort }} ssl;
     http2 on;
     server_name {{ .PortalHost }};
     client_max_body_size 256m;
@@ -257,10 +320,16 @@ server {
 `))
 
 var bundlePortalFallbackTemplate = template.Must(template.New("bundle-portal-fallback").Parse(`
+{{ if .ManagementEnabled }}
+    location = /admin { return 403; }
+    location ^~ /admin/ { return 403; }
+    location = /api/v1/admin { return 403; }
+    location ^~ /api/v1/admin/ { return 403; }
+{{ end }}
     location / {
         proxy_pass http://agp_backend;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -321,10 +390,6 @@ server {
     auth_request_set $agp_user_id $upstream_http_x_agp_user_id;
     auth_request_set $agp_groups $upstream_http_x_agp_groups;
 
-    proxy_set_header X-AGP-User $agp_user;
-    proxy_set_header X-AGP-User-ID $agp_user_id;
-    proxy_set_header X-AGP-Groups $agp_groups;
-
     error_page 401 =302 https://{{ .PortalHost }}/login;
     error_page 403 =302 https://{{ .PortalHost }}/access-denied;
 
@@ -349,8 +414,37 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-AGP-User $agp_user;
+        proxy_set_header X-AGP-User-ID $agp_user_id;
+        proxy_set_header X-AGP-Groups $agp_groups;
         proxy_redirect {{ .InternalURL }} $scheme://$host/;
         proxy_cookie_domain {{ .Redirect.InternalHostname }} $host;
+    }
+}
+`))
+
+var managementServerTemplate = template.Must(template.New("management-server").Parse(`
+
+server {
+    listen {{ .Port }} ssl;
+    http2 on;
+    server_name {{ .Host }};
+    client_max_body_size 256m;
+
+    ssl_certificate /etc/nginx/ssl/management/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/management/private.key;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options nosniff always;
+
+    location / {
+        proxy_pass http://agp_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Host "";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Connection "";
     }
 }
 `))

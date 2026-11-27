@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP immutable deployment plan v1alpha2 / fleet-10k",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.plan/v1alpha2"
+    },
+    "id": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "apply_config",
+        "upgrade_components",
+        "rollback_config"
+      ]
+    },
+    "siteId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "revisionId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "createdBy": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "createdAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "expiresAt": {
+      "$ref": "shared.schema.json#/$defs/UtcTime"
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "baseRevisionId": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "expectedNodeDeploymentSequence": {
+            "$ref": "shared.schema.json#/$defs/UInt63"
+          },
+          "capabilityDigest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          },
+          "bundleDigest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          },
+          "secretVersionIds": {
+            "type": "array",
+            "items": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "minItems": 0,
+            "maxItems": 100,
+            "uniqueItems": true
+          },
+          "baseBundleDigest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          }
+        },
+        "required": [
+          "nodeId",
+          "baseRevisionId",
+          "expectedNodeDeploymentSequence",
+          "capabilityDigest",
+          "bundleDigest",
+          "secretVersionIds",
+          "baseBundleDigest"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 500
+    },
+    "rolloutPolicy": {
+      "$ref": "shared.schema.json#/$defs/RolloutPolicy"
+    },
+    "compilerVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "minimumDenySequence": {
+      "$ref": "shared.schema.json#/$defs/UInt63"
+    },
+    "reason": {
+      "$ref": "shared.schema.json#/$defs/Reason"
+    },
+    "planDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "resolvedInputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "access_policy",
+              "waf_policy",
+              "ruleset",
+              "component_profile",
+              "certificate",
+              "policy_profile",
+              "assignment_resolution"
+            ]
+          },
+          "id": {
+            "$ref": "shared.schema.json#/$defs/Id"
+          },
+          "digest": {
+            "$ref": "shared.schema.json#/$defs/Digest"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "digest"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 50000
+    },
+    "authorityEpoch": {
+      "$ref": "shared.schema.json#/$defs/UInt63"
+    },
+    "capacityProfile": {
+      "const": "fleet-10k"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "id",
+    "kind",
+    "siteId",
+    "revisionId",
+    "createdBy",
+    "createdAt",
+    "expiresAt",
+    "targets",
+    "rolloutPolicy",
+    "compilerVersion",
+    "minimumDenySequence",
+    "reason",
+    "planDigest",
+    "resolvedInputs",
+    "authorityEpoch",
+    "capacityProfile"
+  ],
+  "additionalProperties": false,
+  "description": "Accepted TARGET. At most 500 exact node targets, 100 secret versions per target, 50000 pinned inputs; 32 MiB canonical plan byte budget. All targets remain frozen. Runtime support requires advertised schema/capacity capabilities and qualification; v1alpha1 agents do not implicitly accept larger artifacts."
+}

@@ -1,0 +1,48 @@
+{
+  "apiVersion": "agp.agent-local-syntax/v1alpha1",
+  "requestId": "syntax_example_001",
+  "authorityEpoch": "2",
+  "nodeDeploymentSequence": "0",
+  "capabilityDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "pins": {
+    "manifestDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "profileDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "tupleDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "evidenceDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "rendererDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "policy": {
+    "apiVersion": "agp.waf/v1alpha1",
+    "kind": "WafPolicy",
+    "metadata": {
+      "id": "waf_balanced_v1",
+      "name": "Пилотный профиль CRS",
+      "siteId": "site_msk"
+    },
+    "spec": {
+      "engine": "modsecurity",
+      "rulesetVersionId": "crs_qualified_001",
+      "paranoiaLevel": 1,
+      "inboundAnomalyThreshold": 5,
+      "outboundAnomalyThreshold": 4,
+      "exceptions": [
+        {
+          "id": "exception_search",
+          "routeId": "route_portal",
+          "ruleIds": [
+            "942100"
+          ],
+          "match": {
+            "field": "query_arg",
+            "name": "q"
+          },
+          "ownerId": "usr_security",
+          "reason": "Подтверждённое ложное срабатывание поиска",
+          "reviewAt": "2026-11-20T09:00:00Z",
+          "expiresAt": "2026-11-21T09:00:00Z"
+        }
+      ]
+    }
+  },
+  "mode": "detection"
+}

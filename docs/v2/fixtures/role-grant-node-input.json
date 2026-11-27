@@ -1,0 +1,6 @@
+{
+  "principalId": "usr_target",
+  "roleId": "role_viewer",
+  "scopeType": "node",
+  "scopeId": "node_one"
+}

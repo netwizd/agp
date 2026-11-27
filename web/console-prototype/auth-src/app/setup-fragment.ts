@@ -1,0 +1,4 @@
+// Temporary routing input only. No persistence, logging, query parsing or automatic proof submission.
+let pending:{kind:'activate'|'reset_password';token:string;invalid:boolean}|null=null;
+export function captureSetupFragment():void{const kind=location.pathname==='/auth-ui/activate'?'activate':location.pathname==='/auth-ui/reset-password'?'reset_password':null;if(!kind)return;const fragment=location.hash,query=location.search;history.replaceState(null,'',location.pathname);const match=/^#token=([A-Za-z0-9_-]{43})$/.exec(fragment);pending={kind,token:match?.[1]??'',invalid:!!fragment&&!match||!!query};}
+export function takeSetupFragment(kind:'activate'|'reset_password'|'supervised'):{token:string;invalid:boolean}{const value=pending;pending=null;return value?.kind===kind?{token:value.token,invalid:value.invalid}:{token:'',invalid:false};}

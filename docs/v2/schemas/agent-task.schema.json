@@ -1,0 +1,653 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP typed task v1alpha1",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "const": "agp.task/v1alpha1"
+        },
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "nodeId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "kind": {
+          "const": "inventory"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]{16,128}$"
+        },
+        "writerEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "nodeDeploymentSequence": {
+          "const": "0"
+        },
+        "issuedAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "preconditions": {
+          "type": "object",
+          "properties": {
+            "baseRevisionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "expectedNodeDeploymentSequence": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "capabilityDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            }
+          },
+          "required": [
+            "capabilityDigest"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "includePackages": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "includePackages"
+          ],
+          "additionalProperties": false
+        },
+        "authorityEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "id",
+        "nodeId",
+        "kind",
+        "idempotencyKey",
+        "writerEpoch",
+        "nodeDeploymentSequence",
+        "issuedAt",
+        "expiresAt",
+        "preconditions",
+        "payload",
+        "authorityEpoch"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "const": "agp.task/v1alpha1"
+        },
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "nodeId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "kind": {
+          "const": "validate_config"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]{16,128}$"
+        },
+        "writerEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "nodeDeploymentSequence": {
+          "const": "0"
+        },
+        "issuedAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "preconditions": {
+          "type": "object",
+          "properties": {
+            "baseRevisionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "expectedNodeDeploymentSequence": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "capabilityDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            }
+          },
+          "required": [
+            "capabilityDigest"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "bundleDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            },
+            "revisionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            }
+          },
+          "required": [
+            "bundleDigest",
+            "revisionId"
+          ],
+          "additionalProperties": false
+        },
+        "authorityEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "id",
+        "nodeId",
+        "kind",
+        "idempotencyKey",
+        "writerEpoch",
+        "nodeDeploymentSequence",
+        "issuedAt",
+        "expiresAt",
+        "preconditions",
+        "payload",
+        "authorityEpoch"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "const": "agp.task/v1alpha1"
+        },
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "nodeId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "kind": {
+          "const": "apply_config"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]{16,128}$"
+        },
+        "writerEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "nodeDeploymentSequence": {
+          "$ref": "shared.schema.json#/$defs/UInt63",
+          "not": {
+            "const": "0"
+          }
+        },
+        "issuedAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "planId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "planDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "permitDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "preconditions": {
+          "type": "object",
+          "properties": {
+            "baseRevisionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "expectedNodeDeploymentSequence": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "capabilityDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            }
+          },
+          "required": [
+            "baseRevisionId",
+            "expectedNodeDeploymentSequence",
+            "capabilityDigest"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "targetRevisionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "deploymentGeneration": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "bundleDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            },
+            "secretVersionIds": {
+              "type": "array",
+              "items": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              },
+              "minItems": 0,
+              "maxItems": 100,
+              "uniqueItems": true
+            },
+            "minimumDenySequence": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "recoveryBaseBundleDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            }
+          },
+          "required": [
+            "targetRevisionId",
+            "deploymentGeneration",
+            "bundleDigest",
+            "secretVersionIds",
+            "minimumDenySequence",
+            "recoveryBaseBundleDigest"
+          ],
+          "additionalProperties": false
+        },
+        "authorityEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "id",
+        "nodeId",
+        "kind",
+        "idempotencyKey",
+        "writerEpoch",
+        "nodeDeploymentSequence",
+        "issuedAt",
+        "expiresAt",
+        "preconditions",
+        "payload",
+        "planId",
+        "planDigest",
+        "permitDigest",
+        "authorityEpoch"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "const": "agp.task/v1alpha1"
+        },
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "nodeId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "kind": {
+          "const": "upgrade_components"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]{16,128}$"
+        },
+        "writerEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "nodeDeploymentSequence": {
+          "$ref": "shared.schema.json#/$defs/UInt63",
+          "not": {
+            "const": "0"
+          }
+        },
+        "issuedAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "planId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "planDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "permitDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "preconditions": {
+          "type": "object",
+          "properties": {
+            "baseRevisionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "expectedNodeDeploymentSequence": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "capabilityDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            }
+          },
+          "required": [
+            "baseRevisionId",
+            "expectedNodeDeploymentSequence",
+            "capabilityDigest"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "targetRevisionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "deploymentGeneration": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "bundleDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            },
+            "secretVersionIds": {
+              "type": "array",
+              "items": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              },
+              "minItems": 0,
+              "maxItems": 100,
+              "uniqueItems": true
+            },
+            "minimumDenySequence": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "recoveryBaseBundleDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            },
+            "releaseManifestDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            }
+          },
+          "required": [
+            "targetRevisionId",
+            "deploymentGeneration",
+            "bundleDigest",
+            "secretVersionIds",
+            "minimumDenySequence",
+            "recoveryBaseBundleDigest",
+            "releaseManifestDigest"
+          ],
+          "additionalProperties": false
+        },
+        "authorityEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "id",
+        "nodeId",
+        "kind",
+        "idempotencyKey",
+        "writerEpoch",
+        "nodeDeploymentSequence",
+        "issuedAt",
+        "expiresAt",
+        "preconditions",
+        "payload",
+        "planId",
+        "planDigest",
+        "permitDigest",
+        "authorityEpoch"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "const": "agp.task/v1alpha1"
+        },
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "nodeId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "kind": {
+          "const": "rollback_config"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]{16,128}$"
+        },
+        "writerEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "nodeDeploymentSequence": {
+          "$ref": "shared.schema.json#/$defs/UInt63",
+          "not": {
+            "const": "0"
+          }
+        },
+        "issuedAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "planId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "planDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "permitDigest": {
+          "$ref": "shared.schema.json#/$defs/Digest"
+        },
+        "preconditions": {
+          "type": "object",
+          "properties": {
+            "baseRevisionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "expectedNodeDeploymentSequence": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "capabilityDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            }
+          },
+          "required": [
+            "baseRevisionId",
+            "expectedNodeDeploymentSequence",
+            "capabilityDigest"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "targetRevisionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "deploymentGeneration": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "bundleDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            },
+            "secretVersionIds": {
+              "type": "array",
+              "items": {
+                "$ref": "shared.schema.json#/$defs/Id"
+              },
+              "minItems": 0,
+              "maxItems": 100,
+              "uniqueItems": true
+            },
+            "minimumDenySequence": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "recoveryBaseBundleDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            }
+          },
+          "required": [
+            "targetRevisionId",
+            "deploymentGeneration",
+            "bundleDigest",
+            "secretVersionIds",
+            "minimumDenySequence",
+            "recoveryBaseBundleDigest"
+          ],
+          "additionalProperties": false
+        },
+        "authorityEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "id",
+        "nodeId",
+        "kind",
+        "idempotencyKey",
+        "writerEpoch",
+        "nodeDeploymentSequence",
+        "issuedAt",
+        "expiresAt",
+        "preconditions",
+        "payload",
+        "planId",
+        "planDigest",
+        "permitDigest",
+        "authorityEpoch"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "const": "agp.task/v1alpha1"
+        },
+        "id": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "nodeId": {
+          "$ref": "shared.schema.json#/$defs/Id"
+        },
+        "kind": {
+          "const": "collect_diagnostics"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]{16,128}$"
+        },
+        "writerEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        },
+        "nodeDeploymentSequence": {
+          "const": "0"
+        },
+        "issuedAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "expiresAt": {
+          "$ref": "shared.schema.json#/$defs/UtcTime"
+        },
+        "preconditions": {
+          "type": "object",
+          "properties": {
+            "baseRevisionId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "expectedNodeDeploymentSequence": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            },
+            "capabilityDigest": {
+              "$ref": "shared.schema.json#/$defs/Digest"
+            }
+          },
+          "required": [
+            "capabilityDigest"
+          ],
+          "additionalProperties": false
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "profile": {
+              "type": "string",
+              "enum": [
+                "services",
+                "network",
+                "tls"
+              ]
+            },
+            "routeId": {
+              "$ref": "shared.schema.json#/$defs/Id"
+            },
+            "maxBytes": {
+              "$ref": "shared.schema.json#/$defs/UInt63"
+            }
+          },
+          "required": [
+            "profile",
+            "maxBytes"
+          ],
+          "additionalProperties": false
+        },
+        "authorityEpoch": {
+          "$ref": "shared.schema.json#/$defs/UInt63"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "id",
+        "nodeId",
+        "kind",
+        "idempotencyKey",
+        "writerEpoch",
+        "nodeDeploymentSequence",
+        "issuedAt",
+        "expiresAt",
+        "preconditions",
+        "payload",
+        "authorityEpoch"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

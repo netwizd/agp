@@ -1,0 +1,49 @@
+<section class="plan-screen" aria-labelledby="planProposalsTitle">
+<h2 id="planProposalsTitle">Подготовка развёртывания</h2>
+<p id="planBoundary" class="boundary"><strong>Предварительное согласование.</strong> Применение недоступно: перед ним нужно проверить исходное состояние, управляемые файлы и полный комплект конфигурации на узлах. Согласование и его подпись не запускают изменения.</p>
+@if(error()){<section id="planError" class="alert error" role="alert"><strong>{{error()}}</strong>@if(status()){<span> · HTTP {{status()}}</span>}@if(error()==='step_up_required'||error()==='mfa_required'){<p>Подтвердите свежую MFA. Введённые поля сохранены на этой странице.</p><a [href]="stepUpURL()">Подтвердить MFA</a>}@if(status()===401||error()==='csrf_required'){<p>Обновите сеанс перед новым запросом.</p><a [href]="loginURL()">Открыть вход</a>}</section>}
+<p id="planStatus" role="status" aria-live="polite">{{busy()?'Запрашиваем состояние…':notice()}}</p>
+@if(pending()){<section class="alert warning" id="planPending"><p>Результат запроса неизвестен. Сохранён исходный запрос; повтор использует то же содержимое и ключ.</p><button id="planRetry" type="button" [disabled]="busy()" (click)="retry()">Повторить исходный запрос</button></section>}
+<section class="editor-card">
+<div class="section-heading"><h3>Новое предложение</h3></div>
+@if(!access.globalEdit){<p class="muted">Создание доступно пользователям с правом редактирования полной конфигурации.</p>}
+<fieldset [formGroup]="form" [disabled]="blocked()||!access.globalEdit">
+<legend>Точный снимок и явный набор узлов</legend>
+<div class="grid">
+<label>Неизменяемая ревизия<select id="planRevision" formControlName="revisionId"><option value="" disabled>Выберите ревизию</option>@for(revision of revisionOptions();track revision.id){<option [value]="revision.id">{{revision.id}} · {{revision.state}}</option>}</select></label>
+<label>Идентификатор Site<input id="planSite" formControlName="siteId" autocomplete="off" spellcheck="false" maxlength="128"></label>
+<label>Узлы целиком, по одному ID или через запятую<textarea id="planTargets" formControlName="targetNodeIds" rows="4" spellcheck="false" aria-describedby="planTargetHelp"></textarea></label>
+<label>Canary-узлы из того же списка<textarea id="planCanaries" formControlName="canaryNodeIds" rows="4" spellcheck="false" aria-describedby="planCanaryHelp"></textarea></label>
+</div>
+<p id="planTargetHelp" class="muted">От 1 до 500 уникальных ID. Для каждого узла сервер фиксирует все назначенные шлюзы и отпечаток полного комплекта конфигурации.</p>
+<p id="planCanaryHelp" class="muted">Пустое поле выбирает первый указанный узел. При явном выборе каждый canary должен входить в основной список. Допускается до 10 canary-узлов.</p>
+<p id="planRolloutDefaults">Порядок будущего развёртывания: параллельно — 1 узел; допустимо недоступных — 0; наблюдение — 60 секунд; при сбое — пауза. Эти параметры сохраняются в предложении.</p>
+<label>Причина подготовки<input id="planReason" formControlName="reason" maxlength="1024" autocomplete="off"></label>
+</fieldset>
+<button id="planCreate" type="button" [disabled]="!canCreate()" (click)="create()">Сохранить предложение</button>
+</section>
+<section class="editor-card">
+<div class="section-heading"><h3>Сохранённые предложения</h3><button id="planRefreshList" type="button" class="secondary" [disabled]="blocked()" (click)="refresh()">Обновить список</button></div>
+@if(!loadedList()){<p>Список ещё не загружен.</p>}@else if(!items().length){<p id="planEmpty">Предложений пока нет.</p>}
+<ul class="plan-list">@for(view of items();track view.proposal.id){<li><button type="button" class="secondary" [disabled]="blocked()" (click)="load(view.proposal.id)">{{view.proposal.id}}</button><span>{{view.proposal.siteId}} · {{view.proposal.revisionId}}</span></li>}</ul>
+@if(nextCursor()){<button id="planMore" type="button" class="secondary" [disabled]="blocked()" (click)="refresh(true)">Ещё предложения</button>}
+<div class="zone-lookup"><label>Идентификатор предложения<input id="planLookup" [formControl]="lookup" [readOnly]="blocked()" maxlength="128" autocomplete="off" spellcheck="false"></label><button id="planLoad" type="button" [disabled]="blocked()||lookup.invalid" (click)="load()">Открыть / обновить</button></div>
+</section>
+@if(loaded();as view){
+@let proposal = view.proposal;
+<section id="planReport" class="report-card" aria-labelledby="planReportTitle">
+<h3 id="planReportTitle">Предложение {{proposal.id}}</h3>
+<p id="planCurrent" class="badge">{{current()?'Состояние проверено сервером':'Нужна повторная проверка: данные устарели или срок истёк'}}</p>
+<dl class="pins"><dt>Site</dt><dd>{{proposal.siteId}}</dd><dt>Ревизия</dt><dd>{{proposal.revisionId}}</dd><dt>Автор</dt><dd>{{proposal.authorId}}</dd><dt>Причина</dt><dd>{{proposal.reason}}</dd><dt>Создано</dt><dd>{{proposal.createdAt}}</dd><dt>Действует до</dt><dd>{{proposal.expiresAt}}</dd><dt>Отпечаток предложения</dt><dd>{{proposal.proposalDigest}}</dd></dl>
+<p>Canary: {{proposal.rolloutPolicy.canaryNodeIds.join(', ')}}. Параллельно: {{proposal.rolloutPolicy.maxParallel}}; допустимо недоступных: {{proposal.rolloutPolicy.maxUnavailable}}; наблюдение: {{proposal.rolloutPolicy.observationSeconds}} с; при сбое: {{proposal.rolloutPolicy.failureAction==='pause'?'пауза':'откат'}}.</p>
+<section class="alert warning" aria-label="Что требуется перед применением"><strong>Применение недоступно.</strong><ul>@for(code of proposal.blockers;track $index){<li>{{blocker(code)}}</li>}@empty{<li>Серверное разрешение на применение и квалификация исполнителя ещё не подключены.</li>}</ul></section>
+<h3>Зафиксированные узлы и состав конфигурации</h3>
+@for(target of proposal.targets;track target.nodeId){<details class="plan-target"><summary>{{target.nodeId}} · {{target.gatewayIds.length}} шлюзов</summary><dl class="pins"><dt>Возможности узла</dt><dd>{{target.capabilityDigest}}</dd><dt>Комплект конфигурации</dt><dd>{{target.previewBundleDigest}}</dd><dt>Все шлюзы узла</dt><dd>{{target.gatewayIds.join(', ')||'Нет шлюзов'}}</dd><dt>Версии секретов</dt><dd>{{target.secretVersionIds.join(', ')||'Нет ссылок на секреты'}}</dd></dl></details>}
+<details class="plan-target"><summary>Зафиксированные зависимости и отпечатки</summary><dl class="pins"><dt>Конфигурация</dt><dd>{{proposal.configDigest}}</dd><dt>Компилятор</dt><dd>{{proposal.compilerVersion}} · {{proposal.compilerDigest}}</dd><dt>Инвентаризация</dt><dd>{{proposal.inventoryDigest}}</dd><dt>Каталог</dt><dd>{{proposal.catalogSnapshotId}} · {{proposal.catalogDigest}}</dd><dt>Зависимости</dt><dd>{{proposal.dependencyDigest}}</dd><dt>Предпросмотр</dt><dd>{{proposal.previewDigest}}</dd><dt>Эпоха полномочий</dt><dd>{{proposal.authorityEpoch}}</dd></dl>@for(input of proposal.resolvedInputs.slice(0,inputLimit());track $index){<p><code>{{input.kind}} / {{input.id}}</code><br><code>{{input.digest}}</code></p>}@if(inputLimit()<proposal.resolvedInputs.length){<button type="button" class="secondary" (click)="inputLimit.set(inputLimit()+100)">Ещё зависимости ({{proposal.resolvedInputs.length-inputLimit()}})</button>}</details>
+<h3>Независимое предварительное согласование</h3>
+@if(!current()){<p id="planStale">Согласование и подпись закрыты. Обновите состояние предложения; при изменении исходных данных подготовьте новое.</p>}@else if(!access.globalApprove){<p id="planNoApprove">Для согласования нужно отдельное право подтверждения полной конфигурации.</p>}@else if(proposal.authorId===access.principalId){<p id="planSelfReview">Автор предложения не может согласовать собственное изменение. Передайте ID независимому проверяющему.</p>}@else{
+<fieldset [disabled]="blocked()"><legend>Согласовать точный отпечаток {{proposal.proposalDigest}}</legend><label>Причина согласования<input id="planReviewReason" [formControl]="reviewReason" maxlength="1024" autocomplete="off"></label><button id="planReview" type="button" [disabled]="!canReview()" (click)="review()">Согласовать предварительно</button></fieldset>}
+<ul class="plan-reviews">@for(review of reviews();track review.id){<li><strong>{{review.reviewerId}}</strong><p>{{review.reason}}</p><small>Действует до {{review.expiresAt}} · {{review.current?'Состояние проверено':'Устарело'}}</small>@if(canSign(review)){<button [id]="'planSign-'+review.id" type="button" class="secondary" (click)="sign(review)">Получить подписанное согласование</button>}</li>}@empty{<li>Независимых согласований пока нет.</li>}</ul>
+@if(signed();as artifact){<section id="planSignedArtifact" class="alert"><strong>Артефакт предварительного согласования получен.</strong><p>Этот файл не разрешает применение. Подлинность подписи в браузере не проверялась.</p><p>Согласование: {{artifact.review.id}} · ключ: {{artifact.keyId}}</p><button id="planDownloadSigned" type="button" class="secondary" (click)="download()">Скачать файл согласования</button></section>}
+</section>}
+</section>

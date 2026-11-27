@@ -7,6 +7,16 @@ import (
 )
 
 func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.SecureProfile {
+		if s.identity == nil {
+			writeError(w, http.StatusServiceUnavailable, "security_state_unavailable")
+			return
+		}
+		if err := s.identity.Coordinator.Ready(r.Context()); err != nil {
+			writeError(w, http.StatusServiceUnavailable, "security_state_unavailable")
+			return
+		}
+	}
 	if s.store == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
 			"status": "not_ready",

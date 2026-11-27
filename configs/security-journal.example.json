@@ -1,0 +1,18 @@
+{
+  "authorityId": "agp_primary",
+  "keyId": "journal_signer_1",
+  "signingKeyFile": "/etc/agp-journal/keys/signing.pk8.pem",
+  "listenAddress": "127.0.0.1:9444",
+  "tlsCertificateFile": "/etc/agp-journal/pki/server.pem",
+  "tlsKeyFile": "/etc/agp-journal/pki/server.key",
+  "clientCAFile": "/etc/agp-journal/pki/control-plane-ca.pem",
+  "readClientURIs": ["spiffe://agp/control-plane", "spiffe://agp/journal-auditor"],
+  "appendClientURIs": ["spiffe://agp/control-plane"],
+  "approvalKeys": {
+    "restore_approver_1": {
+      "principalId": "REPLACE_WITH_DISTINCT_APPROVER_ID",
+      "publicKey": "REPLACE_WITH_HEX_ED25519_PUBLIC_KEY",
+      "allowedKinds": ["advance_authority_epoch", "unblock_principal", "enable_resource", "clear_route_deny"]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "apiVersion": "agp.receipt/v1alpha1",
+  "taskId": "task_000042",
+  "nodeId": "node_msk01",
+  "attemptId": "attempt_000001",
+  "eventId": "event_000123",
+  "receiptSequence": "3",
+  "nodeDeploymentSequence": "23",
+  "state": "succeeded",
+  "recordedAt": "2026-11-14T09:06:00Z",
+  "activeRevisionId": "rev_000017",
+  "activeBundleDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "lastHealthyRevisionId": "rev_000017"
+}

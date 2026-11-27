@@ -1,0 +1,27 @@
+[Unit]
+Description=AGP independent security journal
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agp-journal
+Group=agp-journal
+EnvironmentFile=/etc/agp-journal/journal.env
+ExecStart=/usr/local/bin/agp-security-journal serve -config /etc/agp-journal/config.json
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

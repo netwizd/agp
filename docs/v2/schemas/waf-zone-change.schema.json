@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AGP scoped WAF zone materialization request v1alpha1",
+  "type": "object",
+  "properties": {
+    "apiVersion": {
+      "const": "agp.waf-zone-change/v1alpha1"
+    },
+    "kind": {
+      "const": "WafZoneChange"
+    },
+    "baseRevisionId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "zoneRevisionId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "resolutionId": {
+      "$ref": "shared.schema.json#/$defs/Id"
+    },
+    "resolutionDigest": {
+      "$ref": "shared.schema.json#/$defs/Digest"
+    },
+    "reason": {
+      "$ref": "shared.schema.json#/$defs/Reason"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "kind",
+    "baseRevisionId",
+    "zoneRevisionId",
+    "resolutionId",
+    "resolutionDigest",
+    "reason"
+  ],
+  "additionalProperties": false
+}

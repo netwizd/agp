@@ -2,6 +2,7 @@
 Description=AGP Auth Gateway Portal backend
 After=network-online.target
 Wants=network-online.target
+ConditionPathExists=!/var/lib/agp-release/recovery-blocked.json
 
 [Service]
 Type=simple
